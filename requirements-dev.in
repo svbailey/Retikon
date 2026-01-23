@@ -3,5 +3,6 @@
 black
 mypy
 pytest
+httpx
 requests
 ruff
