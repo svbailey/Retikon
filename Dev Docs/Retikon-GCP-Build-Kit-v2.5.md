@@ -984,14 +984,14 @@ E2, E1
 
 - E2 YAML definitions
   - Create YAMLs:
-    - `schemas/graphar/MediaAsset/prefix.yml`
-    - `schemas/graphar/DocChunk/prefix.yml`
-    - `schemas/graphar/ImageAsset/prefix.yml`
-    - `schemas/graphar/Transcript/prefix.yml`
-    - `schemas/graphar/AudioClip/prefix.yml`
-    - `schemas/graphar/DerivedFrom/prefix.yml`
-    - `schemas/graphar/NextKeyframe/prefix.yml`
-    - `schemas/graphar/NextTranscript/prefix.yml`
+    - `retikon_core/schemas/graphar/MediaAsset/prefix.yml`
+    - `retikon_core/schemas/graphar/DocChunk/prefix.yml`
+    - `retikon_core/schemas/graphar/ImageAsset/prefix.yml`
+    - `retikon_core/schemas/graphar/Transcript/prefix.yml`
+    - `retikon_core/schemas/graphar/AudioClip/prefix.yml`
+    - `retikon_core/schemas/graphar/DerivedFrom/prefix.yml`
+    - `retikon_core/schemas/graphar/NextKeyframe/prefix.yml`
+    - `retikon_core/schemas/graphar/NextTranscript/prefix.yml`
   - Each YAML includes:
     - type name, schema version, column definitions, and file layout.
   - Validate YAMLs with an internal checker script.

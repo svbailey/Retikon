@@ -13,7 +13,7 @@ these instructions before making changes.
 ## Source of Truth
 
 - Primary plan: `Dev Docs/Retikon-GCP-Build-Kit-v2.5.md`
-- GraphAr schemas: `schemas/graphar/`
+- GraphAr schemas: `retikon_core/schemas/graphar/`
 - This guide: `AGENTS.md`
 
 If there is a conflict between docs, ask for clarification before proceeding.
@@ -23,7 +23,7 @@ If there is a conflict between docs, ask for clarification before proceeding.
 - `retikon_core/`: core ingestion and query logic (cloud-agnostic).
 - `gcp_adapter/`: Cloud Run entry points (Flask/FastAPI).
 - `infrastructure/terraform/`: GCP IaC.
-- `schemas/graphar/`: GraphAr YAML definitions.
+- `retikon_core/schemas/graphar/`: GraphAr YAML definitions.
 - `Dev Docs/`: development plan and references.
 
 ## Guardrails
@@ -43,7 +43,7 @@ If there is a conflict between docs, ask for clarification before proceeding.
 - Edge layout:
   - `edges/<Type>/adj_list/part-<uuid>.parquet`
 - Use `union_by_name=true` for queries that span schema versions.
-- YAMLs live in `schemas/graphar/` and must stay in sync with code.
+- YAMLs live in `retikon_core/schemas/graphar/` and must stay in sync with code.
 
 ## Embeddings and Models
 
@@ -56,7 +56,7 @@ Defaults (locked):
 If you want to change models, get approval and update:
 
 - `Dev Docs/Retikon-GCP-Build-Kit-v2.5.md`
-- `schemas/graphar/*/prefix.yml` vector lengths
+- `retikon_core/schemas/graphar/*/prefix.yml` vector lengths
 - Any embedding code and tests
 
 ## Tokenizer and Chunking

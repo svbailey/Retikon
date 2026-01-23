@@ -8,14 +8,14 @@ tracks the v2.5 build kit and the development plan.
 
 - Development plan: `Dev Docs/Retikon-GCP-Build-Kit-v2.5.md`
 - Agent rules: `AGENTS.md`
-- GraphAr schemas: `schemas/graphar/README.md`
+- GraphAr schemas: `retikon_core/schemas/graphar/README.md`
 
 ## Repository layout (expected)
 
 - `retikon_core/`: cloud-agnostic ingestion and query logic.
 - `gcp_adapter/`: Cloud Run entry points (Flask/FastAPI).
 - `infrastructure/terraform/`: GCP IaC.
-- `schemas/graphar/`: GraphAr schema YAMLs.
+- `retikon_core/schemas/graphar/`: GraphAr schema YAMLs.
 - `Dev Docs/`: design and sprint plan.
 
 ## Defaults and constraints (locked)
@@ -77,7 +77,7 @@ Key variables:
 
 - Review the sprint plan in `Dev Docs/Retikon-GCP-Build-Kit-v2.5.md`.
 - Implement work in small, testable changes.
-- Keep schemas in `schemas/graphar/` in sync with code.
+- Keep schemas in `retikon_core/schemas/graphar/` in sync with code.
 - Add unit tests for new logic and update docs when behavior changes.
 
 ## Testing
