@@ -14,3 +14,5 @@ def _set_env(monkeypatch):
     monkeypatch.setenv("CHUNK_TARGET_TOKENS", "512")
     monkeypatch.setenv("CHUNK_OVERLAP_TOKENS", "50")
     monkeypatch.setenv("INGESTION_DRY_RUN", "1")
+    monkeypatch.setenv("VIDEO_SAMPLE_FPS", "1.0")
+    monkeypatch.setenv("VIDEO_SAMPLE_INTERVAL_SECONDS", "0")

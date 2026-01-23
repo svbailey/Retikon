@@ -36,9 +36,12 @@ def ingest_image(
     output_root = output_uri or graph_root(config.graph_bucket, config.graph_prefix)
 
     with Image.open(source.local_path) as img:
-        img = ImageOps.exif_transpose(img).convert("RGB")
-        width, height = img.size
-        image_bytes = img.tobytes()
+        exif_img = ImageOps.exif_transpose(img)
+        if exif_img is None:
+            exif_img = img
+        rgb = exif_img.convert("RGB")
+        width, height = rgb.size
+        image_bytes = rgb.tobytes()
 
     embedder = get_image_embedder(512)
     vector = embedder.encode([image_bytes])[0]

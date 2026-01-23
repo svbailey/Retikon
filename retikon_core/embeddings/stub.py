@@ -14,6 +14,10 @@ class ImageEmbedder(Protocol):
     def encode(self, images: Iterable[bytes]) -> list[list[float]]: ...
 
 
+class AudioEmbedder(Protocol):
+    def encode(self, clips: Iterable[bytes]) -> list[list[float]]: ...
+
+
 def _seed_from_bytes(payload: bytes) -> int:
     digest = hashlib.sha256(payload).digest()
     return int.from_bytes(digest[:8], "big")
@@ -48,6 +52,18 @@ class StubImageEmbedder:
         return vectors
 
 
+class StubAudioEmbedder:
+    def __init__(self, dim: int) -> None:
+        self.dim = dim
+
+    def encode(self, clips: Iterable[bytes]) -> list[list[float]]:
+        vectors: list[list[float]] = []
+        for payload in clips:
+            seed = _seed_from_bytes(payload)
+            vectors.append(_deterministic_vector(seed, self.dim))
+        return vectors
+
+
 def get_text_embedder(dim: int) -> TextEmbedder:
     if os.getenv("USE_REAL_MODELS") == "1":
         raise RuntimeError("Real text embedder is not wired yet.")
@@ -58,3 +74,9 @@ def get_image_embedder(dim: int) -> ImageEmbedder:
     if os.getenv("USE_REAL_MODELS") == "1":
         raise RuntimeError("Real image embedder is not wired yet.")
     return StubImageEmbedder(dim)
+
+
+def get_audio_embedder(dim: int) -> AudioEmbedder:
+    if os.getenv("USE_REAL_MODELS") == "1":
+        raise RuntimeError("Real audio embedder is not wired yet.")
+    return StubAudioEmbedder(dim)

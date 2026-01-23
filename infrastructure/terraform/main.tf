@@ -199,6 +199,14 @@ resource "google_cloud_run_service" "ingestion" {
           name  = "INGESTION_DRY_RUN"
           value = "0"
         }
+        env {
+          name  = "VIDEO_SAMPLE_FPS"
+          value = "1.0"
+        }
+        env {
+          name  = "VIDEO_SAMPLE_INTERVAL_SECONDS"
+          value = "0"
+        }
       }
     }
   }

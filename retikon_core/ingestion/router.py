@@ -42,7 +42,7 @@ def _modality_for_name(name: str) -> str:
 
 
 def _ensure_allowed(event: GcsEvent, config: Config, modality: str) -> None:
-    extension = event.extension
+    extension = _extension_for_event(event)
     if modality == "document" and extension not in config.allowed_doc_ext:
         raise PermanentError(f"Unsupported document extension: {extension}")
     if modality == "image" and extension not in config.allowed_image_ext:
@@ -51,6 +51,31 @@ def _ensure_allowed(event: GcsEvent, config: Config, modality: str) -> None:
         raise PermanentError(f"Unsupported audio extension: {extension}")
     if modality == "video" and extension not in config.allowed_video_ext:
         raise PermanentError(f"Unsupported video extension: {extension}")
+
+
+_CONTENT_TYPE_EXT: dict[str, str] = {
+    "audio/mpeg": ".mp3",
+    "audio/mp3": ".mp3",
+    "audio/wav": ".wav",
+    "audio/x-wav": ".wav",
+    "audio/flac": ".flac",
+    "audio/x-flac": ".flac",
+    "audio/mp4": ".m4a",
+    "audio/aac": ".aac",
+    "audio/ogg": ".ogg",
+    "audio/opus": ".opus",
+    "video/mp4": ".mp4",
+    "video/quicktime": ".mov",
+    "video/x-msvideo": ".avi",
+}
+
+
+def _extension_for_event(event: GcsEvent) -> str:
+    if event.extension:
+        return event.extension
+    if event.content_type:
+        return _CONTENT_TYPE_EXT.get(event.content_type.lower(), "")
+    return ""
 
 
 def _check_size(event: GcsEvent, config: Config) -> None:
@@ -114,11 +139,35 @@ def _run_pipeline(
             manifest_uri=result.manifest_uri,
         )
     if modality == "audio":
-        _ = audio.ingest_audio_stub()
-        return PipelineOutcome(status="skipped", counts={})
+        if source is None:
+            raise PermanentError("Missing source for audio pipeline")
+        result = audio.ingest_audio(
+            source=source,
+            config=config,
+            output_uri=output_uri,
+            pipeline_version=pipeline_version_value,
+            schema_version=schema_version,
+        )
+        return PipelineOutcome(
+            status="completed",
+            counts=result.counts,
+            manifest_uri=result.manifest_uri,
+        )
     if modality == "video":
-        _ = video.ingest_video_stub()
-        return PipelineOutcome(status="skipped", counts={})
+        if source is None:
+            raise PermanentError("Missing source for video pipeline")
+        result = video.ingest_video(
+            source=source,
+            config=config,
+            output_uri=output_uri,
+            pipeline_version=pipeline_version_value,
+            schema_version=schema_version,
+        )
+        return PipelineOutcome(
+            status="completed",
+            counts=result.counts,
+            manifest_uri=result.manifest_uri,
+        )
     raise PermanentError(f"Unsupported modality: {modality}")
 
 
@@ -135,16 +184,6 @@ def process_event(
     output_uri = graph_root(config.graph_bucket, config.graph_prefix)
     pipeline_version_value = pipeline_version()
     schema_version = _schema_version()
-
-    if modality in ("audio", "video"):
-        return _run_pipeline(
-            modality=modality,
-            source=None,
-            config=config,
-            output_uri=output_uri,
-            pipeline_version_value=pipeline_version_value,
-            schema_version=schema_version,
-        )
 
     download = download_to_tmp(
         storage_client,

@@ -22,6 +22,8 @@ class Config:
     allowed_audio_ext: tuple[str, ...]
     allowed_video_ext: tuple[str, ...]
     ingestion_dry_run: bool
+    video_sample_fps: float
+    video_sample_interval_seconds: float
     snapshot_uri: str | None = None
 
     @classmethod
@@ -81,6 +83,10 @@ class Config:
             )
         )
         ingestion_dry_run = os.getenv("INGESTION_DRY_RUN", "0") == "1"
+        video_sample_fps = _parse_float(os.getenv("VIDEO_SAMPLE_FPS", "1.0"))
+        video_sample_interval_seconds = _parse_float(
+            os.getenv("VIDEO_SAMPLE_INTERVAL_SECONDS", "0")
+        )
         snapshot_uri = os.getenv("SNAPSHOT_URI")
 
         if missing:
@@ -105,6 +111,8 @@ class Config:
             allowed_audio_ext=allowed_audio_ext,
             allowed_video_ext=allowed_video_ext,
             ingestion_dry_run=ingestion_dry_run,
+            video_sample_fps=video_sample_fps,
+            video_sample_interval_seconds=video_sample_interval_seconds,
             snapshot_uri=snapshot_uri,
         )
 
@@ -119,6 +127,13 @@ def _parse_ext_list(value: str) -> tuple[str, ...]:
             cleaned = f".{cleaned}"
         items.append(cleaned)
     return tuple(items)
+
+
+def _parse_float(value: str) -> float:
+    try:
+        return float(value)
+    except ValueError as exc:
+        raise ValueError(f"Invalid float value: {value}") from exc
 
 
 @lru_cache(maxsize=1)
