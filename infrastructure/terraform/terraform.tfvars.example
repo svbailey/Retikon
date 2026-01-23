@@ -1,0 +1,8 @@
+project_id        = "simitor"
+region            = "us-central1"
+env               = "dev"
+raw_bucket_name   = "retikon-raw-simitor-dev"
+graph_bucket_name = "retikon-graph-simitor-dev"
+artifact_repo_name = "retikon-repo"
+firestore_location = "nam5"
+snapshot_uri      = "gs://retikon-graph-simitor-dev/retikon_v2/snapshots/retikon.duckdb"

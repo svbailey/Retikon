@@ -1,0 +1,17 @@
+name: build
+
+on:
+  workflow_dispatch:
+  push:
+    tags:
+      - "v*"
+
+jobs:
+  docker-build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build ingest image
+        run: docker build -t retikon-ingest:ci --build-arg APP_MODULE=gcp_adapter.ingestion_service:app .
+      - name: Build query image
+        run: docker build -t retikon-query:ci --build-arg APP_MODULE=gcp_adapter.query_service:app .

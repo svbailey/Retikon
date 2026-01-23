@@ -1,0 +1,13 @@
+.git
+.gitignore
+.env
+.env.*
+__pycache__
+*.pyc
+.venv
+venv
+.devcontainer
+.DS_Store
+infrastructure/terraform/.terraform
+infrastructure/terraform/terraform.tfstate
+infrastructure/terraform/terraform.tfstate.backup

@@ -938,7 +938,7 @@ E1, E3, E7
   - Add placeholder env vars on both services and output URLs + bucket names.
 
 - E3 Service skeletons
-  - Implement `GET /healthz` on both services.
+- Implement `GET /health` on both services.
     - Return JSON with `status`, `service`, `version`, `commit`.
   - Implement `POST /ingest` to accept CloudEvent JSON.
     - Validate structure, return `202` and a trace ID.
@@ -946,7 +946,7 @@ E1, E3, E7
   - Add request validation using pydantic or dataclasses.
   - Add basic integration test:
     - start the container locally
-    - hit `/healthz` and assert 200
+    - hit `/health` and assert 200
 
 - E7 CI/CD bootstrap
   - CI workflow: run lint + unit tests on PR.
@@ -957,7 +957,7 @@ E1, E3, E7
 
 - `terraform apply` deploys both services.
 - CI passes on a clean PR.
-- `/healthz` returns OK on Cloud Run for both services.
+- `/health` returns OK on Cloud Run for both services.
 
 ### Sprint 2 (Weeks 3-4) - GraphAr spec, schemas, and writers
 
