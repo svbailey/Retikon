@@ -13,3 +13,4 @@ def _set_env(monkeypatch):
     monkeypatch.setenv("MAX_AUDIO_SECONDS", "1200")
     monkeypatch.setenv("CHUNK_TARGET_TOKENS", "512")
     monkeypatch.setenv("CHUNK_OVERLAP_TOKENS", "50")
+    monkeypatch.setenv("INGESTION_DRY_RUN", "1")

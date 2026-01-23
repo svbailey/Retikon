@@ -54,6 +54,12 @@ resource "google_storage_bucket_iam_member" "ingest_graph_admin" {
   member = "serviceAccount:${google_service_account.ingestion.email}"
 }
 
+resource "google_project_iam_member" "ingest_firestore_user" {
+  project = var.project_id
+  role    = "roles/datastore.user"
+  member  = "serviceAccount:${google_service_account.ingestion.email}"
+}
+
 resource "google_storage_bucket_iam_member" "query_graph_view" {
   bucket = google_storage_bucket.graph.name
   role   = "roles/storage.objectViewer"
@@ -164,6 +170,34 @@ resource "google_cloud_run_service" "ingestion" {
         env {
           name  = "CHUNK_OVERLAP_TOKENS"
           value = tostring(var.chunk_overlap_tokens)
+        }
+        env {
+          name  = "FIRESTORE_COLLECTION"
+          value = "ingestion_events"
+        }
+        env {
+          name  = "IDEMPOTENCY_TTL_SECONDS"
+          value = "600"
+        }
+        env {
+          name  = "ALLOWED_DOC_EXT"
+          value = ".pdf,.txt,.md,.rtf,.docx,.doc,.pptx,.ppt,.csv,.tsv,.xlsx,.xls"
+        }
+        env {
+          name  = "ALLOWED_IMAGE_EXT"
+          value = ".jpg,.jpeg,.png,.webp,.bmp,.tiff,.gif"
+        }
+        env {
+          name  = "ALLOWED_AUDIO_EXT"
+          value = ".mp3,.wav,.flac,.m4a,.aac,.ogg,.opus"
+        }
+        env {
+          name  = "ALLOWED_VIDEO_EXT"
+          value = ".mp4,.mov,.mkv,.webm,.avi,.mpeg,.mpg"
+        }
+        env {
+          name  = "INGESTION_DRY_RUN"
+          value = "0"
         }
       }
     }

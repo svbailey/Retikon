@@ -15,6 +15,13 @@ class Config:
     max_audio_seconds: int
     chunk_target_tokens: int
     chunk_overlap_tokens: int
+    firestore_collection: str
+    idempotency_ttl_seconds: int
+    allowed_doc_ext: tuple[str, ...]
+    allowed_image_ext: tuple[str, ...]
+    allowed_audio_ext: tuple[str, ...]
+    allowed_video_ext: tuple[str, ...]
+    ingestion_dry_run: bool
     snapshot_uri: str | None = None
 
     @classmethod
@@ -47,6 +54,33 @@ class Config:
         max_audio_seconds = require_int("MAX_AUDIO_SECONDS")
         chunk_target_tokens = require_int("CHUNK_TARGET_TOKENS")
         chunk_overlap_tokens = require_int("CHUNK_OVERLAP_TOKENS")
+        firestore_collection = os.getenv("FIRESTORE_COLLECTION", "ingestion_events")
+        idempotency_ttl_seconds = int(os.getenv("IDEMPOTENCY_TTL_SECONDS", "600"))
+        allowed_doc_ext = _parse_ext_list(
+            os.getenv(
+                "ALLOWED_DOC_EXT",
+                ".pdf,.txt,.md,.rtf,.docx,.doc,.pptx,.ppt,.csv,.tsv,.xlsx,.xls",
+            )
+        )
+        allowed_image_ext = _parse_ext_list(
+            os.getenv(
+                "ALLOWED_IMAGE_EXT",
+                ".jpg,.jpeg,.png,.webp,.bmp,.tiff,.gif",
+            )
+        )
+        allowed_audio_ext = _parse_ext_list(
+            os.getenv(
+                "ALLOWED_AUDIO_EXT",
+                ".mp3,.wav,.flac,.m4a,.aac,.ogg,.opus",
+            )
+        )
+        allowed_video_ext = _parse_ext_list(
+            os.getenv(
+                "ALLOWED_VIDEO_EXT",
+                ".mp4,.mov,.mkv,.webm,.avi,.mpeg,.mpg",
+            )
+        )
+        ingestion_dry_run = os.getenv("INGESTION_DRY_RUN", "0") == "1"
         snapshot_uri = os.getenv("SNAPSHOT_URI")
 
         if missing:
@@ -64,8 +98,27 @@ class Config:
             max_audio_seconds=max_audio_seconds,
             chunk_target_tokens=chunk_target_tokens,
             chunk_overlap_tokens=chunk_overlap_tokens,
+            firestore_collection=firestore_collection,
+            idempotency_ttl_seconds=idempotency_ttl_seconds,
+            allowed_doc_ext=allowed_doc_ext,
+            allowed_image_ext=allowed_image_ext,
+            allowed_audio_ext=allowed_audio_ext,
+            allowed_video_ext=allowed_video_ext,
+            ingestion_dry_run=ingestion_dry_run,
             snapshot_uri=snapshot_uri,
         )
+
+
+def _parse_ext_list(value: str) -> tuple[str, ...]:
+    items = []
+    for raw in value.split(","):
+        cleaned = raw.strip().lower()
+        if not cleaned:
+            continue
+        if not cleaned.startswith("."):
+            cleaned = f".{cleaned}"
+        items.append(cleaned)
+    return tuple(items)
 
 
 @lru_cache(maxsize=1)

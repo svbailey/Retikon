@@ -5,3 +5,12 @@ pyarrow
 PyYAML
 fsspec
 gcsfs
+google-cloud-firestore
+google-cloud-storage
+pillow
+pymupdf
+python-docx
+python-pptx
+pandas
+openpyxl
+xlrd

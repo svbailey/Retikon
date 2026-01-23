@@ -1,12 +1,18 @@
+import json
 import os
 import time
 import uuid
+from datetime import timedelta
 from typing import Any
 
 from fastapi import FastAPI, Header, HTTPException, Request
+from google.cloud import firestore, storage
 from pydantic import BaseModel
 
 from retikon_core.config import get_config
+from retikon_core.errors import PermanentError, RecoverableError, ValidationError
+from retikon_core.ingestion import FirestoreIdempotency, parse_cloudevent, process_event
+from retikon_core.ingestion.router import pipeline_version
 from retikon_core.logging import configure_logging, get_logger
 
 SERVICE_NAME = "retikon-ingestion"
@@ -19,16 +25,6 @@ configure_logging(
 logger = get_logger(__name__)
 
 app = FastAPI()
-
-
-class CloudEvent(BaseModel):
-    id: str
-    type: str
-    source: str
-    specversion: str
-    time: str | None = None
-    subject: str | None = None
-    data: dict[str, Any] | None = None
 
 
 class HealthResponse(BaseModel):
@@ -75,11 +71,10 @@ async def health() -> HealthResponse:
 @app.post("/ingest", response_model=IngestResponse, status_code=202)
 async def ingest(
     request: Request,
-    event: CloudEvent,
     x_request_id: str | None = Header(default=None),
 ) -> IngestResponse:
     try:
-        _ = get_config()
+        config = get_config()
     except ValueError as exc:
         raise HTTPException(status_code=500, detail=str(exc)) from exc
 
@@ -92,7 +87,72 @@ async def ingest(
         },
     )
 
-    if event.data is None:
-        raise HTTPException(status_code=400, detail="CloudEvent data is required")
+    try:
+        body = await request.json()
+    except json.JSONDecodeError as exc:
+        raise HTTPException(status_code=400, detail="Invalid JSON payload") from exc
 
-    return IngestResponse(status="accepted", trace_id=trace_id)
+    if config.ingestion_dry_run:
+        return IngestResponse(status="accepted", trace_id=trace_id)
+
+    cloudevent_payload = _coerce_cloudevent(request, body)
+    try:
+        gcs_event = parse_cloudevent(cloudevent_payload)
+    except ValidationError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    storage_client = storage.Client()
+    firestore_client = firestore.Client()
+    idempotency = FirestoreIdempotency(
+        firestore_client,
+        config.firestore_collection,
+        processing_ttl=timedelta(seconds=config.idempotency_ttl_seconds),
+    )
+    decision = idempotency.begin(
+        bucket=gcs_event.bucket,
+        name=gcs_event.name,
+        generation=gcs_event.generation,
+        size=gcs_event.size,
+        pipeline_version=pipeline_version(),
+    )
+
+    if decision.action == "skip_completed":
+        return IngestResponse(status="completed", trace_id=trace_id)
+    if decision.action == "skip_processing":
+        return IngestResponse(status="processing", trace_id=trace_id)
+
+    try:
+        outcome = process_event(
+            event=gcs_event,
+            config=config,
+            storage_client=storage_client,
+        )
+        idempotency.mark_completed(decision.doc_id)
+        return IngestResponse(status=outcome.status, trace_id=trace_id)
+    except PermanentError as exc:
+        idempotency.mark_failed(decision.doc_id, "PERMANENT", str(exc))
+        return IngestResponse(status="failed", trace_id=trace_id)
+    except RecoverableError as exc:
+        idempotency.mark_failed(decision.doc_id, "RECOVERABLE", str(exc))
+        raise HTTPException(status_code=500, detail=str(exc)) from exc
+    except Exception as exc:
+        idempotency.mark_failed(decision.doc_id, "UNKNOWN", str(exc))
+        raise HTTPException(status_code=500, detail="Unexpected error") from exc
+
+
+def _coerce_cloudevent(request: Request, body: Any) -> dict[str, Any]:
+    if isinstance(body, dict) and "specversion" in body:
+        return body
+
+    def header(name: str) -> str | None:
+        return request.headers.get(name)
+
+    return {
+        "id": header("ce-id"),
+        "type": header("ce-type"),
+        "source": header("ce-source"),
+        "specversion": header("ce-specversion") or "1.0",
+        "time": header("ce-time"),
+        "subject": header("ce-subject"),
+        "data": body if isinstance(body, dict) else None,
+    }
