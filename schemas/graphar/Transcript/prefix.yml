@@ -1,0 +1,46 @@
+version: 1
+name: Transcript
+entity: vertex
+path_prefix: vertices/Transcript
+files:
+  core: vertices/Transcript/core
+  text: vertices/Transcript/text
+  vector: vertices/Transcript/vector
+primary_key: id
+fields:
+  - name: id
+    type: string
+    nullable: false
+  - name: media_asset_id
+    type: string
+    nullable: false
+  - name: segment_index
+    type: int32
+    nullable: false
+  - name: start_ms
+    type: int64
+    nullable: false
+  - name: end_ms
+    type: int64
+    nullable: false
+  - name: language
+    type: string
+    nullable: true
+  - name: embedding_model
+    type: string
+    nullable: false
+  - name: pipeline_version
+    type: string
+    nullable: false
+  - name: schema_version
+    type: string
+    nullable: false
+  - name: content
+    type: string
+    nullable: false
+    file: text
+  - name: text_embedding
+    type: list<float32>
+    vector_length: 768
+    nullable: false
+    file: vector

@@ -1,0 +1,41 @@
+version: 1
+name: ImageAsset
+entity: vertex
+path_prefix: vertices/ImageAsset
+files:
+  core: vertices/ImageAsset/core
+  vector: vertices/ImageAsset/vector
+primary_key: id
+fields:
+  - name: id
+    type: string
+    nullable: false
+  - name: media_asset_id
+    type: string
+    nullable: false
+  - name: frame_index
+    type: int32
+    nullable: true
+  - name: timestamp_ms
+    type: int64
+    nullable: true
+  - name: width_px
+    type: int32
+    nullable: false
+  - name: height_px
+    type: int32
+    nullable: false
+  - name: embedding_model
+    type: string
+    nullable: false
+  - name: pipeline_version
+    type: string
+    nullable: false
+  - name: schema_version
+    type: string
+    nullable: false
+  - name: clip_vector
+    type: list<float32>
+    vector_length: 512
+    nullable: false
+    file: vector

@@ -1,0 +1,52 @@
+version: 1
+name: DocChunk
+entity: vertex
+path_prefix: vertices/DocChunk
+files:
+  core: vertices/DocChunk/core
+  text: vertices/DocChunk/text
+  vector: vertices/DocChunk/vector
+primary_key: id
+fields:
+  - name: id
+    type: string
+    nullable: false
+  - name: media_asset_id
+    type: string
+    nullable: false
+  - name: chunk_index
+    type: int32
+    nullable: false
+  - name: char_start
+    type: int32
+    nullable: false
+  - name: char_end
+    type: int32
+    nullable: false
+  - name: token_start
+    type: int32
+    nullable: false
+  - name: token_end
+    type: int32
+    nullable: false
+  - name: token_count
+    type: int32
+    nullable: false
+  - name: embedding_model
+    type: string
+    nullable: false
+  - name: pipeline_version
+    type: string
+    nullable: false
+  - name: schema_version
+    type: string
+    nullable: false
+  - name: content
+    type: string
+    nullable: false
+    file: text
+  - name: text_vector
+    type: list<float32>
+    vector_length: 768
+    nullable: false
+    file: vector

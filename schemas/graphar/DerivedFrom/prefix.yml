@@ -1,0 +1,14 @@
+version: 1
+name: DerivedFrom
+entity: edge
+directed: true
+path_prefix: edges/DerivedFrom
+files:
+  adj_list: edges/DerivedFrom/adj_list
+fields:
+  - name: src_id
+    type: string
+    nullable: false
+  - name: dst_id
+    type: string
+    nullable: false

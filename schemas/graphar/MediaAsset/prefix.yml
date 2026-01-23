@@ -1,0 +1,62 @@
+version: 1
+name: MediaAsset
+entity: vertex
+path_prefix: vertices/MediaAsset
+files:
+  core: vertices/MediaAsset/core
+primary_key: id
+fields:
+  - name: id
+    type: string
+    nullable: false
+  - name: uri
+    type: string
+    nullable: false
+  - name: media_type
+    type: string
+    nullable: false
+  - name: content_type
+    type: string
+    nullable: false
+  - name: size_bytes
+    type: int64
+    nullable: false
+  - name: source_bucket
+    type: string
+    nullable: false
+  - name: source_object
+    type: string
+    nullable: false
+  - name: source_generation
+    type: string
+    nullable: false
+  - name: checksum
+    type: string
+    nullable: true
+  - name: duration_ms
+    type: int64
+    nullable: true
+  - name: width_px
+    type: int32
+    nullable: true
+  - name: height_px
+    type: int32
+    nullable: true
+  - name: frame_count
+    type: int32
+    nullable: true
+  - name: sample_rate_hz
+    type: int32
+    nullable: true
+  - name: channels
+    type: int32
+    nullable: true
+  - name: created_at
+    type: timestamp
+    nullable: false
+  - name: pipeline_version
+    type: string
+    nullable: false
+  - name: schema_version
+    type: string
+    nullable: false

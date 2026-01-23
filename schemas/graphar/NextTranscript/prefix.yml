@@ -1,0 +1,14 @@
+version: 1
+name: NextTranscript
+entity: edge
+directed: true
+path_prefix: edges/NextTranscript
+files:
+  adj_list: edges/NextTranscript/adj_list
+fields:
+  - name: src_id
+    type: string
+    nullable: false
+  - name: dst_id
+    type: string
+    nullable: false

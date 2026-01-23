@@ -1,0 +1,41 @@
+version: 1
+name: AudioClip
+entity: vertex
+path_prefix: vertices/AudioClip
+files:
+  core: vertices/AudioClip/core
+  vector: vertices/AudioClip/vector
+primary_key: id
+fields:
+  - name: id
+    type: string
+    nullable: false
+  - name: media_asset_id
+    type: string
+    nullable: false
+  - name: start_ms
+    type: int64
+    nullable: false
+  - name: end_ms
+    type: int64
+    nullable: false
+  - name: sample_rate_hz
+    type: int32
+    nullable: false
+  - name: channels
+    type: int32
+    nullable: false
+  - name: embedding_model
+    type: string
+    nullable: false
+  - name: pipeline_version
+    type: string
+    nullable: false
+  - name: schema_version
+    type: string
+    nullable: false
+  - name: clap_embedding
+    type: list<float32>
+    vector_length: 512
+    nullable: false
+    file: vector
