@@ -18,6 +18,8 @@ tracks the v2.5 build kit and the development plan.
 - Golden demo: `Dev Docs/Golden-Demo.md`
 - Security checklist: `Dev Docs/Security-Checklist.md`
 - Release checklist: `Dev Docs/Release-Checklist.md`
+- Developer integration guide: `Dev Docs/Developer-Integration-Guide.md`
+- Developer console UI guide: `Dev Docs/Developer-Console-UI-Guide.md`
 
 ## Repository layout (expected)
 

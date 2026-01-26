@@ -396,6 +396,8 @@ def ingest_image(bucket: str, key: str):
 Document ingestion supports PDF, DOCX, PPTX, CSV, TSV, and Excel files. The
 pipeline extracts text, splits it into chunks, embeds with a text model, and
 stores DocChunk vertices.
+OCR is optional and off by default; enable it via a flag and include OCR
+dependencies when needed.
 
 ```python
 import os
@@ -738,8 +740,8 @@ additive schema evolution rules.
 
 #### File allowlists (defaults)
 
-- Docs: `.pdf`, `.txt`, `.md`, `.rtf`, `.docx`, `.doc`, `.pptx`, `.ppt`, `.csv`,
-  `.tsv`, `.xlsx`, `.xls`
+- Docs: `.pdf`, `.txt`, `.md`, `.rtf`, `.docx`, `.pptx`, `.csv`, `.tsv`,
+  `.xlsx`, `.xls`
 - Images: `.jpg`, `.jpeg`, `.png`, `.webp`, `.bmp`, `.tiff`, `.gif` (first frame)
 - Audio: `.mp3`, `.wav`, `.flac`, `.m4a`, `.aac`, `.ogg`, `.opus`
 - Video: `.mp4`, `.mov`, `.mkv`, `.webm`, `.avi`, `.mpeg`, `.mpg`

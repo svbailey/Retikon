@@ -71,6 +71,18 @@ def _query_rows(
     return conn.execute(sql, list(params)).fetchall()
 
 
+def _table_has_column(
+    conn: duckdb.DuckDBPyConnection,
+    table: str,
+    column: str,
+) -> bool:
+    try:
+        rows = conn.execute(f"PRAGMA table_info('{table}')").fetchall()
+    except duckdb.Error:
+        return False
+    return any(row[1] == column for row in rows)
+
+
 @lru_cache(maxsize=256)
 def _cached_text_vector(text: str) -> tuple[float, ...]:
     return tuple(get_text_embedder(768).encode([text])[0])
@@ -99,6 +111,9 @@ def search_by_text(
     results: list[QueryResult] = []
     conn = _connect(snapshot_path)
     try:
+        has_thumbnail = _table_has_column(conn, "image_assets", "thumbnail_uri")
+        thumbnail_expr = "i.thumbnail_uri" if has_thumbnail else "NULL AS thumbnail_uri"
+
         doc_sql = f"""
             SELECT m.uri, m.media_type, d.media_asset_id, d.content,
                    list_cosine_distance(d.text_vector, ?::FLOAT[]) AS distance
@@ -149,7 +164,7 @@ def search_by_text(
 
         image_sql = f"""
             SELECT m.uri, m.media_type, i.media_asset_id, i.timestamp_ms,
-                   i.thumbnail_uri,
+                   {thumbnail_expr},
                    list_cosine_distance(i.clip_vector, ?::FLOAT[]) AS distance
             FROM image_assets i
             JOIN media_assets m ON i.media_asset_id = m.id
@@ -223,9 +238,12 @@ def search_by_image(
 
     conn = _connect(snapshot_path)
     try:
+        has_thumbnail = _table_has_column(conn, "image_assets", "thumbnail_uri")
+        thumbnail_expr = "i.thumbnail_uri" if has_thumbnail else "NULL AS thumbnail_uri"
+
         image_sql = f"""
             SELECT m.uri, m.media_type, i.media_asset_id, i.timestamp_ms,
-                   i.thumbnail_uri,
+                   {thumbnail_expr},
                    list_cosine_distance(i.clip_vector, ?::FLOAT[]) AS distance
             FROM image_assets i
             JOIN media_assets m ON i.media_asset_id = m.id

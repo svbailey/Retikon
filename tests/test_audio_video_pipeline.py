@@ -4,6 +4,7 @@ import pytest
 
 from retikon_core.config import get_config
 from retikon_core.errors import PermanentError, RecoverableError
+from retikon_core.ingestion.media import FrameInfo
 from retikon_core.ingestion.pipelines import audio as audio_pipeline
 from retikon_core.ingestion.pipelines import video as video_pipeline
 from retikon_core.ingestion.types import IngestSource
@@ -153,8 +154,11 @@ def test_video_pipeline_writes_graphar(tmp_path, monkeypatch):
     monkeypatch.setattr(video_pipeline, "probe_media", fake_probe)
     monkeypatch.setattr(
         video_pipeline,
-        "extract_frames",
-        lambda _path, fps, output_dir: [str(frame_fixture), str(frame_fixture)],
+        "extract_keyframes",
+        lambda *args, **kwargs: [
+            FrameInfo(path=str(frame_fixture), timestamp_ms=0),
+            FrameInfo(path=str(frame_fixture), timestamp_ms=1000),
+        ],
     )
     monkeypatch.setattr(
         video_pipeline,

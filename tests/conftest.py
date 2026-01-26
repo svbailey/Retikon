@@ -33,6 +33,7 @@ def _build_snapshot(path):
         "CREATE TABLE image_assets ("
         "media_asset_id VARCHAR, "
         "timestamp_ms BIGINT, "
+        "thumbnail_uri VARCHAR, "
         "clip_vector FLOAT[]"
         ")"
     )
@@ -65,8 +66,8 @@ def _build_snapshot(path):
         ["media-4", "hello transcript", 1200, text_vec],
     )
     conn.execute(
-        "INSERT INTO image_assets VALUES (?, ?, ?)",
-        ["media-2", 0, clip_vec],
+        "INSERT INTO image_assets VALUES (?, ?, ?, ?)",
+        ["media-2", 0, None, clip_vec],
     )
     conn.execute(
         "INSERT INTO audio_clips VALUES (?, ?)",
