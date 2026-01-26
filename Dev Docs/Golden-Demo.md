@@ -41,3 +41,11 @@ curl -X POST "$QUERY_URL/query" \
 
 - The demo uploads files into `raw/<modality>/<run-id>/`.
 - Clean up demo data if needed to avoid storage costs.
+
+## Latest run (2026-01-26)
+
+- Run ID: `golden-20260126-130909`
+- Ingestion status: 10 completed, 0 DLQ (fixtures updated to include text in PDF/PPTX/XLSX)
+- Index builder execution: `retikon-index-builder-dev-wp4rf`
+- Snapshot reload: `{"status":"ok","service":"retikon-query",...}`
+- Query result (text="Retikon", top_k=5): returns document hits (CSV/TSV snippets)

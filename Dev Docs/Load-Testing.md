@@ -61,20 +61,22 @@ waits for Firestore ingestion completion.
 
 ### Query
 
-- Target QPS: 5 (30s, concurrency 10)
-- p50 latency (ms): 458.56
-- p95 latency (ms): 2769.45
-- p99 latency (ms): 4424.48
-- Error rate: 0% (150/150)
+- Target QPS: 5 (60s, concurrency 10)
+- p50 latency (ms): 554.52
+- p95 latency (ms): 902.92
+- p99 latency (ms): 1396.88
+- Error rate: 0% (0/300)
 - Notes:
   - Test ran against `https://retikon-query-dev-yt27ougp4q-uc.a.run.app/query`.
+  - Timeout set to 60s; query service tuned to concurrency=4, maxScale=50, cpu=2, memory=4Gi.
+  - Throughput was 4.93 rps for 300 requests.
 
 ### Ingestion
 
-- Target RPS: 1 (single file, concurrency 1)
-- Upload throughput (rps): 3.24
-- Completion p50 (s): 6.03
-- Completion p95 (s): 6.03
+- Target RPS: 1 (count 20, concurrency 4)
+- Upload throughput (rps): 18.41
+- Completion p50 (s): 37.44
+- Completion p95 (s): 97.21
 - Notes:
-  - Fixture: `tests/fixtures/sample.csv` (18 bytes).
-  - Status ended as `COMPLETED`.
+  - Fixtures: `/tmp/retikon_load_fixtures` (10 files, repeated to 20).
+  - Status ended as `COMPLETED` for 20/20 (polling).
