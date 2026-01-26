@@ -4,6 +4,7 @@ import base64
 import io
 import os
 from dataclasses import dataclass
+from functools import lru_cache
 from typing import Iterable
 
 import duckdb
@@ -68,15 +69,30 @@ def _query_rows(
     return conn.execute(sql, list(params)).fetchall()
 
 
+@lru_cache(maxsize=256)
+def _cached_text_vector(text: str) -> tuple[float, ...]:
+    return tuple(get_text_embedder(768).encode([text])[0])
+
+
+@lru_cache(maxsize=256)
+def _cached_image_text_vector(text: str) -> tuple[float, ...]:
+    return tuple(get_image_text_embedder(512).encode([text])[0])
+
+
+@lru_cache(maxsize=256)
+def _cached_audio_text_vector(text: str) -> tuple[float, ...]:
+    return tuple(get_audio_text_embedder(512).encode([text])[0])
+
+
 def search_by_text(
     *,
     snapshot_path: str,
     query_text: str,
     top_k: int,
 ) -> list[QueryResult]:
-    text_vec = get_text_embedder(768).encode([query_text])[0]
-    image_text_vec = get_image_text_embedder(512).encode([query_text])[0]
-    audio_text_vec = get_audio_text_embedder(512).encode([query_text])[0]
+    text_vec = list(_cached_text_vector(query_text))
+    image_text_vec = list(_cached_image_text_vector(query_text))
+    audio_text_vec = list(_cached_audio_text_vector(query_text))
 
     results: list[QueryResult] = []
     conn = _connect(snapshot_path)

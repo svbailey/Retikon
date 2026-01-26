@@ -343,6 +343,7 @@ resource "google_cloud_run_service" "query" {
     metadata {
       annotations = {
         "autoscaling.knative.dev/maxScale" = tostring(var.query_max_scale)
+        "autoscaling.knative.dev/minScale" = tostring(var.query_min_scale)
       }
     }
 

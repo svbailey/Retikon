@@ -62,14 +62,15 @@ waits for Firestore ingestion completion.
 ### Query
 
 - Target QPS: 5 (60s, concurrency 10)
-- p50 latency (ms): 554.52
-- p95 latency (ms): 902.92
-- p99 latency (ms): 1396.88
+- p50 latency (ms): 296.29
+- p95 latency (ms): 343.54
+- p99 latency (ms): 421.19
 - Error rate: 0% (0/300)
 - Notes:
   - Test ran against `https://retikon-query-dev-yt27ougp4q-uc.a.run.app/query`.
   - Timeout set to 60s; query service tuned to concurrency=4, maxScale=50, cpu=2, memory=4Gi.
-  - Throughput was 4.93 rps for 300 requests.
+  - Query image updated to `retikon-query:realmodels-20260126-142604` with embedding caches.
+  - Throughput was 4.97 rps for 300 requests (steady-state warm run).
 
 ### Ingestion
 

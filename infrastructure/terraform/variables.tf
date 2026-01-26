@@ -94,6 +94,11 @@ variable "query_max_scale" {
   default = 20
 }
 
+variable "query_min_scale" {
+  type    = number
+  default = 0
+}
+
 variable "index_memory" {
   type    = string
   default = "2Gi"

@@ -20,6 +20,7 @@ ingestion_concurrency = 1
 ingestion_max_scale = 10
 query_concurrency = 10
 query_max_scale = 20
+query_min_scale = 1
 eventarc_transport_topic_name = "retikon-ingest-transport"
 ingest_dlq_topic_name = "retikon-ingest-dlq"
 ingest_dlq_subscription_name = "retikon-ingest-dlq-sub"
