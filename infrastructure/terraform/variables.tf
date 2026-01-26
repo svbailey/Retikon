@@ -84,6 +84,21 @@ variable "index_cpu" {
   default = "1000m"
 }
 
+variable "index_builder_work_dir" {
+  type    = string
+  default = "/tmp"
+}
+
+variable "index_builder_copy_local" {
+  type    = bool
+  default = false
+}
+
+variable "index_builder_fallback_local" {
+  type    = bool
+  default = true
+}
+
 variable "graph_prefix" {
   type    = string
   default = "retikon_v2"
@@ -116,6 +131,31 @@ variable "chunk_target_tokens" {
 variable "chunk_overlap_tokens" {
   type    = number
   default = 50
+}
+
+variable "max_query_bytes" {
+  type    = number
+  default = 4000000
+}
+
+variable "max_image_base64_bytes" {
+  type    = number
+  default = 2000000
+}
+
+variable "duckdb_allow_install" {
+  type    = bool
+  default = true
+}
+
+variable "duckdb_gcs_fallback" {
+  type    = bool
+  default = false
+}
+
+variable "duckdb_skip_healthcheck" {
+  type    = bool
+  default = false
 }
 
 variable "log_level" {

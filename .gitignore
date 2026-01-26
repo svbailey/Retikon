@@ -2,6 +2,10 @@
 .env
 .env.*
 
+# Frontend
+frontend/dev-console/node_modules/
+frontend/dev-console/dist/
+
 # Terraform
 infrastructure/terraform/.terraform/
 infrastructure/terraform/terraform.tfstate

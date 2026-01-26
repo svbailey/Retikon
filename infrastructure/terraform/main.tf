@@ -301,6 +301,26 @@ resource "google_cloud_run_service" "query" {
             }
           }
         }
+        env {
+          name  = "MAX_QUERY_BYTES"
+          value = tostring(var.max_query_bytes)
+        }
+        env {
+          name  = "MAX_IMAGE_BASE64_BYTES"
+          value = tostring(var.max_image_base64_bytes)
+        }
+        env {
+          name  = "DUCKDB_ALLOW_INSTALL"
+          value = var.duckdb_allow_install ? "1" : "0"
+        }
+        env {
+          name  = "DUCKDB_GCS_FALLBACK"
+          value = var.duckdb_gcs_fallback ? "1" : "0"
+        }
+        env {
+          name  = "DUCKDB_SKIP_HEALTHCHECK"
+          value = var.duckdb_skip_healthcheck ? "1" : "0"
+        }
       }
     }
   }
@@ -379,6 +399,8 @@ resource "google_cloud_run_v2_job" "index_builder" {
 
       containers {
         image = var.index_image
+        command = ["python"]
+        args    = ["-m", "retikon_core.query_engine.index_builder"]
 
         env {
           name  = "ENV"
@@ -399,6 +421,22 @@ resource "google_cloud_run_v2_job" "index_builder" {
         env {
           name  = "SNAPSHOT_URI"
           value = var.snapshot_uri
+        }
+        env {
+          name  = "DUCKDB_ALLOW_INSTALL"
+          value = var.duckdb_allow_install ? "1" : "0"
+        }
+        env {
+          name  = "INDEX_BUILDER_WORK_DIR"
+          value = var.index_builder_work_dir
+        }
+        env {
+          name  = "INDEX_BUILDER_COPY_LOCAL"
+          value = var.index_builder_copy_local ? "1" : "0"
+        }
+        env {
+          name  = "INDEX_BUILDER_FALLBACK_LOCAL"
+          value = var.index_builder_fallback_local ? "1" : "0"
         }
 
         resources {

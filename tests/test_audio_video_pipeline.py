@@ -161,6 +161,7 @@ def test_video_pipeline_writes_graphar(tmp_path, monkeypatch):
         "extract_audio",
         lambda _path, sample_rate=48000: str(audio_fixture),
     )
+    monkeypatch.setattr(video_pipeline, "cleanup_tmp", lambda _path: None)
 
     source = IngestSource(
         bucket="test-raw",

@@ -1248,6 +1248,12 @@ E5, E6, E9, E10
 - API key is required for the query API.
 - Dev Console validates end-to-end multimodal retrieval.
 
+#### Release note (must resolve before signoff)
+
+- Temporary unblock: `DUCKDB_SKIP_HEALTHCHECK=1` may be used to bypass the
+  DuckDB `gs://` healthcheck when credential_chain auth is failing. This must
+  be removed and the healthcheck restored before release signoff.
+
 ### Sprint 6 (Weeks 11-12) - IndexBuilder job (HNSW snapshot build + upload)
 
 #### Goal
@@ -1268,6 +1274,9 @@ E6, E7
     - Transcript vectors
     - ImageAsset vectors
     - AudioClip vectors
+  - Use GraphAr manifests to align core/text/vector files per ingestion run.
+    - Join rows by `file_row_number` within the same manifest group.
+    - Fail fast if manifests are missing but GraphAr data exists.
   - Install/load `vss` and build HNSW indexes:
     - `CREATE INDEX ... USING HNSW` per table.
   - `CHECKPOINT` and close DB.
@@ -1279,7 +1288,7 @@ E6, E7
 - E7 Cloud Run Job and triggers
   - Create Cloud Run Job `index-builder`.
   - Grant SA read access to graph Parquet and write access to snapshot path.
-  - Add manual trigger script (`gcloud run jobs execute`).
+  - Add manual trigger script: `scripts/run_index_builder.sh`.
   - Optional schedule: Cloud Scheduler -> Pub/Sub -> Cloud Run Jobs execute.
   - Set memory and timeout for index build.
 
