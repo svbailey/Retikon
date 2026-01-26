@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import os
 import uuid
 from dataclasses import dataclass
 from datetime import datetime, timezone
@@ -11,7 +12,7 @@ from docx import Document
 from pptx import Presentation
 
 from retikon_core.config import Config
-from retikon_core.embeddings.stub import get_text_embedder
+from retikon_core.embeddings import get_text_embedder
 from retikon_core.errors import PermanentError
 from retikon_core.ingestion.pipelines.types import PipelineResult
 from retikon_core.ingestion.types import IngestSource
@@ -38,7 +39,7 @@ class Chunk:
 
 
 def _pipeline_model() -> str:
-    return "BAAI/bge-base-en-v1.5"
+    return os.getenv("TEXT_MODEL_NAME", "BAAI/bge-base-en-v1.5")
 
 
 def _extract_text(path: str, extension: str) -> str:
@@ -258,4 +259,5 @@ def ingest_document(
             "DerivedFrom": len(edge_rows),
         },
         manifest_uri=manifest_path,
+        media_asset_id=media_asset_id,
     )

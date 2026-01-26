@@ -1,10 +1,11 @@
 from __future__ import annotations
 
+import os
 import uuid
 from datetime import datetime, timezone
 
 from retikon_core.config import Config
-from retikon_core.embeddings.stub import get_audio_embedder, get_text_embedder
+from retikon_core.embeddings import get_audio_embedder, get_text_embedder
 from retikon_core.errors import PermanentError
 from retikon_core.ingestion.download import cleanup_tmp
 from retikon_core.ingestion.media import normalize_audio, probe_media
@@ -23,11 +24,11 @@ from retikon_core.storage.writer import WriteResult, write_parquet
 
 
 def _text_model() -> str:
-    return "BAAI/bge-base-en-v1.5"
+    return os.getenv("TEXT_MODEL_NAME", "BAAI/bge-base-en-v1.5")
 
 
 def _audio_model() -> str:
-    return "laion/clap-htsat-fused"
+    return os.getenv("AUDIO_MODEL_NAME", "laion/clap-htsat-fused")
 
 
 def ingest_audio(
@@ -224,6 +225,7 @@ def ingest_audio(
                 "NextTranscript": len(next_edges),
             },
             manifest_uri=manifest_path,
+            media_asset_id=media_asset_id,
         )
     finally:
         if normalized_path != source.local_path:

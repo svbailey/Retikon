@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import math
+import os
 import shutil
 import tempfile
 import uuid
@@ -9,7 +11,7 @@ from pathlib import Path
 from PIL import Image
 
 from retikon_core.config import Config
-from retikon_core.embeddings.stub import (
+from retikon_core.embeddings import (
     get_audio_embedder,
     get_image_embedder,
     get_text_embedder,
@@ -37,15 +39,15 @@ from retikon_core.storage.writer import WriteResult, write_parquet
 
 
 def _text_model() -> str:
-    return "BAAI/bge-base-en-v1.5"
+    return os.getenv("TEXT_MODEL_NAME", "BAAI/bge-base-en-v1.5")
 
 
 def _image_model() -> str:
-    return "openai/clip-vit-base-patch32"
+    return os.getenv("IMAGE_MODEL_NAME", "openai/clip-vit-base-patch32")
 
 
 def _audio_model() -> str:
-    return "laion/clap-htsat-fused"
+    return os.getenv("AUDIO_MODEL_NAME", "laion/clap-htsat-fused")
 
 
 def _resolve_fps(config: Config) -> float:
@@ -72,6 +74,12 @@ def ingest_video(
     now = datetime.now(timezone.utc)
     duration_ms = int(probe.duration_seconds * 1000.0)
     fps = _resolve_fps(config)
+    if config.max_frames_per_video > 0:
+        expected_frames = int(math.ceil(probe.duration_seconds * fps))
+        if probe.frame_count is not None:
+            expected_frames = max(expected_frames, probe.frame_count)
+        if expected_frames > config.max_frames_per_video:
+            raise PermanentError("Video exceeds max frames")
 
     media_row = {
         "id": media_asset_id,
@@ -106,10 +114,9 @@ def ingest_video(
 
         for idx, frame_path in enumerate(frame_paths):
             with Image.open(frame_path) as img:
-                img = img.convert("RGB")
-                width, height = img.size
-                image_bytes = img.tobytes()
-            vector = get_image_embedder(512).encode([image_bytes])[0]
+                rgb = img.convert("RGB")
+                width, height = rgb.size
+                vector = get_image_embedder(512).encode([rgb])[0]
             image_vectors.append(vector)
             image_id = str(
                 uuid.uuid5(uuid.NAMESPACE_URL, f"{media_asset_id}:frame:{idx}")
@@ -333,6 +340,7 @@ def ingest_video(
                 "NextTranscript": len(next_transcript_edges),
             },
             manifest_uri=manifest_path,
+            media_asset_id=media_asset_id,
         )
     finally:
         shutil.rmtree(frames_dir, ignore_errors=True)

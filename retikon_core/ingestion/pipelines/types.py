@@ -7,3 +7,4 @@ from dataclasses import dataclass
 class PipelineResult:
     counts: dict[str, int]
     manifest_uri: str
+    media_asset_id: str

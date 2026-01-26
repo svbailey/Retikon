@@ -13,10 +13,12 @@ class Config:
     max_raw_bytes: int
     max_video_seconds: int
     max_audio_seconds: int
+    max_frames_per_video: int
     chunk_target_tokens: int
     chunk_overlap_tokens: int
     firestore_collection: str
     idempotency_ttl_seconds: int
+    max_ingest_attempts: int
     allowed_doc_ext: tuple[str, ...]
     allowed_image_ext: tuple[str, ...]
     allowed_audio_ext: tuple[str, ...]
@@ -24,6 +26,11 @@ class Config:
     ingestion_dry_run: bool
     video_sample_fps: float
     video_sample_interval_seconds: float
+    rate_limit_doc_per_min: int
+    rate_limit_image_per_min: int
+    rate_limit_audio_per_min: int
+    rate_limit_video_per_min: int
+    dlq_topic: str | None
     snapshot_uri: str | None = None
 
     @classmethod
@@ -54,10 +61,12 @@ class Config:
         max_raw_bytes = require_int("MAX_RAW_BYTES")
         max_video_seconds = require_int("MAX_VIDEO_SECONDS")
         max_audio_seconds = require_int("MAX_AUDIO_SECONDS")
+        max_frames_per_video = require_int("MAX_FRAMES_PER_VIDEO")
         chunk_target_tokens = require_int("CHUNK_TARGET_TOKENS")
         chunk_overlap_tokens = require_int("CHUNK_OVERLAP_TOKENS")
         firestore_collection = os.getenv("FIRESTORE_COLLECTION", "ingestion_events")
         idempotency_ttl_seconds = int(os.getenv("IDEMPOTENCY_TTL_SECONDS", "600"))
+        max_ingest_attempts = int(os.getenv("MAX_INGEST_ATTEMPTS", "5"))
         allowed_doc_ext = _parse_ext_list(
             os.getenv(
                 "ALLOWED_DOC_EXT",
@@ -87,6 +96,11 @@ class Config:
         video_sample_interval_seconds = _parse_float(
             os.getenv("VIDEO_SAMPLE_INTERVAL_SECONDS", "0")
         )
+        rate_limit_doc_per_min = int(os.getenv("RATE_LIMIT_DOC_PER_MIN", "60"))
+        rate_limit_image_per_min = int(os.getenv("RATE_LIMIT_IMAGE_PER_MIN", "60"))
+        rate_limit_audio_per_min = int(os.getenv("RATE_LIMIT_AUDIO_PER_MIN", "20"))
+        rate_limit_video_per_min = int(os.getenv("RATE_LIMIT_VIDEO_PER_MIN", "10"))
+        dlq_topic = os.getenv("DLQ_TOPIC")
         snapshot_uri = os.getenv("SNAPSHOT_URI")
 
         if missing:
@@ -102,10 +116,12 @@ class Config:
             max_raw_bytes=max_raw_bytes,
             max_video_seconds=max_video_seconds,
             max_audio_seconds=max_audio_seconds,
+            max_frames_per_video=max_frames_per_video,
             chunk_target_tokens=chunk_target_tokens,
             chunk_overlap_tokens=chunk_overlap_tokens,
             firestore_collection=firestore_collection,
             idempotency_ttl_seconds=idempotency_ttl_seconds,
+            max_ingest_attempts=max_ingest_attempts,
             allowed_doc_ext=allowed_doc_ext,
             allowed_image_ext=allowed_image_ext,
             allowed_audio_ext=allowed_audio_ext,
@@ -113,6 +129,11 @@ class Config:
             ingestion_dry_run=ingestion_dry_run,
             video_sample_fps=video_sample_fps,
             video_sample_interval_seconds=video_sample_interval_seconds,
+            rate_limit_doc_per_min=rate_limit_doc_per_min,
+            rate_limit_image_per_min=rate_limit_image_per_min,
+            rate_limit_audio_per_min=rate_limit_audio_per_min,
+            rate_limit_video_per_min=rate_limit_video_per_min,
+            dlq_topic=dlq_topic,
             snapshot_uri=snapshot_uri,
         )
 

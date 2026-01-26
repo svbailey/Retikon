@@ -10,6 +10,7 @@ from retikon_core.errors import PermanentError
 from retikon_core.ingestion.download import DownloadResult, cleanup_tmp, download_to_tmp
 from retikon_core.ingestion.eventarc import GcsEvent
 from retikon_core.ingestion.pipelines import audio, document, image, video
+from retikon_core.ingestion.rate_limit import enforce_rate_limit
 from retikon_core.ingestion.types import IngestSource
 from retikon_core.storage.paths import graph_root
 
@@ -19,6 +20,8 @@ class PipelineOutcome:
     status: str
     counts: dict[str, int]
     manifest_uri: str | None = None
+    modality: str | None = None
+    media_asset_id: str | None = None
 
 
 def pipeline_version() -> str:
@@ -122,6 +125,8 @@ def _run_pipeline(
             status="completed",
             counts=result.counts,
             manifest_uri=result.manifest_uri,
+            modality=modality,
+            media_asset_id=result.media_asset_id,
         )
     if modality == "image":
         if source is None:
@@ -137,6 +142,8 @@ def _run_pipeline(
             status="completed",
             counts=result.counts,
             manifest_uri=result.manifest_uri,
+            modality=modality,
+            media_asset_id=result.media_asset_id,
         )
     if modality == "audio":
         if source is None:
@@ -152,6 +159,8 @@ def _run_pipeline(
             status="completed",
             counts=result.counts,
             manifest_uri=result.manifest_uri,
+            modality=modality,
+            media_asset_id=result.media_asset_id,
         )
     if modality == "video":
         if source is None:
@@ -167,6 +176,8 @@ def _run_pipeline(
             status="completed",
             counts=result.counts,
             manifest_uri=result.manifest_uri,
+            modality=modality,
+            media_asset_id=result.media_asset_id,
         )
     raise PermanentError(f"Unsupported modality: {modality}")
 
@@ -180,6 +191,7 @@ def process_event(
     _check_size(event, config)
     modality = _modality_for_name(event.name)
     _ensure_allowed(event, config, modality)
+    enforce_rate_limit(modality, config)
 
     output_uri = graph_root(config.graph_bucket, config.graph_prefix)
     pipeline_version_value = pipeline_version()

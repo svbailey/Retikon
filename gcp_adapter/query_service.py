@@ -197,6 +197,7 @@ async def query(
     payload: QueryRequest,
     x_request_id: str | None = Header(default=None),
 ) -> QueryResponse:
+    start_time = time.monotonic()
     if request.headers.get("content-length"):
         content_length = int(request.headers["content-length"])
         if content_length > MAX_QUERY_BYTES:
@@ -254,6 +255,23 @@ async def query(
 
     results.sort(key=lambda item: item.score, reverse=True)
     trimmed = results[: payload.top_k]
+    duration_ms = int((time.monotonic() - start_time) * 1000)
+    if payload.query_text and payload.image_base64:
+        modality = "text+image"
+    elif payload.image_base64:
+        modality = "image"
+    else:
+        modality = "text"
+    logger.info(
+        "Query completed",
+        extra={
+            "request_id": trace_id,
+            "correlation_id": request.state.correlation_id,
+            "modality": modality,
+            "processing_ms": duration_ms,
+            "duration_ms": duration_ms,
+        },
+    )
     return QueryResponse(
         results=[
             QueryHit(

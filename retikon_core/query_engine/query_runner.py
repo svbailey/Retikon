@@ -9,8 +9,10 @@ from typing import Iterable
 import duckdb
 from PIL import Image
 
-from retikon_core.embeddings.stub import (
+from retikon_core.embeddings import (
+    get_audio_text_embedder,
     get_image_embedder,
+    get_image_text_embedder,
     get_text_embedder,
 )
 from retikon_core.logging import get_logger
@@ -41,14 +43,14 @@ def _score_from_distance(distance: float) -> float:
     return _clamp_score(1.0 - float(distance))
 
 
-def _decode_base64_image(payload: str) -> bytes:
+def _decode_base64_image(payload: str) -> Image.Image:
     cleaned = payload.strip()
     if "," in cleaned and cleaned.split(",", 1)[0].lower().startswith("data:"):
         cleaned = cleaned.split(",", 1)[1]
     raw = base64.b64decode(cleaned, validate=True)
     with Image.open(io.BytesIO(raw)) as img:
         rgb = img.convert("RGB")
-        return rgb.tobytes()
+        return rgb.copy()
 
 
 def _connect(snapshot_path: str) -> duckdb.DuckDBPyConnection:
@@ -73,8 +75,8 @@ def search_by_text(
     top_k: int,
 ) -> list[QueryResult]:
     text_vec = get_text_embedder(768).encode([query_text])[0]
-    image_text_vec = get_text_embedder(512).encode([query_text])[0]
-    audio_text_vec = get_text_embedder(512).encode([query_text])[0]
+    image_text_vec = get_image_text_embedder(512).encode([query_text])[0]
+    audio_text_vec = get_audio_text_embedder(512).encode([query_text])[0]
 
     results: list[QueryResult] = []
     conn = _connect(snapshot_path)
@@ -182,10 +184,10 @@ def search_by_image(
     top_k: int,
 ) -> list[QueryResult]:
     try:
-        image_bytes = _decode_base64_image(image_base64)
+        image = _decode_base64_image(image_base64)
     except Exception as exc:
         raise ValueError("Invalid image_base64 payload") from exc
-    vector = get_image_embedder(512).encode([image_bytes])[0]
+    vector = get_image_embedder(512).encode([image])[0]
 
     conn = _connect(snapshot_path)
     try:

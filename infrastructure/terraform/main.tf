@@ -7,6 +7,16 @@ resource "google_storage_bucket" "raw" {
   location                    = var.region
   uniform_bucket_level_access = true
   force_destroy               = var.bucket_force_destroy
+
+  lifecycle_rule {
+    condition {
+      age            = 7
+      matches_prefix = ["raw/"]
+    }
+    action {
+      type = "Delete"
+    }
+  }
 }
 
 resource "google_storage_bucket" "graph" {
@@ -20,6 +30,22 @@ resource "google_artifact_registry_repository" "repo" {
   repository_id = var.artifact_repo_name
   format        = "DOCKER"
   location      = var.region
+}
+
+resource "google_pubsub_topic" "ingest_transport" {
+  name = var.eventarc_transport_topic_name
+}
+
+resource "google_pubsub_topic" "ingest_dlq" {
+  name = var.ingest_dlq_topic_name
+}
+
+resource "google_pubsub_subscription" "ingest_dlq" {
+  name  = var.ingest_dlq_subscription_name
+  topic = google_pubsub_topic.ingest_dlq.name
+
+  ack_deadline_seconds       = 60
+  message_retention_duration = "604800s"
 }
 
 resource "google_service_account" "ingestion" {
@@ -60,6 +86,18 @@ resource "google_project_iam_member" "ingest_firestore_user" {
   member  = "serviceAccount:${google_service_account.ingestion.email}"
 }
 
+resource "google_pubsub_topic_iam_member" "ingest_dlq_publisher" {
+  topic  = google_pubsub_topic.ingest_dlq.name
+  role   = "roles/pubsub.publisher"
+  member = "serviceAccount:${google_service_account.ingestion.email}"
+}
+
+resource "google_pubsub_topic_iam_member" "eventarc_transport_publisher" {
+  topic  = google_pubsub_topic.ingest_transport.name
+  role   = "roles/pubsub.publisher"
+  member = "serviceAccount:service-${data.google_project.project.number}@gcp-sa-eventarc.iam.gserviceaccount.com"
+}
+
 resource "google_storage_bucket_iam_member" "query_graph_view" {
   bucket = google_storage_bucket.graph.name
   role   = "roles/storage.objectViewer"
@@ -94,6 +132,10 @@ resource "random_password" "query_api_key" {
 
 locals {
   resolved_query_api_key = var.query_api_key != null ? var.query_api_key : random_password.query_api_key.result
+  notification_channels = concat(
+    var.alert_notification_channels,
+    [for channel in google_monitoring_notification_channel.email : channel.name]
+  )
 }
 
 resource "google_secret_manager_secret_version" "query_api_key" {
@@ -113,13 +155,20 @@ resource "google_cloud_run_service" "ingestion" {
 
   metadata {
     annotations = {
-      "run.googleapis.com/ingress" = "internal"
+      "run.googleapis.com/ingress" = "internal-and-cloud-load-balancing"
     }
   }
 
   template {
+    metadata {
+      annotations = {
+        "autoscaling.knative.dev/maxScale" = tostring(var.ingestion_max_scale)
+      }
+    }
+
     spec {
       service_account_name = google_service_account.ingestion.email
+      container_concurrency = var.ingestion_concurrency
 
       containers {
         image = var.ingestion_image
@@ -138,6 +187,30 @@ resource "google_cloud_run_service" "ingestion" {
         env {
           name  = "LOG_LEVEL"
           value = var.log_level
+        }
+        env {
+          name  = "USE_REAL_MODELS"
+          value = var.use_real_models ? "1" : "0"
+        }
+        env {
+          name  = "MODEL_DIR"
+          value = var.model_dir
+        }
+        env {
+          name  = "TEXT_MODEL_NAME"
+          value = var.text_model_name
+        }
+        env {
+          name  = "IMAGE_MODEL_NAME"
+          value = var.image_model_name
+        }
+        env {
+          name  = "AUDIO_MODEL_NAME"
+          value = var.audio_model_name
+        }
+        env {
+          name  = "WHISPER_MODEL_NAME"
+          value = var.whisper_model_name
         }
         env {
           name  = "RAW_BUCKET"
@@ -164,12 +237,40 @@ resource "google_cloud_run_service" "ingestion" {
           value = tostring(var.max_audio_seconds)
         }
         env {
+          name  = "MAX_FRAMES_PER_VIDEO"
+          value = tostring(var.max_frames_per_video)
+        }
+        env {
           name  = "CHUNK_TARGET_TOKENS"
           value = tostring(var.chunk_target_tokens)
         }
         env {
           name  = "CHUNK_OVERLAP_TOKENS"
           value = tostring(var.chunk_overlap_tokens)
+        }
+        env {
+          name  = "MAX_INGEST_ATTEMPTS"
+          value = tostring(var.max_ingest_attempts)
+        }
+        env {
+          name  = "RATE_LIMIT_DOC_PER_MIN"
+          value = tostring(var.rate_limit_doc_per_min)
+        }
+        env {
+          name  = "RATE_LIMIT_IMAGE_PER_MIN"
+          value = tostring(var.rate_limit_image_per_min)
+        }
+        env {
+          name  = "RATE_LIMIT_AUDIO_PER_MIN"
+          value = tostring(var.rate_limit_audio_per_min)
+        }
+        env {
+          name  = "RATE_LIMIT_VIDEO_PER_MIN"
+          value = tostring(var.rate_limit_video_per_min)
+        }
+        env {
+          name  = "DLQ_TOPIC"
+          value = "projects/${var.project_id}/topics/${var.ingest_dlq_topic_name}"
         }
         env {
           name  = "FIRESTORE_COLLECTION"
@@ -239,8 +340,15 @@ resource "google_cloud_run_service" "query" {
   }
 
   template {
+    metadata {
+      annotations = {
+        "autoscaling.knative.dev/maxScale" = tostring(var.query_max_scale)
+      }
+    }
+
     spec {
       service_account_name = google_service_account.query.email
+      container_concurrency = var.query_concurrency
 
       containers {
         image = var.query_image
@@ -259,6 +367,26 @@ resource "google_cloud_run_service" "query" {
         env {
           name  = "LOG_LEVEL"
           value = var.log_level
+        }
+        env {
+          name  = "USE_REAL_MODELS"
+          value = var.use_real_models ? "1" : "0"
+        }
+        env {
+          name  = "MODEL_DIR"
+          value = var.model_dir
+        }
+        env {
+          name  = "TEXT_MODEL_NAME"
+          value = var.text_model_name
+        }
+        env {
+          name  = "IMAGE_MODEL_NAME"
+          value = var.image_model_name
+        }
+        env {
+          name  = "AUDIO_MODEL_NAME"
+          value = var.audio_model_name
         }
         env {
           name  = "GRAPH_BUCKET"
@@ -448,6 +576,204 @@ resource "google_cloud_run_v2_job" "index_builder" {
       }
     }
   }
+}
+
+resource "google_monitoring_alert_policy" "ingest_5xx_rate" {
+  display_name = "Retikon Ingest 5xx rate"
+  combiner     = "OR"
+
+  conditions {
+    display_name = "Ingest 5xx rate"
+
+    condition_threshold {
+      filter          = "resource.type=\"cloud_run_revision\" AND resource.labels.service_name=\"${google_cloud_run_service.ingestion.name}\" AND metric.type=\"run.googleapis.com/request_count\" AND metric.labels.response_code_class=\"5xx\""
+      comparison      = "COMPARISON_GT"
+      threshold_value = var.alert_ingest_5xx_rate
+      duration        = "300s"
+
+      aggregations {
+        alignment_period     = "60s"
+        per_series_aligner   = "ALIGN_RATE"
+        cross_series_reducer = "REDUCE_SUM"
+      }
+
+      trigger {
+        count = 1
+      }
+    }
+  }
+
+  notification_channels = local.notification_channels
+}
+
+resource "google_monitoring_alert_policy" "query_p95_latency" {
+  display_name = "Retikon Query p95 latency"
+  combiner     = "OR"
+
+  conditions {
+    display_name = "Query p95 latency"
+
+    condition_threshold {
+      filter          = "resource.type=\"cloud_run_revision\" AND resource.labels.service_name=\"${google_cloud_run_service.query.name}\" AND metric.type=\"run.googleapis.com/request_latencies\""
+      comparison      = "COMPARISON_GT"
+      threshold_value = var.alert_query_p95_seconds
+      duration        = "300s"
+
+      aggregations {
+        alignment_period     = "60s"
+        per_series_aligner   = "ALIGN_PERCENTILE_95"
+        cross_series_reducer = "REDUCE_MAX"
+      }
+
+      trigger {
+        count = 1
+      }
+    }
+  }
+
+  notification_channels = local.notification_channels
+}
+
+resource "google_monitoring_alert_policy" "dlq_backlog" {
+  display_name = "Retikon DLQ backlog"
+  combiner     = "OR"
+
+  conditions {
+    display_name = "DLQ undelivered messages"
+
+    condition_threshold {
+      filter          = "resource.type=\"pubsub_subscription\" AND resource.labels.subscription_id=\"${var.ingest_dlq_subscription_name}\" AND metric.type=\"pubsub.googleapis.com/subscription/num_undelivered_messages\""
+      comparison      = "COMPARISON_GT"
+      threshold_value = var.alert_dlq_backlog
+      duration        = "300s"
+
+      aggregations {
+        alignment_period     = "60s"
+        per_series_aligner   = "ALIGN_MAX"
+        cross_series_reducer = "REDUCE_MAX"
+      }
+
+      trigger {
+        count = 1
+      }
+    }
+  }
+
+  notification_channels = local.notification_channels
+}
+
+resource "google_monitoring_notification_channel" "email" {
+  for_each = toset(var.alert_notification_emails)
+
+  display_name = "Retikon Alerts - ${each.value}"
+  type         = "email"
+
+  labels = {
+    email_address = each.value
+  }
+}
+
+resource "google_monitoring_dashboard" "ops" {
+  dashboard_json = jsonencode(
+    {
+      displayName  = var.monitoring_dashboard_name
+      mosaicLayout = {
+        columns = 12
+        tiles = [
+          {
+            xPos   = 0
+            yPos   = 0
+            width  = 4
+            height = 4
+            widget = {
+              title   = "Ingestion 5xx rate (req/s)"
+              xyChart = {
+                dataSets = [
+                  {
+                    plotType = "LINE"
+                    timeSeriesQuery = {
+                      timeSeriesFilter = {
+                        filter = "resource.type=\"cloud_run_revision\" AND resource.labels.service_name=\"${google_cloud_run_service.ingestion.name}\" AND metric.type=\"run.googleapis.com/request_count\" AND metric.labels.response_code_class=\"5xx\""
+                        aggregation = {
+                          alignmentPeriod     = "60s"
+                          perSeriesAligner    = "ALIGN_RATE"
+                          crossSeriesReducer  = "REDUCE_SUM"
+                        }
+                      }
+                    }
+                  }
+                ]
+                yAxis = {
+                  label = "req/s"
+                  scale = "LINEAR"
+                }
+              }
+            }
+          },
+          {
+            xPos   = 4
+            yPos   = 0
+            width  = 4
+            height = 4
+            widget = {
+              title   = "Query p95 latency (s)"
+              xyChart = {
+                dataSets = [
+                  {
+                    plotType = "LINE"
+                    timeSeriesQuery = {
+                      timeSeriesFilter = {
+                        filter = "resource.type=\"cloud_run_revision\" AND resource.labels.service_name=\"${google_cloud_run_service.query.name}\" AND metric.type=\"run.googleapis.com/request_latencies\""
+                        aggregation = {
+                          alignmentPeriod     = "60s"
+                          perSeriesAligner    = "ALIGN_PERCENTILE_95"
+                          crossSeriesReducer  = "REDUCE_MAX"
+                        }
+                      }
+                    }
+                  }
+                ]
+                yAxis = {
+                  label = "seconds"
+                  scale = "LINEAR"
+                }
+              }
+            }
+          },
+          {
+            xPos   = 8
+            yPos   = 0
+            width  = 4
+            height = 4
+            widget = {
+              title   = "DLQ backlog"
+              xyChart = {
+                dataSets = [
+                  {
+                    plotType = "LINE"
+                    timeSeriesQuery = {
+                      timeSeriesFilter = {
+                        filter = "resource.type=\"pubsub_subscription\" AND resource.labels.subscription_id=\"${var.ingest_dlq_subscription_name}\" AND metric.type=\"pubsub.googleapis.com/subscription/num_undelivered_messages\""
+                        aggregation = {
+                          alignmentPeriod     = "60s"
+                          perSeriesAligner    = "ALIGN_MAX"
+                          crossSeriesReducer  = "REDUCE_MAX"
+                        }
+                      }
+                    }
+                  }
+                ]
+                yAxis = {
+                  label = "messages"
+                  scale = "LINEAR"
+                }
+              }
+            }
+          }
+        ]
+      }
+    }
+  )
 }
 
 resource "google_cloud_run_v2_job" "ingest_smoke" {

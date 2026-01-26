@@ -9,6 +9,15 @@ tracks the v2.5 build kit and the development plan.
 - Development plan: `Dev Docs/Retikon-GCP-Build-Kit-v2.5.md`
 - Agent rules: `AGENTS.md`
 - GraphAr schemas: `retikon_core/schemas/graphar/README.md`
+- Local development: `Dev Docs/Local-Development.md`
+- Deployment: `Dev Docs/Deployment.md`
+- Operations: `Dev Docs/Operations-Runbook.md`
+- Load testing: `Dev Docs/Load-Testing.md`
+- Snapshot refresh: `Dev Docs/Snapshot-Refresh-Strategy.md`
+- Schema reference: `Dev Docs/Schema-Reference.md`
+- Golden demo: `Dev Docs/Golden-Demo.md`
+- Security checklist: `Dev Docs/Security-Checklist.md`
+- Release checklist: `Dev Docs/Release-Checklist.md`
 
 ## Repository layout (expected)
 
@@ -72,6 +81,8 @@ Key variables:
 - `MAX_RAW_BYTES`, `MAX_VIDEO_SECONDS`, `MAX_AUDIO_SECONDS`
 - `CHUNK_TARGET_TOKENS`, `CHUNK_OVERLAP_TOKENS`
 - `QUERY_API_KEY` (dev only; prod uses Secret Manager)
+- `USE_REAL_MODELS`, `MODEL_DIR`, `EMBEDDING_DEVICE`
+- `TEXT_MODEL_NAME`, `IMAGE_MODEL_NAME`, `AUDIO_MODEL_NAME`, `WHISPER_MODEL_NAME`
 
 ## Development workflow (high level)
 

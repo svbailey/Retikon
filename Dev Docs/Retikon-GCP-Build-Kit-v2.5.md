@@ -1316,12 +1316,15 @@ E8, E7
 
 - E8 DLQ and retries
   - Define Pub/Sub topic for Eventarc transport.
-  - Configure retry policy and dead-letter topic.
+  - Configure DLQ topic + subscription and publish failures to DLQ.
   - Implement DLQ handler tool:
     - list messages
     - show error reason
     - replay safely
   - Add a runbook for replay and cleanup.
+  - Note: GCS Eventarc triggers use managed transport; custom Pub/Sub transport
+    topics are not supported for these triggers. Keep the transport topic for
+    future Pub/Sub-triggered pipelines.
 
 - E8 Concurrency and scaling limits
   - Terraform:
@@ -1372,17 +1375,29 @@ E8 plus cross-cutting work
   - query QPS target
   - ingest throughput target
   - capture p95 latency and cost signals
+  - scripts: `scripts/load_test_query.py`, `scripts/load_test_ingest.py`
+  - results record: `Dev Docs/Load-Testing.md`
 - Cold-start optimization:
   - lazy model load, warm-path caching, reuse model instances
+  - cache stub embedders to avoid per-request instantiation
 - Snapshot refresh strategy:
   - define cadence, backfill behavior, and rollback steps
+  - documented in `Dev Docs/Snapshot-Refresh-Strategy.md`
 - Documentation pack:
   - local dev, deployment, ops runbook, schema reference
+  - `Dev Docs/Local-Development.md`
+  - `Dev Docs/Deployment.md`
+  - `Dev Docs/Operations-Runbook.md`
+  - `Dev Docs/Schema-Reference.md`
 - Golden demo dataset and scripted demo steps.
+  - `scripts/upload_demo_dataset.py`
+  - `Dev Docs/Golden-Demo.md`
 - Security review checklist:
   - IAM least privilege
   - secret rotation plan
   - API key rotation and audit
+  - `Dev Docs/Security-Checklist.md`
+  - `Dev Docs/Release-Checklist.md`
 
 #### Exit criteria
 

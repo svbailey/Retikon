@@ -1,12 +1,13 @@
 from __future__ import annotations
 
+import os
 import uuid
 from datetime import datetime, timezone
 
 from PIL import Image, ImageOps
 
 from retikon_core.config import Config
-from retikon_core.embeddings.stub import get_image_embedder
+from retikon_core.embeddings import get_image_embedder
 from retikon_core.ingestion.pipelines.types import PipelineResult
 from retikon_core.ingestion.types import IngestSource
 from retikon_core.storage.manifest import build_manifest, write_manifest
@@ -21,7 +22,7 @@ from retikon_core.storage.writer import WriteResult, write_parquet
 
 
 def _pipeline_model() -> str:
-    return "openai/clip-vit-base-patch32"
+    return os.getenv("IMAGE_MODEL_NAME", "openai/clip-vit-base-patch32")
 
 
 def ingest_image(
@@ -41,10 +42,8 @@ def ingest_image(
             exif_img = img
         rgb = exif_img.convert("RGB")
         width, height = rgb.size
-        image_bytes = rgb.tobytes()
-
-    embedder = get_image_embedder(512)
-    vector = embedder.encode([image_bytes])[0]
+        embedder = get_image_embedder(512)
+        vector = embedder.encode([rgb])[0]
 
     media_asset_id = str(uuid.uuid4())
     image_asset_id = str(uuid.uuid5(uuid.NAMESPACE_URL, f"{media_asset_id}:0"))
@@ -137,4 +136,5 @@ def ingest_image(
             "DerivedFrom": 1,
         },
         manifest_uri=manifest_path,
+        media_asset_id=media_asset_id,
     )

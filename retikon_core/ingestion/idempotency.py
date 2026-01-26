@@ -65,6 +65,13 @@ class FirestoreIdempotency:
                         status="COMPLETED",
                         attempt_count=attempt,
                     )
+                if status == "DLQ":
+                    return IdempotencyDecision(
+                        action="skip_completed",
+                        doc_id=doc_id,
+                        status="DLQ",
+                        attempt_count=attempt,
+                    )
 
                 if status == "PROCESSING":
                     if updated_at and updated_at >= now - self.processing_ttl:
@@ -140,6 +147,17 @@ class FirestoreIdempotency:
             }
         )
 
+    def mark_dlq(self, doc_id: str, error_code: str, error_message: str) -> None:
+        now = datetime.now(timezone.utc)
+        self.client.collection(self.collection).document(doc_id).update(
+            {
+                "status": "DLQ",
+                "error_code": error_code,
+                "error_message": error_message,
+                "updated_at": now,
+            }
+        )
+
 
 class InMemoryIdempotency:
     def __init__(self, processing_ttl: timedelta) -> None:
@@ -168,6 +186,13 @@ class InMemoryIdempotency:
                     action="skip_completed",
                     doc_id=doc_id,
                     status="COMPLETED",
+                    attempt_count=attempt,
+                )
+            if status == "DLQ":
+                return IdempotencyDecision(
+                    action="skip_completed",
+                    doc_id=doc_id,
+                    status="DLQ",
                     attempt_count=attempt,
                 )
             if (
@@ -215,6 +240,14 @@ class InMemoryIdempotency:
         record = self.store.get(doc_id)
         if record:
             record["status"] = "FAILED"
+            record["error_code"] = error_code
+            record["error_message"] = error_message
+            record["updated_at"] = datetime.now(timezone.utc)
+
+    def mark_dlq(self, doc_id: str, error_code: str, error_message: str) -> None:
+        record = self.store.get(doc_id)
+        if record:
+            record["status"] = "DLQ"
             record["error_code"] = error_code
             record["error_message"] = error_message
             record["updated_at"] = datetime.now(timezone.utc)

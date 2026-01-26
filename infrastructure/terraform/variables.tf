@@ -64,6 +64,16 @@ variable "ingestion_cpu" {
   default = "1000m"
 }
 
+variable "ingestion_concurrency" {
+  type    = number
+  default = 1
+}
+
+variable "ingestion_max_scale" {
+  type    = number
+  default = 10
+}
+
 variable "query_memory" {
   type    = string
   default = "2Gi"
@@ -72,6 +82,16 @@ variable "query_memory" {
 variable "query_cpu" {
   type    = string
   default = "1000m"
+}
+
+variable "query_concurrency" {
+  type    = number
+  default = 10
+}
+
+variable "query_max_scale" {
+  type    = number
+  default = 20
 }
 
 variable "index_memory" {
@@ -123,6 +143,11 @@ variable "max_audio_seconds" {
   default = 1200
 }
 
+variable "max_frames_per_video" {
+  type    = number
+  default = 600
+}
+
 variable "chunk_target_tokens" {
   type    = number
   default = 512
@@ -131,6 +156,31 @@ variable "chunk_target_tokens" {
 variable "chunk_overlap_tokens" {
   type    = number
   default = 50
+}
+
+variable "max_ingest_attempts" {
+  type    = number
+  default = 5
+}
+
+variable "rate_limit_doc_per_min" {
+  type    = number
+  default = 60
+}
+
+variable "rate_limit_image_per_min" {
+  type    = number
+  default = 60
+}
+
+variable "rate_limit_audio_per_min" {
+  type    = number
+  default = 20
+}
+
+variable "rate_limit_video_per_min" {
+  type    = number
+  default = 10
 }
 
 variable "max_query_bytes" {
@@ -163,6 +213,66 @@ variable "log_level" {
   default = "INFO"
 }
 
+variable "use_real_models" {
+  type    = bool
+  default = true
+}
+
+variable "model_dir" {
+  type    = string
+  default = "/app/models"
+}
+
+variable "text_model_name" {
+  type    = string
+  default = "BAAI/bge-base-en-v1.5"
+}
+
+variable "image_model_name" {
+  type    = string
+  default = "openai/clip-vit-base-patch32"
+}
+
+variable "audio_model_name" {
+  type    = string
+  default = "laion/clap-htsat-fused"
+}
+
+variable "whisper_model_name" {
+  type    = string
+  default = "small"
+}
+
+variable "alert_notification_channels" {
+  type    = list(string)
+  default = []
+}
+
+variable "alert_notification_emails" {
+  type    = list(string)
+  default = []
+}
+
+variable "alert_ingest_5xx_rate" {
+  type    = number
+  default = 0.02
+}
+
+variable "alert_query_p95_seconds" {
+  type    = number
+  default = 2.0
+}
+
+variable "alert_dlq_backlog" {
+  type    = number
+  default = 1
+}
+
+variable "monitoring_dashboard_name" {
+  type    = string
+  default = "Retikon Ops"
+}
+
 variable "firestore_location" {
   type    = string
   default = "nam5"
@@ -177,6 +287,21 @@ variable "query_api_key" {
 variable "bucket_force_destroy" {
   type    = bool
   default = true
+}
+
+variable "eventarc_transport_topic_name" {
+  type    = string
+  default = "retikon-ingest-transport"
+}
+
+variable "ingest_dlq_topic_name" {
+  type    = string
+  default = "retikon-ingest-dlq"
+}
+
+variable "ingest_dlq_subscription_name" {
+  type    = string
+  default = "retikon-ingest-dlq-sub"
 }
 
 variable "ingestion_service_account_name" {

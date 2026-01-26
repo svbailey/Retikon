@@ -8,6 +8,7 @@ fsspec
 gcsfs
 google-cloud-firestore
 google-cloud-storage
+google-cloud-pubsub
 pillow
 pymupdf
 python-docx
@@ -15,3 +16,10 @@ python-pptx
 pandas
 openpyxl
 xlrd
+numpy
+openai-whisper
+sentence-transformers
+soundfile
+torch
+torchaudio
+transformers

@@ -3,7 +3,9 @@ from retikon_core.embeddings.stub import (
     StubImageEmbedder,
     StubTextEmbedder,
     get_audio_embedder,
+    get_audio_text_embedder,
     get_image_embedder,
+    get_image_text_embedder,
     get_text_embedder,
 )
 
@@ -12,6 +14,8 @@ __all__ = [
     "StubImageEmbedder",
     "StubTextEmbedder",
     "get_audio_embedder",
+    "get_audio_text_embedder",
     "get_image_embedder",
+    "get_image_text_embedder",
     "get_text_embedder",
 ]

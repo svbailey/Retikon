@@ -251,3 +251,48 @@ def test_video_corrupt_file(monkeypatch):
             pipeline_version="v2.5",
             schema_version="1",
         )
+
+
+def test_video_frame_cap(monkeypatch):
+    from retikon_core import config as config_module
+
+    monkeypatch.setenv("MAX_FRAMES_PER_VIDEO", "2")
+    config_module.get_config.cache_clear()
+    config = config_module.get_config()
+
+    def fake_probe(_path):
+        return type(
+            "Probe",
+            (),
+            {
+                "duration_seconds": 10.0,
+                "has_audio": False,
+                "has_video": True,
+                "audio_sample_rate": None,
+                "audio_channels": None,
+                "video_width": 2,
+                "video_height": 2,
+                "frame_rate": 1.0,
+                "frame_count": 10,
+            },
+        )()
+
+    monkeypatch.setattr(video_pipeline, "probe_media", fake_probe)
+    source = IngestSource(
+        bucket="test-raw",
+        name="raw/videos/too-many-frames.mp4",
+        generation="1",
+        content_type="video/mp4",
+        size_bytes=1,
+        md5_hash=None,
+        crc32c=None,
+        local_path="dummy",
+    )
+    with pytest.raises(PermanentError):
+        video_pipeline.ingest_video(
+            source=source,
+            config=config,
+            output_uri=None,
+            pipeline_version="v2.5",
+            schema_version="1",
+        )
