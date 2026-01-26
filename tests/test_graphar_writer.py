@@ -68,6 +68,7 @@ def test_write_parquet_roundtrip(tmp_path):
                 "timestamp_ms": None,
                 "width_px": 2,
                 "height_px": 2,
+                "thumbnail_uri": None,
                 "embedding_model": "clip-vit-b-32",
                 "pipeline_version": "v2.5",
                 "schema_version": "1",

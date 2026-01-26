@@ -158,6 +158,15 @@ async def ingest(
             storage_client=storage_client,
         )
         idempotency.mark_completed(decision.doc_id)
+        firestore_client.collection(config.firestore_collection).document(
+            decision.doc_id
+        ).update(
+            {
+                "manifest_uri": outcome.manifest_uri,
+                "media_asset_id": outcome.media_asset_id,
+                "counts": outcome.counts,
+            }
+        )
         duration_ms = int((time.monotonic() - start_time) * 1000)
         logger.info(
             "Ingest completed",

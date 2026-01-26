@@ -21,7 +21,13 @@ Set the query API URL with:
 export VITE_QUERY_URL="http://localhost:8080/query"
 ```
 
-Optional helpers for the guided pipeline UI:
+Set the dev console API URL (upload/status/manifest preview):
+
+```bash
+export VITE_DEV_API_URL="http://localhost:8082"
+```
+
+Optional helpers for the guided workflow UI:
 
 ```bash
 export VITE_RELOAD_URL="http://localhost:8080/admin/reload-snapshot"
@@ -37,10 +43,13 @@ export VITE_REGION="us-central1"
 ## Smoke test
 
 1. Start the query service locally or deploy it to Cloud Run.
-2. Open the Dev Console and paste the API key.
-3. Upload an asset and trigger the index build (or run the CLI commands).
-4. Reload the snapshot, then run a query.
-5. Confirm results render with modality icons and scores.
+2. Open the Dev Console, switch to the Settings tab, and paste the API key.
+3. (Optional) override the Dev API URL and Query API URL in Settings.
+4. Upload an asset and check ingest status.
+5. Load the manifest and keyframes preview.
+6. Trigger the index build (or run the CLI command).
+7. Reload the snapshot, then run a query.
+8. Confirm results render with thumbnails, video segments, and scores.
 
 ## Deployment (GCS static)
 

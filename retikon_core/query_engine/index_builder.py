@@ -629,10 +629,12 @@ def build_snapshot(
                 SELECT m.group_id,
                        c.file_row_number AS row_number,
                        c.media_asset_id,
-                       c.timestamp_ms
+                       c.timestamp_ms,
+                       c.thumbnail_uri
                 FROM read_parquet({_sql_list(core_files)},
                                   filename=true,
-                                  file_row_number=true) AS c
+                                  file_row_number=true,
+                                  union_by_name=true) AS c
                 JOIN image_asset_map m ON c.filename = m.core
                 """
             )
@@ -663,6 +665,7 @@ def build_snapshot(
                 CREATE TABLE image_assets AS
                 SELECT core.media_asset_id,
                        core.timestamp_ms,
+                       core.thumbnail_uri,
                        CAST(vector.clip_vector AS FLOAT[512]) AS clip_vector
                 FROM image_asset_core AS core
                 JOIN image_asset_vector AS vector
@@ -673,6 +676,7 @@ def build_snapshot(
                 CREATE TABLE image_assets (
                   media_asset_id VARCHAR,
                   timestamp_ms BIGINT,
+                  thumbnail_uri VARCHAR,
                   clip_vector FLOAT[512]
                 )
                 """,

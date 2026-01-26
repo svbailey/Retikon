@@ -1,9 +1,12 @@
 from __future__ import annotations
 
 import os
+import shutil
+import tempfile
 import uuid
 from datetime import datetime, timezone
 
+import fsspec
 from PIL import Image, ImageOps
 
 from retikon_core.config import Config
@@ -14,6 +17,7 @@ from retikon_core.storage.manifest import build_manifest, write_manifest
 from retikon_core.storage.paths import (
     edge_part_uri,
     graph_root,
+    join_uri,
     manifest_uri,
     vertex_part_uri,
 )
@@ -23,6 +27,30 @@ from retikon_core.storage.writer import WriteResult, write_parquet
 
 def _pipeline_model() -> str:
     return os.getenv("IMAGE_MODEL_NAME", "openai/clip-vit-base-patch32")
+
+
+def _thumbnail_uri(output_root: str, media_asset_id: str) -> str:
+    return join_uri(output_root, "thumbnails", media_asset_id, "image.jpg")
+
+
+def _write_thumbnail(image: Image.Image, uri: str, width: int) -> None:
+    if width <= 0:
+        return
+    thumb = image.copy()
+    if thumb.width > width:
+        height = max(1, int(thumb.height * (width / float(thumb.width))))
+        thumb = thumb.resize((width, height))
+    with tempfile.NamedTemporaryFile(suffix=".jpg", delete=False) as tmp:
+        tmp_path = tmp.name
+    try:
+        thumb.save(tmp_path, format="JPEG", quality=85)
+        fs, path = fsspec.core.url_to_fs(uri)
+        fs.makedirs(os.path.dirname(path), exist_ok=True)
+        with fs.open(path, "wb") as handle, open(tmp_path, "rb") as src:
+            shutil.copyfileobj(src, handle)
+    finally:
+        if os.path.exists(tmp_path):
+            os.unlink(tmp_path)
 
 
 def ingest_image(
@@ -48,6 +76,10 @@ def ingest_image(
     media_asset_id = str(uuid.uuid4())
     image_asset_id = str(uuid.uuid5(uuid.NAMESPACE_URL, f"{media_asset_id}:0"))
     now = datetime.now(timezone.utc)
+    thumb_uri = None
+    if config.video_thumbnail_width > 0:
+        thumb_uri = _thumbnail_uri(output_root, media_asset_id)
+        _write_thumbnail(rgb, thumb_uri, config.video_thumbnail_width)
 
     media_row = {
         "id": media_asset_id,
@@ -77,6 +109,7 @@ def ingest_image(
         "timestamp_ms": None,
         "width_px": width,
         "height_px": height,
+        "thumbnail_uri": thumb_uri,
         "embedding_model": _pipeline_model(),
         "pipeline_version": pipeline_version,
         "schema_version": schema_version,

@@ -58,6 +58,11 @@ resource "google_service_account" "query" {
   display_name = "Retikon Query Service Account"
 }
 
+resource "google_service_account" "dev_console" {
+  account_id   = var.dev_console_service_account_name
+  display_name = "Retikon Dev Console Service Account"
+}
+
 resource "google_service_account" "index_builder" {
   account_id   = var.index_service_account_name
   display_name = "Retikon Index Builder Service Account"
@@ -86,6 +91,18 @@ resource "google_project_iam_member" "ingest_firestore_user" {
   member  = "serviceAccount:${google_service_account.ingestion.email}"
 }
 
+resource "google_project_iam_member" "dev_console_firestore_user" {
+  project = var.project_id
+  role    = "roles/datastore.user"
+  member  = "serviceAccount:${google_service_account.dev_console.email}"
+}
+
+resource "google_project_iam_member" "dev_console_run_developer" {
+  project = var.project_id
+  role    = "roles/run.developer"
+  member  = "serviceAccount:${google_service_account.dev_console.email}"
+}
+
 resource "google_pubsub_topic_iam_member" "ingest_dlq_publisher" {
   topic  = google_pubsub_topic.ingest_dlq.name
   role   = "roles/pubsub.publisher"
@@ -102,6 +119,24 @@ resource "google_storage_bucket_iam_member" "query_graph_view" {
   bucket = google_storage_bucket.graph.name
   role   = "roles/storage.objectViewer"
   member = "serviceAccount:${google_service_account.query.email}"
+}
+
+resource "google_storage_bucket_iam_member" "dev_console_raw_view" {
+  bucket = google_storage_bucket.raw.name
+  role   = "roles/storage.objectViewer"
+  member = "serviceAccount:${google_service_account.dev_console.email}"
+}
+
+resource "google_storage_bucket_iam_member" "dev_console_raw_create" {
+  bucket = google_storage_bucket.raw.name
+  role   = "roles/storage.objectCreator"
+  member = "serviceAccount:${google_service_account.dev_console.email}"
+}
+
+resource "google_storage_bucket_iam_member" "dev_console_graph_view" {
+  bucket = google_storage_bucket.graph.name
+  role   = "roles/storage.objectViewer"
+  member = "serviceAccount:${google_service_account.dev_console.email}"
 }
 
 resource "google_storage_bucket_iam_member" "index_graph_admin" {
@@ -147,6 +182,12 @@ resource "google_secret_manager_secret_iam_member" "query_api_key_access" {
   secret_id = google_secret_manager_secret.query_api_key.secret_id
   role      = "roles/secretmanager.secretAccessor"
   member    = "serviceAccount:${google_service_account.query.email}"
+}
+
+resource "google_secret_manager_secret_iam_member" "dev_console_api_key_access" {
+  secret_id = google_secret_manager_secret.query_api_key.secret_id
+  role      = "roles/secretmanager.secretAccessor"
+  member    = "serviceAccount:${google_service_account.dev_console.email}"
 }
 
 resource "google_cloud_run_service" "ingestion" {
@@ -457,9 +498,119 @@ resource "google_cloud_run_service" "query" {
   autogenerate_revision_name = true
 }
 
+resource "google_cloud_run_service" "dev_console" {
+  name     = "${var.dev_console_service_name}-${var.env}"
+  location = var.region
+
+  metadata {
+    annotations = {
+      "run.googleapis.com/ingress" = "all"
+    }
+  }
+
+  template {
+    metadata {
+      annotations = {
+        "autoscaling.knative.dev/maxScale" = "5"
+      }
+    }
+
+    spec {
+      service_account_name = google_service_account.dev_console.email
+      container_concurrency = var.dev_console_concurrency
+
+      containers {
+        image = var.dev_console_image
+
+        resources {
+          limits = {
+            cpu    = var.dev_console_cpu
+            memory = var.dev_console_memory
+          }
+        }
+
+        env {
+          name  = "APP_MODULE"
+          value = "gcp_adapter.dev_console_service:app"
+        }
+        env {
+          name  = "ENV"
+          value = var.env
+        }
+        env {
+          name  = "LOG_LEVEL"
+          value = var.log_level
+        }
+        env {
+          name  = "PROJECT_ID"
+          value = var.project_id
+        }
+        env {
+          name  = "RAW_BUCKET"
+          value = google_storage_bucket.raw.name
+        }
+        env {
+          name  = "RAW_PREFIX"
+          value = var.raw_prefix
+        }
+        env {
+          name  = "GRAPH_BUCKET"
+          value = google_storage_bucket.graph.name
+        }
+        env {
+          name  = "GRAPH_PREFIX"
+          value = var.graph_prefix
+        }
+        env {
+          name  = "SNAPSHOT_URI"
+          value = var.snapshot_uri
+        }
+        env {
+          name  = "QUERY_SERVICE_URL"
+          value = google_cloud_run_service.query.status[0].url
+        }
+        env {
+          name  = "INDEX_JOB_NAME"
+          value = google_cloud_run_v2_job.index_builder.name
+        }
+        env {
+          name  = "INDEX_JOB_REGION"
+          value = var.region
+        }
+        env {
+          name  = "MAX_RAW_BYTES"
+          value = tostring(var.max_raw_bytes)
+        }
+        env {
+          name  = "MAX_PREVIEW_BYTES"
+          value = tostring(var.max_preview_bytes)
+        }
+        env {
+          name = "DEV_CONSOLE_API_KEY"
+          value_from {
+            secret_key_ref {
+              name = google_secret_manager_secret.query_api_key.secret_id
+              key  = "latest"
+            }
+          }
+        }
+      }
+    }
+  }
+
+  autogenerate_revision_name = true
+}
+
 resource "google_cloud_run_service_iam_member" "query_invoker" {
   location = google_cloud_run_service.query.location
   service  = google_cloud_run_service.query.name
+  role     = "roles/run.invoker"
+  member   = "allUsers"
+}
+
+resource "google_cloud_run_service_iam_member" "dev_console_invoker" {
+  location = google_cloud_run_service.dev_console.location
+  service  = google_cloud_run_service.dev_console.name
   role     = "roles/run.invoker"
   member   = "allUsers"
 }

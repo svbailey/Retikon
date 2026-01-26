@@ -39,6 +39,11 @@ variable "index_job_name" {
   default = "retikon-index-builder"
 }
 
+variable "dev_console_service_name" {
+  type    = string
+  default = "retikon-dev-console"
+}
+
 variable "ingestion_image" {
   type    = string
   default = "us-docker.pkg.dev/cloudrun/container/hello"
@@ -50,6 +55,11 @@ variable "query_image" {
 }
 
 variable "index_image" {
+  type    = string
+  default = "us-docker.pkg.dev/cloudrun/container/hello"
+}
+
+variable "dev_console_image" {
   type    = string
   default = "us-docker.pkg.dev/cloudrun/container/hello"
 }
@@ -99,6 +109,21 @@ variable "query_min_scale" {
   default = 0
 }
 
+variable "dev_console_memory" {
+  type    = string
+  default = "1Gi"
+}
+
+variable "dev_console_cpu" {
+  type    = string
+  default = "1000m"
+}
+
+variable "dev_console_concurrency" {
+  type    = number
+  default = 10
+}
+
 variable "index_memory" {
   type    = string
   default = "2Gi"
@@ -127,6 +152,11 @@ variable "index_builder_fallback_local" {
 variable "graph_prefix" {
   type    = string
   default = "retikon_v2"
+}
+
+variable "raw_prefix" {
+  type    = string
+  default = "raw"
 }
 
 variable "snapshot_uri" {
@@ -196,6 +226,11 @@ variable "max_query_bytes" {
 variable "max_image_base64_bytes" {
   type    = number
   default = 2000000
+}
+
+variable "max_preview_bytes" {
+  type    = number
+  default = 5242880
 }
 
 variable "duckdb_allow_install" {
@@ -317,6 +352,11 @@ variable "ingestion_service_account_name" {
 variable "query_service_account_name" {
   type    = string
   default = "retikon-query-sa"
+}
+
+variable "dev_console_service_account_name" {
+  type    = string
+  default = "retikon-dev-console-sa"
 }
 
 variable "index_service_account_name" {

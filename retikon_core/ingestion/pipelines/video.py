@@ -8,6 +8,7 @@ import uuid
 from datetime import datetime, timezone
 from pathlib import Path
 
+import fsspec
 from PIL import Image
 
 from retikon_core.config import Config
@@ -18,12 +19,7 @@ from retikon_core.embeddings import (
 )
 from retikon_core.errors import PermanentError
 from retikon_core.ingestion.download import cleanup_tmp
-from retikon_core.ingestion.media import (
-    extract_audio,
-    extract_frames,
-    frame_timestamp_ms,
-    probe_media,
-)
+from retikon_core.ingestion.media import extract_audio, extract_keyframes, probe_media
 from retikon_core.ingestion.pipelines.types import PipelineResult
 from retikon_core.ingestion.transcribe import transcribe_audio
 from retikon_core.ingestion.types import IngestSource
@@ -31,6 +27,7 @@ from retikon_core.storage.manifest import build_manifest, write_manifest
 from retikon_core.storage.paths import (
     edge_part_uri,
     graph_root,
+    join_uri,
     manifest_uri,
     vertex_part_uri,
 )
@@ -54,6 +51,39 @@ def _resolve_fps(config: Config) -> float:
     if config.video_sample_interval_seconds > 0:
         return 1.0 / config.video_sample_interval_seconds
     return float(config.video_sample_fps)
+
+
+def _thumbnail_uri(output_root: str, media_asset_id: str, frame_index: int) -> str:
+    return join_uri(
+        output_root,
+        "thumbnails",
+        media_asset_id,
+        f"frame-{frame_index:05d}.jpg",
+    )
+
+
+def _write_thumbnail(
+    image: Image.Image,
+    uri: str,
+    width: int,
+) -> None:
+    if width <= 0:
+        return
+    thumb = image.copy()
+    if thumb.width > width:
+        height = max(1, int(thumb.height * (width / float(thumb.width))))
+        thumb = thumb.resize((width, height))
+    with tempfile.NamedTemporaryFile(suffix=".jpg", delete=False) as tmp:
+        tmp_path = tmp.name
+    try:
+        thumb.save(tmp_path, format="JPEG", quality=85)
+        fs, path = fsspec.core.url_to_fs(uri)
+        fs.makedirs(os.path.dirname(path), exist_ok=True)
+        with fs.open(path, "wb") as handle, open(tmp_path, "rb") as src:
+            shutil.copyfileobj(src, handle)
+    finally:
+        if os.path.exists(tmp_path):
+            os.unlink(tmp_path)
 
 
 def ingest_video(
@@ -106,17 +136,28 @@ def ingest_video(
     audio_path = None
     files: list[WriteResult] = []
     try:
-        frame_paths = extract_frames(source.local_path, fps, frames_dir)
+        frame_infos = extract_keyframes(
+            input_path=source.local_path,
+            output_dir=frames_dir,
+            scene_threshold=config.video_scene_threshold,
+            min_frames=config.video_scene_min_frames,
+            fallback_fps=fps,
+        )
         image_vectors = []
         image_core_rows = []
         derived_edges = []
         next_keyframe_edges = []
 
-        for idx, frame_path in enumerate(frame_paths):
+        for idx, frame_info in enumerate(frame_infos):
+            frame_path = frame_info.path
             with Image.open(frame_path) as img:
                 rgb = img.convert("RGB")
                 width, height = rgb.size
                 vector = get_image_embedder(512).encode([rgb])[0]
+                thumb_uri = None
+                if config.video_thumbnail_width > 0:
+                    thumb_uri = _thumbnail_uri(output_root, media_asset_id, idx)
+                    _write_thumbnail(rgb, thumb_uri, config.video_thumbnail_width)
             image_vectors.append(vector)
             image_id = str(
                 uuid.uuid5(uuid.NAMESPACE_URL, f"{media_asset_id}:frame:{idx}")
@@ -126,9 +167,10 @@ def ingest_video(
                     "id": image_id,
                     "media_asset_id": media_asset_id,
                     "frame_index": idx,
-                    "timestamp_ms": frame_timestamp_ms(idx, fps),
+                    "timestamp_ms": frame_info.timestamp_ms,
                     "width_px": width,
                     "height_px": height,
+                    "thumbnail_uri": thumb_uri,
                     "embedding_model": _image_model(),
                     "pipeline_version": pipeline_version,
                     "schema_version": schema_version,

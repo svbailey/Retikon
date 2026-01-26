@@ -16,6 +16,10 @@ class Config:
     max_frames_per_video: int
     chunk_target_tokens: int
     chunk_overlap_tokens: int
+    video_scene_threshold: float
+    video_scene_min_frames: int
+    video_thumbnail_width: int
+    video_segment_preview_seconds: int
     firestore_collection: str
     idempotency_ttl_seconds: int
     max_ingest_attempts: int
@@ -64,6 +68,12 @@ class Config:
         max_frames_per_video = require_int("MAX_FRAMES_PER_VIDEO")
         chunk_target_tokens = require_int("CHUNK_TARGET_TOKENS")
         chunk_overlap_tokens = require_int("CHUNK_OVERLAP_TOKENS")
+        video_scene_threshold = _parse_float(os.getenv("VIDEO_SCENE_THRESHOLD", "0.3"))
+        video_scene_min_frames = int(os.getenv("VIDEO_SCENE_MIN_FRAMES", "3"))
+        video_thumbnail_width = int(os.getenv("VIDEO_THUMBNAIL_WIDTH", "320"))
+        video_segment_preview_seconds = int(
+            os.getenv("VIDEO_SEGMENT_PREVIEW_SECONDS", "5")
+        )
         firestore_collection = os.getenv("FIRESTORE_COLLECTION", "ingestion_events")
         idempotency_ttl_seconds = int(os.getenv("IDEMPOTENCY_TTL_SECONDS", "600"))
         max_ingest_attempts = int(os.getenv("MAX_INGEST_ATTEMPTS", "5"))
@@ -119,6 +129,10 @@ class Config:
             max_frames_per_video=max_frames_per_video,
             chunk_target_tokens=chunk_target_tokens,
             chunk_overlap_tokens=chunk_overlap_tokens,
+            video_scene_threshold=video_scene_threshold,
+            video_scene_min_frames=video_scene_min_frames,
+            video_thumbnail_width=video_thumbnail_width,
+            video_segment_preview_seconds=video_segment_preview_seconds,
             firestore_collection=firestore_collection,
             idempotency_ttl_seconds=idempotency_ttl_seconds,
             max_ingest_attempts=max_ingest_attempts,

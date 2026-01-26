@@ -28,8 +28,10 @@ class QueryResult:
     uri: str
     snippet: str | None
     timestamp_ms: int | None
+    thumbnail_uri: str | None
     score: float
     media_asset_id: str | None
+    media_type: str | None
 
 
 def _clamp_score(value: float) -> float:
@@ -98,14 +100,14 @@ def search_by_text(
     conn = _connect(snapshot_path)
     try:
         doc_sql = f"""
-            SELECT m.uri, d.media_asset_id, d.content,
+            SELECT m.uri, m.media_type, d.media_asset_id, d.content,
                    list_cosine_distance(d.text_vector, ?::FLOAT[]) AS distance
             FROM doc_chunks d
             JOIN media_assets m ON d.media_asset_id = m.id
             ORDER BY distance
             LIMIT {int(top_k)}
         """
-        for uri, media_asset_id, content, distance in _query_rows(
+        for uri, media_type, media_asset_id, content, distance in _query_rows(
             conn, doc_sql, [text_vec]
         ):
             results.append(
@@ -114,20 +116,22 @@ def search_by_text(
                     uri=uri,
                     snippet=content,
                     timestamp_ms=None,
+                    thumbnail_uri=None,
                     score=_score_from_distance(distance),
                     media_asset_id=media_asset_id,
+                    media_type=media_type,
                 )
             )
 
         transcript_sql = f"""
-            SELECT m.uri, t.media_asset_id, t.content, t.start_ms,
+            SELECT m.uri, m.media_type, t.media_asset_id, t.content, t.start_ms,
                    list_cosine_distance(t.text_embedding, ?::FLOAT[]) AS distance
             FROM transcripts t
             JOIN media_assets m ON t.media_asset_id = m.id
             ORDER BY distance
             LIMIT {int(top_k)}
         """
-        for uri, media_asset_id, content, start_ms, distance in _query_rows(
+        for uri, media_type, media_asset_id, content, start_ms, distance in _query_rows(
             conn, transcript_sql, [text_vec]
         ):
             results.append(
@@ -136,22 +140,30 @@ def search_by_text(
                     uri=uri,
                     snippet=content,
                     timestamp_ms=int(start_ms),
+                    thumbnail_uri=None,
                     score=_score_from_distance(distance),
                     media_asset_id=media_asset_id,
+                    media_type=media_type,
                 )
             )
 
         image_sql = f"""
-            SELECT m.uri, i.media_asset_id, i.timestamp_ms,
+            SELECT m.uri, m.media_type, i.media_asset_id, i.timestamp_ms,
+                   i.thumbnail_uri,
                    list_cosine_distance(i.clip_vector, ?::FLOAT[]) AS distance
             FROM image_assets i
             JOIN media_assets m ON i.media_asset_id = m.id
             ORDER BY distance
             LIMIT {int(top_k)}
         """
-        for uri, media_asset_id, timestamp_ms, distance in _query_rows(
-            conn, image_sql, [image_text_vec]
-        ):
+        for (
+            uri,
+            media_type,
+            media_asset_id,
+            timestamp_ms,
+            thumbnail_uri,
+            distance,
+        ) in _query_rows(conn, image_sql, [image_text_vec]):
             results.append(
                 QueryResult(
                     modality="image",
@@ -160,20 +172,22 @@ def search_by_text(
                     timestamp_ms=(
                         int(timestamp_ms) if timestamp_ms is not None else None
                     ),
+                    thumbnail_uri=thumbnail_uri,
                     score=_score_from_distance(distance),
                     media_asset_id=media_asset_id,
+                    media_type=media_type,
                 )
             )
 
         audio_sql = f"""
-            SELECT m.uri, a.media_asset_id,
+            SELECT m.uri, m.media_type, a.media_asset_id,
                    list_cosine_distance(a.clap_embedding, ?::FLOAT[]) AS distance
             FROM audio_clips a
             JOIN media_assets m ON a.media_asset_id = m.id
             ORDER BY distance
             LIMIT {int(top_k)}
         """
-        for uri, media_asset_id, distance in _query_rows(
+        for uri, media_type, media_asset_id, distance in _query_rows(
             conn, audio_sql, [audio_text_vec]
         ):
             results.append(
@@ -182,8 +196,10 @@ def search_by_text(
                     uri=uri,
                     snippet=None,
                     timestamp_ms=None,
+                    thumbnail_uri=None,
                     score=_score_from_distance(distance),
                     media_asset_id=media_asset_id,
+                    media_type=media_type,
                 )
             )
     finally:
@@ -208,7 +224,8 @@ def search_by_image(
     conn = _connect(snapshot_path)
     try:
         image_sql = f"""
-            SELECT m.uri, i.media_asset_id, i.timestamp_ms,
+            SELECT m.uri, m.media_type, i.media_asset_id, i.timestamp_ms,
+                   i.thumbnail_uri,
                    list_cosine_distance(i.clip_vector, ?::FLOAT[]) AS distance
             FROM image_assets i
             JOIN media_assets m ON i.media_asset_id = m.id
@@ -221,12 +238,19 @@ def search_by_image(
                 uri=uri,
                 snippet=None,
                 timestamp_ms=int(timestamp_ms) if timestamp_ms is not None else None,
+                thumbnail_uri=thumbnail_uri,
                 score=_score_from_distance(distance),
                 media_asset_id=media_asset_id,
+                media_type=media_type,
             )
-            for uri, media_asset_id, timestamp_ms, distance in _query_rows(
-                conn, image_sql, [vector]
-            )
+            for (
+                uri,
+                media_type,
+                media_asset_id,
+                timestamp_ms,
+                thumbnail_uri,
+                distance,
+            ) in _query_rows(conn, image_sql, [vector])
         ]
     finally:
         conn.close()

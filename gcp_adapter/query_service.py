@@ -61,8 +61,10 @@ class QueryHit(BaseModel):
     uri: str
     snippet: str | None = None
     timestamp_ms: int | None = None
+    thumbnail_uri: str | None = None
     score: float
     media_asset_id: str | None = None
+    media_type: str | None = None
 
 
 class QueryResponse(BaseModel):
@@ -279,8 +281,10 @@ async def query(
                 uri=item.uri,
                 snippet=item.snippet,
                 timestamp_ms=item.timestamp_ms,
+                thumbnail_uri=item.thumbnail_uri,
                 score=item.score,
                 media_asset_id=item.media_asset_id,
+                media_type=item.media_type,
             )
             for item in trimmed
         ]

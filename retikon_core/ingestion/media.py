@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import math
+import re
 import shutil
 import subprocess
 import tempfile
@@ -22,6 +23,12 @@ class MediaProbe:
     video_height: int | None
     frame_rate: float | None
     frame_count: int | None
+
+
+@dataclass(frozen=True)
+class FrameInfo:
+    path: str
+    timestamp_ms: int
 
 
 def _ensure_tool(name: str) -> None:
@@ -208,6 +215,93 @@ def extract_frames(input_path: str, fps: float, output_dir: str) -> list[str]:
 
     frames = sorted(Path(output_dir).glob("frame-*.jpg"))
     return [str(frame) for frame in frames]
+
+
+_PTS_TIME_RE = re.compile(r"pts_time:([0-9]+(?:\\.[0-9]+)?)")
+
+
+def _parse_pts_times(stderr: str) -> list[float]:
+    times: list[float] = []
+    for line in stderr.splitlines():
+        if "showinfo" not in line or "pts_time" not in line:
+            continue
+        match = _PTS_TIME_RE.search(line)
+        if not match:
+            continue
+        try:
+            times.append(float(match.group(1)))
+        except ValueError:
+            continue
+    return times
+
+
+def _extract_scene_frames(
+    input_path: str,
+    output_dir: str,
+    scene_threshold: float,
+    fallback_fps: float,
+) -> list[FrameInfo]:
+    _ensure_tool("ffmpeg")
+    Path(output_dir).mkdir(parents=True, exist_ok=True)
+    output_pattern = Path(output_dir) / "scene-%05d.jpg"
+    cmd = [
+        "ffmpeg",
+        "-y",
+        "-i",
+        input_path,
+        "-vf",
+        f"select='gt(scene,{scene_threshold})',showinfo",
+        "-vsync",
+        "vfr",
+        str(output_pattern),
+    ]
+    try:
+        result = subprocess.run(cmd, capture_output=True, text=True, check=True)
+    except subprocess.CalledProcessError as exc:
+        _raise_media_error(
+            "ffmpeg extract keyframes",
+            exc.stderr or exc.stdout or str(exc),
+        )
+    timestamps = _parse_pts_times(result.stderr or "")
+    frames = sorted(Path(output_dir).glob("scene-*.jpg"))
+    infos: list[FrameInfo] = []
+    for idx, frame in enumerate(frames):
+        if idx < len(timestamps):
+            timestamp_ms = int(timestamps[idx] * 1000.0)
+        else:
+            timestamp_ms = frame_timestamp_ms(idx, fallback_fps)
+        infos.append(FrameInfo(path=str(frame), timestamp_ms=timestamp_ms))
+    return infos
+
+
+def extract_keyframes(
+    input_path: str,
+    output_dir: str,
+    scene_threshold: float,
+    min_frames: int,
+    fallback_fps: float,
+) -> list[FrameInfo]:
+    try:
+        scene_frames = _extract_scene_frames(
+            input_path=input_path,
+            output_dir=output_dir,
+            scene_threshold=scene_threshold,
+            fallback_fps=fallback_fps,
+        )
+    except RecoverableError:
+        scene_frames = []
+
+    if len(scene_frames) >= min_frames:
+        return scene_frames
+
+    for frame in Path(output_dir).glob("scene-*.jpg"):
+        frame.unlink(missing_ok=True)
+
+    frame_paths = extract_frames(input_path, fallback_fps, output_dir)
+    return [
+        FrameInfo(path=path, timestamp_ms=frame_timestamp_ms(idx, fallback_fps))
+        for idx, path in enumerate(frame_paths)
+    ]
 
 
 def frame_timestamp_ms(index: int, fps: float) -> int:

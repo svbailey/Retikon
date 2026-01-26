@@ -1143,6 +1143,13 @@ E4, E3
   - Extract audio track and run Whisper + CLAP.
   - Frame sampling policy:
     - config `VIDEO_SAMPLE_FPS` or `VIDEO_SAMPLE_INTERVAL_SECONDS`.
+  - Keyframe selection:
+    - scene-change detection with `VIDEO_SCENE_THRESHOLD`.
+    - fallback to uniform sampling if fewer than `VIDEO_SCENE_MIN_FRAMES`.
+  - Thumbnails:
+    - store keyframe thumbnails under `thumbnails/` in graph bucket.
+    - write `thumbnail_uri` into `ImageAsset` core.
+    - size controlled by `VIDEO_THUMBNAIL_WIDTH`.
   - Compute CLIP embeddings per sampled frame.
   - GraphAr outputs:
     - `MediaAsset` core
