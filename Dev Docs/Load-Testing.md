@@ -72,6 +72,17 @@ waits for Firestore ingestion completion.
   - Query image updated to `retikon-query:realmodels-20260126-142604` with embedding caches.
   - Throughput was 4.97 rps for 300 requests (steady-state warm run).
 
+### Query (headroom)
+
+- Target QPS: 6 (60s, concurrency 12)
+- p50 latency (ms): 421.49
+- p95 latency (ms): 712.85
+- p99 latency (ms): 852.53
+- Error rate: 0% (0/360)
+- Notes:
+  - Same service config as above.
+  - Throughput was 5.84 rps for 360 requests.
+
 ### Ingestion
 
 - Target RPS: 1 (count 20, concurrency 4)
