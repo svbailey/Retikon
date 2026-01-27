@@ -195,6 +195,9 @@ export default function App() {
   const [activeTab, setActiveTab] = useState<ConsoleTab>("console");
   const [devApiOverride, setDevApiOverride] = useState("");
   const [queryUrlOverride, setQueryUrlOverride] = useState("");
+  const [ingestUrlOverride, setIngestUrlOverride] = useState("");
+  const [localPath, setLocalPath] = useState("");
+  const [queryMode, setQueryMode] = useState<"text" | "all">("all");
   const [thumbUrls, setThumbUrls] = useState<Record<string, string>>({});
   const [videoUrls, setVideoUrls] = useState<Record<string, string>>({});
   const [videoLoading, setVideoLoading] = useState<Record<string, boolean>>({});
@@ -214,6 +217,10 @@ export default function App() {
       ""
     );
   }, [devApiOverride]);
+
+  const ingestUrl = useMemo(() => {
+    return ingestUrlOverride || import.meta.env.VITE_INGEST_URL || "";
+  }, [ingestUrlOverride]);
 
   const queryBase = useMemo(() => {
     return queryUrl.replace(/\/query\/?$/, "");
@@ -238,6 +245,7 @@ export default function App() {
     import.meta.env.VITE_INDEX_URL ||
     (devApiUrl ? `${devApiUrl}/dev/index-build` : "");
   const indexStatusUrl = devApiUrl ? `${devApiUrl}/dev/index-status` : "";
+  const localMode = Boolean(ingestUrl) && !devApiUrl;
   const objectUrl = devApiUrl ? `${devApiUrl}/dev/object` : "";
 
   const rawBucket = import.meta.env.VITE_RAW_BUCKET || "";
@@ -268,6 +276,14 @@ export default function App() {
     if (queryOverride) {
       setQueryUrlOverride(queryOverride);
     }
+    const ingestOverride = localStorage.getItem("retikon_ingest_url");
+    if (ingestOverride) {
+      setIngestUrlOverride(ingestOverride);
+    }
+    const storedMode = localStorage.getItem("retikon_query_mode");
+    if (storedMode === "text" || storedMode === "all") {
+      setQueryMode(storedMode);
+    }
   }, []);
 
   useEffect(() => {
@@ -291,6 +307,18 @@ export default function App() {
       localStorage.removeItem("retikon_query_url");
     }
   }, [queryUrlOverride]);
+
+  useEffect(() => {
+    if (ingestUrlOverride) {
+      localStorage.setItem("retikon_ingest_url", ingestUrlOverride);
+    } else {
+      localStorage.removeItem("retikon_ingest_url");
+    }
+  }, [ingestUrlOverride]);
+
+  useEffect(() => {
+    localStorage.setItem("retikon_query_mode", queryMode);
+  }, [queryMode]);
 
 
   const addActivity = (message: string, tone: ActivityItem["tone"]) => {
@@ -345,6 +373,54 @@ export default function App() {
       setAutoReloadTriggered(false);
       setUploadStatus("done");
       addActivity("Upload complete. Ready to check ingest status.", "success");
+    } catch (err) {
+      const message = (err as Error).message;
+      setUploadError(message);
+      setUploadStatus("error");
+      addActivity(message, "error");
+    }
+  };
+
+  const handleLocalIngest = async () => {
+    if (!localPath.trim()) {
+      setUploadError("Provide a local file path to ingest.");
+      setUploadStatus("error");
+      return;
+    }
+    if (!ingestUrl) {
+      setUploadError("Local ingest URL is not configured.");
+      setUploadStatus("error");
+      return;
+    }
+    setUploadError(null);
+    setUploadStatus("working");
+    addActivity("Submitting local ingest request...", "info");
+    const endpoint = ingestUrl.endsWith("/ingest")
+      ? ingestUrl
+      : `${ingestUrl.replace(/\/$/, "")}/ingest`;
+    try {
+      const resp = await fetch(endpoint, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ path: localPath.trim() }),
+      });
+      if (!resp.ok) {
+        const detail = await resp.text();
+        throw new Error(detail || "Local ingest failed");
+      }
+      const data = (await resp.json()) as { manifest_uri?: string };
+      if (data.manifest_uri) {
+        setManifestUri(data.manifest_uri);
+      }
+      setIngestStatus({ status: "COMPLETED" });
+      setIngestStatusState("done");
+      setUploadStatus("done");
+      setUploadInfo(null);
+      setUploadedUri("");
+      setManualUri("");
+      addActivity("Local ingest complete.", "success");
     } catch (err) {
       const message = (err as Error).message;
       setUploadError(message);
@@ -767,6 +843,9 @@ export default function App() {
     if (imageBase64) {
       payload.image_base64 = imageBase64;
     }
+    if (queryMode === "text") {
+      payload.mode = "text";
+    }
 
     try {
       const resp = await fetch(queryUrl, {
@@ -801,6 +880,9 @@ export default function App() {
     }
     if (imageBase64) {
       payload.image_base64 = imageBase64;
+    }
+    if (queryMode === "text") {
+      payload.mode = "text";
     }
 
     const headers = ["-H 'Content-Type: application/json'"];
@@ -869,6 +951,7 @@ export default function App() {
           <span>GraphAr</span>
           <span>Index</span>
           <span>Query</span>
+          {localMode && <span>Local mode</span>}
         </div>
       </header>
 
@@ -923,6 +1006,18 @@ export default function App() {
               </small>
             </label>
             <label className="field">
+              <span>Local ingest URL</span>
+              <input
+                type="url"
+                placeholder="http://localhost:8081/ingest"
+                value={ingestUrlOverride}
+                onChange={(event) => setIngestUrlOverride(event.target.value)}
+              />
+              <small>
+                Default: {import.meta.env.VITE_INGEST_URL || "none"}
+              </small>
+            </label>
+            <label className="field">
               <span>Query API URL</span>
               <input
                 type="url"
@@ -935,6 +1030,10 @@ export default function App() {
               </small>
             </label>
           </div>
+          <p className="panel-help">
+            OCR is optional. Install `requirements-ocr.txt` and set
+            `ENABLE_OCR=1` (optional `OCR_MAX_PAGES`) to enable PDF/image OCR.
+          </p>
         </section>
       )}
 
@@ -961,76 +1060,136 @@ export default function App() {
 
             <div className="step-grid">
               <div>
-                <label className="field">
-                  <span>Asset</span>
-                  <input
-                    type="file"
-                    onChange={(event) =>
-                      setUploadFile(event.target.files?.[0] ?? null)
-                    }
-                  />
-                </label>
-                <label className="field">
-                  <span>Category</span>
-                  <select
-                    value={uploadCategory}
-                    onChange={(event) => setUploadCategory(event.target.value)}
-                  >
-                    <option value="docs">Docs</option>
-                    <option value="images">Images</option>
-                    <option value="audio">Audio</option>
-                    <option value="videos">Videos</option>
-                  </select>
-                </label>
+                {uploadUrl && !localMode && (
+                  <>
+                    <label className="field">
+                      <span>Asset</span>
+                      <input
+                        type="file"
+                        onChange={(event) =>
+                          setUploadFile(event.target.files?.[0] ?? null)
+                        }
+                      />
+                    </label>
+                    <label className="field">
+                      <span>Category</span>
+                      <select
+                        value={uploadCategory}
+                        onChange={(event) =>
+                          setUploadCategory(event.target.value)
+                        }
+                      >
+                        <option value="docs">Docs</option>
+                        <option value="images">Images</option>
+                        <option value="audio">Audio</option>
+                        <option value="videos">Videos</option>
+                      </select>
+                    </label>
 
-                <div className="actions">
-                  <button
-                    onClick={handleUpload}
-                    disabled={!uploadUrl || uploadStatus === "working"}
-                  >
-                    {uploadStatus === "working"
-                      ? "Uploading..."
-                      : "Upload to raw bucket"}
-                  </button>
-                  <button className="ghost" onClick={copyUploadCommand}>
-                    Copy gsutil
-                  </button>
-                </div>
-                <p className="hint">
-                  {uploadUrl
-                    ? "Upload runs through the dev console API."
-                    : "No upload endpoint configured. Use the gsutil command."}
-                </p>
-                {uploadError && <p className="error">{uploadError}</p>}
+                    <div className="actions">
+                      <button
+                        onClick={handleUpload}
+                        disabled={!uploadUrl || uploadStatus === "working"}
+                      >
+                        {uploadStatus === "working"
+                          ? "Uploading..."
+                          : "Upload to raw bucket"}
+                      </button>
+                      <button className="ghost" onClick={copyUploadCommand}>
+                        Copy gsutil
+                      </button>
+                    </div>
+                    <p className="hint">
+                      Upload runs through the dev console API.
+                    </p>
+                    {uploadError && <p className="error">{uploadError}</p>}
+                  </>
+                )}
+
+                {localMode && (
+                  <>
+                    <label className="field">
+                      <span>Local file path</span>
+                      <input
+                        type="text"
+                        placeholder="/data/sample.csv"
+                        value={localPath}
+                        onChange={(event) => setLocalPath(event.target.value)}
+                      />
+                    </label>
+                    <div className="actions">
+                      <button
+                        onClick={handleLocalIngest}
+                        disabled={uploadStatus === "working"}
+                      >
+                        {uploadStatus === "working"
+                          ? "Ingesting..."
+                          : "Ingest local file"}
+                      </button>
+                    </div>
+                    <p className="hint">
+                      Local ingestion reads a file path on the same host as the
+                      API service.
+                    </p>
+                    {uploadError && <p className="error">{uploadError}</p>}
+                  </>
+                )}
+
+                {!uploadUrl && !localMode && (
+                  <>
+                    <p className="hint">
+                      No upload endpoint configured. Use the gsutil command or
+                      configure a local ingest URL.
+                    </p>
+                    {uploadError && <p className="error">{uploadError}</p>}
+                  </>
+                )}
               </div>
 
               <div className="helper-card">
-                <h3>Manual upload</h3>
-                <p className="hint">
-                  After uploading manually, paste the object URI so the console
-                  can track it.
-                </p>
-                <code className="command">{uploadCommand}</code>
-                <input
-                  type="text"
-                  placeholder="gs://retikon-raw.../raw/docs/your-file.pdf"
-                  value={manualUri}
-                  onChange={(event) => setManualUri(event.target.value)}
-                />
-                <button className="ghost" onClick={applyManualUri}>
-                  Save URI
-                </button>
-                {uploadedUri && (
-                  <div className="uploaded">
-                    <span>Tracking</span>
-                    <p>{uploadedUri}</p>
-                  </div>
-                )}
-                {uploadInfo && (
-                  <div className="meta-grid">
-                    <p>Run ID: {uploadInfo.run_id}</p>
-                    <p>Size: {uploadInfo.size_bytes} bytes</p>
-                  </div>
+                {localMode ? (
+                  <>
+                    <h3>Local mode</h3>
+                    <p className="hint">
+                      Ingest returns a manifest URI you can copy below.
+                    </p>
+                    <input
+                      type="text"
+                      placeholder="manifest URI"
+                      value={manifestUri}
+                      onChange={(event) => setManifestUri(event.target.value)}
+                    />
+                  </>
+                ) : (
+                  <>
+                    <h3>Manual upload</h3>
+                    <p className="hint">
+                      After uploading manually, paste the object URI so the console
+                      can track it.
+                    </p>
+                    <code className="command">{uploadCommand}</code>
+                    <input
+                      type="text"
+                      placeholder="gs://retikon-raw.../raw/docs/your-file.pdf"
+                      value={manualUri}
+                      onChange={(event) => setManualUri(event.target.value)}
+                    />
+                    <button className="ghost" onClick={applyManualUri}>
+                      Save URI
+                    </button>
+                    {uploadedUri && (
+                      <div className="uploaded">
+                        <span>Tracking</span>
+                        <p>{uploadedUri}</p>
+                      </div>
+                    )}
+                    {uploadInfo && (
+                      <div className="meta-grid">
+                        <p>Run ID: {uploadInfo.run_id}</p>
+                        <p>Size: {uploadInfo.size_bytes} bytes</p>
+                      </div>
+                    )}
+                  </>
                 )}
               </div>
             </div>
@@ -1045,10 +1204,14 @@ export default function App() {
             <div className="step-grid">
               <div>
                 <p className="hint">
-                  Pull Firestore ingestion state for this object.
+                  {devApiUrl
+                    ? "Pull Firestore ingestion state for this object."
+                    : "In local mode, ingestion runs synchronously."}
                 </p>
                 <div className="actions">
-                  <button onClick={fetchIngestStatus}>Refresh status</button>
+                  <button onClick={fetchIngestStatus} disabled={!ingestStatusUrl}>
+                    Refresh status
+                  </button>
                 </div>
                 {ingestError && <p className="error">{ingestError}</p>}
               </div>
@@ -1087,7 +1250,9 @@ export default function App() {
                   />
                 </label>
                 <div className="actions">
-                  <button onClick={fetchManifest}>Load manifest</button>
+                  <button onClick={fetchManifest} disabled={!manifestUrl}>
+                    Load manifest
+                  </button>
                 </div>
                 {manifestError && <p className="error">{manifestError}</p>}
               </div>
@@ -1275,6 +1440,26 @@ export default function App() {
                 handleSubmit();
               }}
             >
+              <label className="field">
+                <span>Query scope</span>
+                <div className="toggle-group">
+                  <button
+                    type="button"
+                    className={queryMode === "text" ? "active" : ""}
+                    onClick={() => setQueryMode("text")}
+                  >
+                    Text only
+                  </button>
+                  <button
+                    type="button"
+                    className={queryMode === "all" ? "active" : ""}
+                    onClick={() => setQueryMode("all")}
+                  >
+                    All modalities
+                  </button>
+                </div>
+              </label>
+
               <label className="field">
                 <span>Text prompt</span>
                 <textarea

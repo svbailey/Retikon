@@ -407,6 +407,26 @@ textarea {
   margin-top: 20px;
 }
 
+.toggle-group {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-top: 10px;
+}
+
+.toggle-group button {
+  background: rgba(27, 25, 21, 0.05);
+  color: var(--ink);
+  border: 1px solid rgba(27, 25, 21, 0.15);
+  box-shadow: none;
+}
+
+.toggle-group button.active {
+  background: rgba(241, 91, 42, 0.18);
+  border-color: rgba(241, 91, 42, 0.5);
+  color: var(--accent-dark);
+}
+
 button {
   border: none;
   border-radius: 999px;

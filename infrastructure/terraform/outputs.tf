@@ -30,6 +30,10 @@ output "dev_console_service_url" {
   value = google_cloud_run_service.dev_console.status[0].url
 }
 
+output "edge_gateway_service_url" {
+  value = google_cloud_run_service.edge_gateway.status[0].url
+}
+
 output "query_api_key" {
   value     = local.resolved_query_api_key
   sensitive = true

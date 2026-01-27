@@ -63,6 +63,11 @@ resource "google_service_account" "dev_console" {
   display_name = "Retikon Dev Console Service Account"
 }
 
+resource "google_service_account" "edge_gateway" {
+  account_id   = var.edge_gateway_service_account_name
+  display_name = "Retikon Edge Gateway Service Account"
+}
+
 resource "google_service_account" "index_builder" {
   account_id   = var.index_service_account_name
   display_name = "Retikon Index Builder Service Account"
@@ -137,6 +142,12 @@ resource "google_storage_bucket_iam_member" "dev_console_graph_view" {
   bucket = google_storage_bucket.graph.name
   role   = "roles/storage.objectViewer"
   member = "serviceAccount:${google_service_account.dev_console.email}"
+}
+
+resource "google_storage_bucket_iam_member" "edge_gateway_raw_create" {
+  bucket = google_storage_bucket.raw.name
+  role   = "roles/storage.objectCreator"
+  member = "serviceAccount:${google_service_account.edge_gateway.email}"
 }
 
 resource "google_storage_bucket_iam_member" "index_graph_admin" {
@@ -630,6 +641,104 @@ resource "google_cloud_run_service" "dev_console" {
   autogenerate_revision_name = true
 }
 
+resource "google_cloud_run_service" "edge_gateway" {
+  name     = "${var.edge_gateway_service_name}-${var.env}"
+  location = var.region
+
+  metadata {
+    annotations = {
+      "run.googleapis.com/ingress" = "all"
+    }
+  }
+
+  template {
+    metadata {
+      annotations = {
+        "autoscaling.knative.dev/maxScale" = tostring(var.edge_gateway_max_scale)
+      }
+    }
+
+    spec {
+      service_account_name = google_service_account.edge_gateway.email
+      container_concurrency = var.edge_gateway_concurrency
+
+      containers {
+        image = var.edge_gateway_image
+
+        resources {
+          limits = {
+            cpu    = var.edge_gateway_cpu
+            memory = var.edge_gateway_memory
+          }
+        }
+
+        env {
+          name  = "APP_MODULE"
+          value = "gcp_adapter.edge_gateway_service:app"
+        }
+        env {
+          name  = "ENV"
+          value = var.env
+        }
+        env {
+          name  = "LOG_LEVEL"
+          value = var.log_level
+        }
+        env {
+          name  = "RAW_BUCKET"
+          value = google_storage_bucket.raw.name
+        }
+        env {
+          name  = "RAW_PREFIX"
+          value = var.raw_prefix
+        }
+        env {
+          name  = "MAX_RAW_BYTES"
+          value = tostring(var.max_raw_bytes)
+        }
+        env {
+          name  = "EDGE_BUFFER_DIR"
+          value = "/tmp/retikon_edge_buffer"
+        }
+        env {
+          name  = "EDGE_BUFFER_MAX_BYTES"
+          value = tostring(var.edge_buffer_max_bytes)
+        }
+        env {
+          name  = "EDGE_BUFFER_TTL_SECONDS"
+          value = tostring(var.edge_buffer_ttl_seconds)
+        }
+        env {
+          name  = "EDGE_BATCH_MIN"
+          value = tostring(var.edge_batch_min)
+        }
+        env {
+          name  = "EDGE_BATCH_MAX"
+          value = tostring(var.edge_batch_max)
+        }
+        env {
+          name  = "EDGE_BACKLOG_LOW"
+          value = tostring(var.edge_backlog_low)
+        }
+        env {
+          name  = "EDGE_BACKLOG_HIGH"
+          value = tostring(var.edge_backlog_high)
+        }
+        env {
+          name  = "EDGE_BACKPRESSURE_MAX"
+          value = tostring(var.edge_backpressure_max)
+        }
+        env {
+          name  = "EDGE_BACKPRESSURE_HARD"
+          value = tostring(var.edge_backpressure_hard)
+        }
+      }
+    }
+  }
+
+  autogenerate_revision_name = true
+}
+
 resource "google_cloud_run_service_iam_member" "query_invoker" {
   location = google_cloud_run_service.query.location
   service  = google_cloud_run_service.query.name
@@ -640,6 +749,13 @@ resource "google_cloud_run_service_iam_member" "query_invoker" {
 resource "google_cloud_run_service_iam_member" "dev_console_invoker" {
   location = google_cloud_run_service.dev_console.location
   service  = google_cloud_run_service.dev_console.name
+  role     = "roles/run.invoker"
+  member   = "allUsers"
+}
+
+resource "google_cloud_run_service_iam_member" "edge_gateway_invoker" {
+  location = google_cloud_run_service.edge_gateway.location
+  service  = google_cloud_run_service.edge_gateway.name
   role     = "roles/run.invoker"
   member   = "allUsers"
 }

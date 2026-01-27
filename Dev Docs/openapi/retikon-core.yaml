@@ -1,0 +1,263 @@
+openapi: 3.0.3
+info:
+  title: Retikon Core API
+  version: 3.0.0
+  description: |
+    Retikon Core local APIs for ingestion and query.
+    This spec covers the local adapter services used by the dev console and SDKs.
+servers:
+  - url: http://localhost:8081
+    description: Local ingestion service
+  - url: http://localhost:8082
+    description: Local query service
+tags:
+  - name: ingest
+    description: Local ingestion endpoints
+  - name: query
+    description: Query endpoints
+  - name: admin
+    description: Admin endpoints
+paths:
+  /health:
+    get:
+      tags: [query, ingest]
+      summary: Health check
+      responses:
+        "200":
+          description: Service is healthy
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HealthResponse"
+  /ingest:
+    post:
+      tags: [ingest]
+      summary: Ingest a local file by path
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/IngestRequest"
+            examples:
+              sample:
+                value:
+                  path: /data/sample.csv
+                  content_type: text/csv
+      responses:
+        "200":
+          description: Ingest completed
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/IngestResponse"
+        "400":
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: File not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+  /query:
+    post:
+      tags: [query]
+      summary: Query the local snapshot
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/QueryRequest"
+            examples:
+              text:
+                value:
+                  query_text: hello world
+                  top_k: 5
+                  mode: text
+              keyword:
+                value:
+                  query_text: alarm
+                  search_type: keyword
+                  top_k: 5
+              metadata:
+                value:
+                  search_type: metadata
+                  metadata_filters:
+                    content_type: application/pdf
+                  top_k: 10
+      responses:
+        "200":
+          description: Query results
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/QueryResponse"
+        "400":
+          description: Invalid request
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "413":
+          description: Payload too large
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "503":
+          description: Snapshot not ready
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+  /admin/reload-snapshot:
+    post:
+      tags: [admin]
+      summary: Reload the query snapshot
+      responses:
+        "200":
+          description: Snapshot reloaded
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HealthResponse"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Reload failed
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+components:
+  schemas:
+    HealthResponse:
+      type: object
+      properties:
+        status:
+          type: string
+        service:
+          type: string
+        version:
+          type: string
+        commit:
+          type: string
+        timestamp:
+          type: string
+      required: [status, service, version, timestamp]
+    ErrorResponse:
+      type: object
+      properties:
+        detail:
+          type: string
+      required: [detail]
+    IngestRequest:
+      type: object
+      properties:
+        path:
+          type: string
+          description: Absolute or relative path to a local file.
+        content_type:
+          type: string
+          nullable: true
+      required: [path]
+    IngestResponse:
+      type: object
+      properties:
+        status:
+          type: string
+        modality:
+          type: string
+          description: document|image|audio|video
+        manifest_uri:
+          type: string
+          nullable: true
+        media_asset_id:
+          type: string
+          nullable: true
+        trace_id:
+          type: string
+      required: [status, modality, trace_id]
+    QueryRequest:
+      type: object
+      properties:
+        query_text:
+          type: string
+          nullable: true
+        image_base64:
+          type: string
+          nullable: true
+        top_k:
+          type: integer
+          minimum: 1
+          maximum: 50
+          default: 5
+        mode:
+          type: string
+          nullable: true
+          description: text|image|audio|all
+        modalities:
+          type: array
+          items:
+            type: string
+          nullable: true
+          description: document|transcript|image|audio
+        search_type:
+          type: string
+          nullable: true
+          description: vector|keyword|metadata
+        metadata_filters:
+          type: object
+          additionalProperties:
+            type: string
+          nullable: true
+      required: [top_k]
+    QueryHit:
+      type: object
+      properties:
+        modality:
+          type: string
+        uri:
+          type: string
+        snippet:
+          type: string
+          nullable: true
+        timestamp_ms:
+          type: integer
+          nullable: true
+        thumbnail_uri:
+          type: string
+          nullable: true
+        score:
+          type: number
+          format: float
+        media_asset_id:
+          type: string
+          nullable: true
+        media_type:
+          type: string
+          nullable: true
+      required: [modality, uri, score]
+    QueryResponse:
+      type: object
+      properties:
+        results:
+          type: array
+          items:
+            $ref: "#/components/schemas/QueryHit"
+      required: [results]

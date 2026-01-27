@@ -44,6 +44,16 @@ variable "dev_console_service_name" {
   default = "retikon-dev-console"
 }
 
+variable "edge_gateway_service_account_name" {
+  type    = string
+  default = "retikon-edge-gateway"
+}
+
+variable "edge_gateway_service_name" {
+  type    = string
+  default = "retikon-edge-gateway"
+}
+
 variable "ingestion_image" {
   type    = string
   default = "us-docker.pkg.dev/cloudrun/container/hello"
@@ -60,6 +70,11 @@ variable "index_image" {
 }
 
 variable "dev_console_image" {
+  type    = string
+  default = "us-docker.pkg.dev/cloudrun/container/hello"
+}
+
+variable "edge_gateway_image" {
   type    = string
   default = "us-docker.pkg.dev/cloudrun/container/hello"
 }
@@ -162,6 +177,66 @@ variable "dev_console_cpu" {
 variable "dev_console_concurrency" {
   type    = number
   default = 10
+}
+
+variable "edge_buffer_max_bytes" {
+  type    = number
+  default = 2147483648
+}
+
+variable "edge_buffer_ttl_seconds" {
+  type    = number
+  default = 86400
+}
+
+variable "edge_batch_min" {
+  type    = number
+  default = 1
+}
+
+variable "edge_batch_max" {
+  type    = number
+  default = 50
+}
+
+variable "edge_backlog_low" {
+  type    = number
+  default = 10
+}
+
+variable "edge_backlog_high" {
+  type    = number
+  default = 100
+}
+
+variable "edge_backpressure_max" {
+  type    = number
+  default = 1000
+}
+
+variable "edge_backpressure_hard" {
+  type    = number
+  default = 2000
+}
+
+variable "edge_gateway_memory" {
+  type    = string
+  default = "1Gi"
+}
+
+variable "edge_gateway_cpu" {
+  type    = string
+  default = "1000m"
+}
+
+variable "edge_gateway_concurrency" {
+  type    = number
+  default = 10
+}
+
+variable "edge_gateway_max_scale" {
+  type    = number
+  default = 20
 }
 
 variable "index_memory" {

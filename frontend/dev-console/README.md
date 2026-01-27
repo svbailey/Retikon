@@ -18,13 +18,19 @@ npm run dev
 Set the query API URL with:
 
 ```bash
-export VITE_QUERY_URL="http://localhost:8080/query"
+export VITE_QUERY_URL="http://localhost:8082/query"
 ```
 
 Set the dev console API URL (upload/status/manifest preview):
 
 ```bash
 export VITE_DEV_API_URL="http://localhost:8082"
+```
+
+For local ingestion (path-based ingest service):
+
+```bash
+export VITE_INGEST_URL="http://localhost:8081/ingest"
 ```
 
 Optional helpers for the guided workflow UI:
@@ -44,7 +50,7 @@ export VITE_REGION="us-central1"
 
 1. Start the query service locally or deploy it to Cloud Run.
 2. Open the Dev Console, switch to the Settings tab, and paste the API key.
-3. (Optional) override the Dev API URL and Query API URL in Settings.
+3. (Optional) override the Dev API URL, Local Ingest URL, and Query API URL in Settings.
 4. Upload an asset and check ingest status.
 5. Load the manifest and keyframes preview.
 6. Trigger the index build (or run the CLI command).

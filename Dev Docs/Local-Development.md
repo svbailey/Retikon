@@ -31,6 +31,22 @@ Set these for real model runs (CPU-only default):
 - `WHISPER_MODEL_NAME=small`
 - `EMBEDDING_DEVICE=cpu`
 
+### OCR (optional)
+
+OCR is disabled by default. To enable OCR locally:
+
+1) Install `tesseract-ocr` on your machine.
+2) Install optional deps:
+
+```bash
+pip install -r requirements-ocr.txt
+```
+
+3) Set:
+
+- `ENABLE_OCR=1`
+- `OCR_MAX_PAGES=5` (optional)
+
 ## Run services locally
 
 ```bash

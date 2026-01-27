@@ -88,6 +88,7 @@ Deliverables:
 
 ## Sprint 5 - SDKs + minimal web console
 Goal: complete developer experience for Core.
+Status: Complete (2026-01-27)
 
 Tasks:
 - Add SDKs: `sdk/python/` and `sdk/js/` with ingest/query support.
@@ -109,6 +110,7 @@ Deliverables:
 
 ## Sprint 6 - Edge gateway + adaptive buffering (Pro)
 Goal: managed edge gateway with store-and-forward behavior.
+Status: Complete (2026-01-27)
 
 Tasks:
 - Add edge gateway service in `gcp_adapter/edge_gateway_service.py`.

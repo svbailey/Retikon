@@ -1,0 +1,11 @@
+{
+  "name": "@retikon/core-sdk",
+  "version": "0.1.0",
+  "description": "Retikon Core SDK (local ingestion + query)",
+  "type": "module",
+  "main": "./index.js",
+  "exports": {
+    ".": "./index.js"
+  },
+  "license": "Apache-2.0"
+}
