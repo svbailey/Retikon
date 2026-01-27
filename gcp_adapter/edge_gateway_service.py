@@ -346,11 +346,11 @@ async def buffer_prune() -> dict[str, int]:
 
 @app.post("/edge/upload", response_model=UploadResponse)
 async def upload(
-    file: Annotated[UploadFile, File(...)],
-    modality: Annotated[str, Form(...)],
-    device_id: Annotated[str | None, Form(default=None)],
-    stream_id: Annotated[str | None, Form(default=None)],
-    site_id: Annotated[str | None, Form(default=None)],
+    file: Annotated[UploadFile, File()],
+    modality: Annotated[str, Form()],
+    device_id: Annotated[str | None, Form()] = None,
+    stream_id: Annotated[str | None, Form()] = None,
+    site_id: Annotated[str | None, Form()] = None,
 ) -> UploadResponse:
     backlog = STATE.buffer.stats().count
     if not STATE.backpressure.should_accept(backlog):

@@ -38,6 +38,10 @@ output "stream_ingest_service_url" {
   value = google_cloud_run_service.stream_ingest.status[0].url
 }
 
+output "compaction_job_name" {
+  value = google_cloud_run_v2_job.compaction.name
+}
+
 output "query_api_key" {
   value     = local.resolved_query_api_key
   sensitive = true

@@ -39,6 +39,11 @@ variable "index_job_name" {
   default = "retikon-index-builder"
 }
 
+variable "compaction_job_name" {
+  type    = string
+  default = "retikon-compaction"
+}
+
 variable "dev_console_service_name" {
   type    = string
   default = "retikon-dev-console"
@@ -62,6 +67,11 @@ variable "stream_ingest_service_account_name" {
 variable "stream_ingest_service_name" {
   type    = string
   default = "retikon-stream-ingest"
+}
+
+variable "compaction_service_account_name" {
+  type    = string
+  default = "retikon-compaction"
 }
 
 variable "ingestion_image" {
@@ -90,6 +100,11 @@ variable "edge_gateway_image" {
 }
 
 variable "stream_ingest_image" {
+  type    = string
+  default = "us-docker.pkg.dev/cloudrun/container/hello"
+}
+
+variable "compaction_image" {
   type    = string
   default = "us-docker.pkg.dev/cloudrun/container/hello"
 }
@@ -324,6 +339,16 @@ variable "index_cpu" {
   default = "1000m"
 }
 
+variable "compaction_memory" {
+  type    = string
+  default = "2Gi"
+}
+
+variable "compaction_cpu" {
+  type    = string
+  default = "1000m"
+}
+
 variable "index_builder_work_dir" {
   type    = string
   default = "/tmp"
@@ -337,6 +362,71 @@ variable "index_builder_copy_local" {
 variable "index_builder_fallback_local" {
   type    = bool
   default = true
+}
+
+variable "compaction_schedule" {
+  type    = string
+  default = "0 * * * *"
+}
+
+variable "compaction_schedule_timezone" {
+  type    = string
+  default = "Etc/UTC"
+}
+
+variable "compaction_target_min_bytes" {
+  type    = number
+  default = 104857600
+}
+
+variable "compaction_target_max_bytes" {
+  type    = number
+  default = 1073741824
+}
+
+variable "compaction_max_groups_per_batch" {
+  type    = number
+  default = 50
+}
+
+variable "compaction_delete_source" {
+  type    = bool
+  default = false
+}
+
+variable "compaction_dry_run" {
+  type    = bool
+  default = false
+}
+
+variable "compaction_strict" {
+  type    = bool
+  default = true
+}
+
+variable "retention_hot_days" {
+  type    = number
+  default = 0
+}
+
+variable "retention_warm_days" {
+  type    = number
+  default = 30
+}
+
+variable "retention_cold_days" {
+  type    = number
+  default = 180
+}
+
+variable "retention_delete_days" {
+  type    = number
+  default = 0
+}
+
+variable "retention_apply" {
+  type    = bool
+  default = false
 }
 
 variable "graph_prefix" {

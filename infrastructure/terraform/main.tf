@@ -99,6 +99,11 @@ resource "google_service_account" "stream_ingest" {
   display_name = "Retikon Stream Ingest Service Account"
 }
 
+resource "google_service_account" "compaction" {
+  account_id   = var.compaction_service_account_name
+  display_name = "Retikon Compaction Service Account"
+}
+
 resource "google_service_account" "index_builder" {
   account_id   = var.index_service_account_name
   display_name = "Retikon Index Builder Service Account"
@@ -137,6 +142,18 @@ resource "google_project_iam_member" "dev_console_run_developer" {
   project = var.project_id
   role    = "roles/run.developer"
   member  = "serviceAccount:${google_service_account.dev_console.email}"
+}
+
+resource "google_storage_bucket_iam_member" "compaction_graph_admin" {
+  bucket = google_storage_bucket.graph.name
+  role   = "roles/storage.objectAdmin"
+  member = "serviceAccount:${google_service_account.compaction.email}"
+}
+
+resource "google_project_iam_member" "compaction_run_invoker" {
+  project = var.project_id
+  role    = "roles/run.invoker"
+  member  = "serviceAccount:${google_service_account.compaction.email}"
 }
 
 resource "google_pubsub_topic_iam_member" "ingest_dlq_publisher" {
@@ -1125,6 +1142,110 @@ resource "google_cloud_run_v2_job" "index_builder" {
           }
         }
       }
+    }
+  }
+}
+
+resource "google_cloud_run_v2_job" "compaction" {
+  provider = google-beta
+
+  name     = "${var.compaction_job_name}-${var.env}"
+  location = var.region
+
+  template {
+    template {
+      service_account = google_service_account.compaction.email
+      max_retries     = 0
+      timeout         = "900s"
+
+      containers {
+        image = var.compaction_image
+        command = ["python"]
+        args    = ["-m", "gcp_adapter.compaction_service"]
+
+        env {
+          name  = "ENV"
+          value = var.env
+        }
+        env {
+          name  = "LOG_LEVEL"
+          value = var.log_level
+        }
+        env {
+          name  = "GRAPH_BUCKET"
+          value = google_storage_bucket.graph.name
+        }
+        env {
+          name  = "GRAPH_PREFIX"
+          value = var.graph_prefix
+        }
+        env {
+          name  = "COMPACTION_TARGET_MIN_BYTES"
+          value = tostring(var.compaction_target_min_bytes)
+        }
+        env {
+          name  = "COMPACTION_TARGET_MAX_BYTES"
+          value = tostring(var.compaction_target_max_bytes)
+        }
+        env {
+          name  = "COMPACTION_MAX_GROUPS_PER_BATCH"
+          value = tostring(var.compaction_max_groups_per_batch)
+        }
+        env {
+          name  = "COMPACTION_DELETE_SOURCE"
+          value = var.compaction_delete_source ? "1" : "0"
+        }
+        env {
+          name  = "COMPACTION_DRY_RUN"
+          value = var.compaction_dry_run ? "1" : "0"
+        }
+        env {
+          name  = "COMPACTION_STRICT"
+          value = var.compaction_strict ? "1" : "0"
+        }
+        env {
+          name  = "RETENTION_HOT_DAYS"
+          value = tostring(var.retention_hot_days)
+        }
+        env {
+          name  = "RETENTION_WARM_DAYS"
+          value = tostring(var.retention_warm_days)
+        }
+        env {
+          name  = "RETENTION_COLD_DAYS"
+          value = tostring(var.retention_cold_days)
+        }
+        env {
+          name  = "RETENTION_DELETE_DAYS"
+          value = tostring(var.retention_delete_days)
+        }
+        env {
+          name  = "RETENTION_APPLY"
+          value = var.retention_apply ? "1" : "0"
+        }
+
+        resources {
+          limits = {
+            cpu    = var.compaction_cpu
+            memory = var.compaction_memory
+          }
+        }
+      }
+    }
+  }
+}
+
+resource "google_cloud_scheduler_job" "compaction" {
+  name      = "${var.compaction_job_name}-${var.env}"
+  schedule  = var.compaction_schedule
+  time_zone = var.compaction_schedule_timezone
+
+  http_target {
+    http_method = "POST"
+    uri         = "https://run.googleapis.com/v2/projects/${var.project_id}/locations/${var.region}/jobs/${google_cloud_run_v2_job.compaction.name}:run"
+
+    oauth_token {
+      service_account_email = google_service_account.compaction.email
     }
   }
 }
