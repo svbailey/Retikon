@@ -398,6 +398,8 @@ pipeline extracts text, splits it into chunks, embeds with a text model, and
 stores DocChunk vertices.
 OCR is optional and off by default; enable it via a flag and include OCR
 dependencies when needed.
+To enable OCR locally: install `tesseract-ocr`, install `requirements-ocr.txt`,
+and set `ENABLE_OCR=1` (optionally `OCR_MAX_PAGES`).
 
 ```python
 import os
@@ -468,6 +470,10 @@ For text queries, the system generates:
 - Text embedding for document and transcript search.
 - CLIP text embedding for image similarity.
 - CLAP text embedding for audio similarity.
+  
+Optional mode/modality filtering:
+- If `mode` or `modalities` is supplied, only the required embeddings are computed
+  (for example, `mode=text` skips image/audio embeddings).
 
 ### DuckDB Views and Similarity Search
 
@@ -524,6 +530,11 @@ con.execute(f"""
 Similarity search is performed against these views using cosine distance (via
 DuckDB vector functions or the vss extension). Results from text, image, and
 audio searches are merged and ranked by similarity score.
+
+Index builder alignment note:
+Core/text/vector rows are aligned using manifest grouping and file_row_number,
+not by ID joins. This preserves ordering when text/vector files omit IDs and
+avoids requiring duplicate ID columns across all files.
 
 ### Reverse Image Search
 
@@ -680,7 +691,10 @@ Enable these APIs in the target project:
   - `RAW_BUCKET`, `GRAPH_BUCKET`, `GRAPH_PREFIX`, `ENV`, `LOG_LEVEL`
   - `MAX_RAW_BYTES`, `MAX_VIDEO_SECONDS`, `MAX_AUDIO_SECONDS`
   - `CHUNK_TARGET_TOKENS`, `CHUNK_OVERLAP_TOKENS`
+  - `ENABLE_OCR` (optional, default 0), `OCR_MAX_PAGES` (optional)
   - `SNAPSHOT_URI` (query service)
+  - `QUERY_WARMUP` (optional, default 1), `QUERY_WARMUP_TEXT` (optional)
+  - `SLOW_QUERY_MS` (optional), `LOG_QUERY_TIMINGS` (optional)
   - `DUCKDB_GCS_FALLBACK` (optional)
 - Local `.env` file for dev (non-prod only).
 
@@ -1217,6 +1231,8 @@ E5, E6, E9, E10
     - `query_text?: str`
     - `image_base64?: str`
     - `top_k?: int`
+    - `mode?: "text" | "all" | "image" | "audio"`
+    - `modalities?: string[]` (subset of `document, transcript, image, audio`)
   - Text query path:
     - embed text for DocChunk and Transcript.
     - CLIP text embedding for ImageAsset.

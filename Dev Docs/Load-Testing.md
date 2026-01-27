@@ -62,33 +62,61 @@ waits for Firestore ingestion completion.
 ### Query
 
 - Target QPS: 5 (60s, concurrency 10)
-- p50 latency (ms): 296.29
-- p95 latency (ms): 343.54
-- p99 latency (ms): 421.19
+- p50 latency (ms): 361.28
+- p95 latency (ms): 1333.93
+- p99 latency (ms): 34811.39
 - Error rate: 0% (0/300)
 - Notes:
-  - Test ran against `https://retikon-query-dev-yt27ougp4q-uc.a.run.app/query`.
-  - Timeout set to 60s; query service tuned to concurrency=4, maxScale=50, cpu=2, memory=4Gi.
-  - Query image updated to `retikon-query:realmodels-20260126-142604` with embedding caches.
-  - Throughput was 4.97 rps for 300 requests (steady-state warm run).
+  - Test ran against `https://retikon-query-dev-yt27ougp4q-uc.a.run.app/query` on 2026-01-27.
+  - Client timeout set to 60s; API key sourced from Secret Manager (`retikon-query-api-key`).
+  - Query service tuned: minScale=2, maxScale=40, concurrency=4, cpu=2, memory=4Gi, timeout=120s.
+  - Throughput was 4.98 rps for 300 requests; p99 reflects slow tail latency.
 
 ### Query (headroom)
 
 - Target QPS: 6 (60s, concurrency 12)
-- p50 latency (ms): 421.49
-- p95 latency (ms): 712.85
-- p99 latency (ms): 852.53
+- p50 latency (ms): 314.99
+- p95 latency (ms): 443.95
+- p99 latency (ms): 13205.73
 - Error rate: 0% (0/360)
 - Notes:
   - Same service config as above.
-  - Throughput was 5.84 rps for 360 requests.
+  - Throughput was 5.64 rps for 360 requests.
+
+### Query (mode=text baseline)
+
+- Target QPS: 5 (60s, concurrency 10)
+- p50 latency (ms): 321.98
+- p95 latency (ms): 499.04
+- p99 latency (ms): 773.82
+- Error rate: 0% (0/300)
+- Notes:
+  - Test ran against `https://retikon-query-dev-yt27ougp4q-uc.a.run.app/query` on 2026-01-27.
+  - Payload used `mode=text` (document + transcript only) to skip image/audio embeddings.
+  - Query service tuned: minScale=2, maxScale=40, concurrency=4, cpu=2, memory=4Gi, timeout=120s.
+  - Warmup enabled: `QUERY_WARMUP=1`, `QUERY_WARMUP_TEXT="retikon warmup"`.
+  - Throughput was 4.96 rps for 300 requests.
+
+### Query (default multimodal baseline)
+
+- Target QPS: 5 (60s, concurrency 10)
+- p50 latency (ms): 320.49
+- p95 latency (ms): 454.45
+- p99 latency (ms): 590.70
+- Error rate: 0% (0/300)
+- Notes:
+  - Test ran against `https://retikon-query-dev-yt27ougp4q-uc.a.run.app/query` on 2026-01-27.
+  - Default query path (no mode/modality filter), so text queries compute text + image-text + audio-text embeddings.
+  - Query service tuned: minScale=2, maxScale=40, concurrency=4, cpu=2, memory=4Gi, timeout=120s.
+  - Warmup enabled: `QUERY_WARMUP=1`, `QUERY_WARMUP_TEXT="retikon warmup"`.
+  - Throughput was 4.97 rps for 300 requests.
 
 ### Ingestion
 
 - Target RPS: 1 (count 20, concurrency 4)
-- Upload throughput (rps): 18.41
-- Completion p50 (s): 37.44
-- Completion p95 (s): 97.21
+- Upload throughput (rps): 14.10
+- Completion p50 (s): 6.94
+- Completion p95 (s): 61.11
 - Notes:
-  - Fixtures: `/tmp/retikon_load_fixtures` (10 files, repeated to 20).
+  - Fixtures: `/tmp/retikon_load_fixtures_3SfBDg` (10 files, repeated to 20).
   - Status ended as `COMPLETED` for 20/20 (polling).

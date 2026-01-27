@@ -147,6 +147,7 @@ def ingest_video(
         image_core_rows = []
         derived_edges = []
         next_keyframe_edges = []
+        image_ids: list[str] = []
 
         for idx, frame_info in enumerate(frame_infos):
             frame_path = frame_info.path
@@ -159,9 +160,8 @@ def ingest_video(
                     thumb_uri = _thumbnail_uri(output_root, media_asset_id, idx)
                     _write_thumbnail(rgb, thumb_uri, config.video_thumbnail_width)
             image_vectors.append(vector)
-            image_id = str(
-                uuid.uuid5(uuid.NAMESPACE_URL, f"{media_asset_id}:frame:{idx}")
-            )
+            image_id = str(uuid.uuid4())
+            image_ids.append(image_id)
             image_core_rows.append(
                 {
                     "id": image_id,
@@ -177,19 +177,17 @@ def ingest_video(
                 }
             )
             derived_edges.append({"src_id": image_id, "dst_id": media_asset_id})
-            if idx > 0:
-                prev_id = str(
-                    uuid.uuid5(
-                        uuid.NAMESPACE_URL,
-                        f"{media_asset_id}:frame:{idx - 1}",
-                    )
-                )
-                next_keyframe_edges.append({"src_id": prev_id, "dst_id": image_id})
+
+        for idx in range(1, len(image_ids)):
+            next_keyframe_edges.append(
+                {"src_id": image_ids[idx - 1], "dst_id": image_ids[idx]}
+            )
 
         transcript_core_rows = []
         transcript_text_rows = []
         transcript_vector_rows = []
         next_transcript_edges = []
+        segment_ids: list[str] = []
         audio_clip_core = None
         audio_vector = None
 
@@ -202,9 +200,7 @@ def ingest_video(
                 [segment.text for segment in segments]
             )
 
-            audio_clip_id = str(
-                uuid.uuid5(uuid.NAMESPACE_URL, f"{media_asset_id}:audio")
-            )
+            audio_clip_id = str(uuid.uuid4())
             audio_clip_core = {
                 "id": audio_clip_id,
                 "media_asset_id": media_asset_id,
@@ -219,12 +215,8 @@ def ingest_video(
             derived_edges.append({"src_id": audio_clip_id, "dst_id": media_asset_id})
 
             for segment, vector in zip(segments, text_vectors, strict=False):
-                segment_id = str(
-                    uuid.uuid5(
-                        uuid.NAMESPACE_URL,
-                        f"{media_asset_id}:segment:{segment.index}",
-                    )
-                )
+                segment_id = str(uuid.uuid4())
+                segment_ids.append(segment_id)
                 transcript_core_rows.append(
                     {
                         "id": segment_id,
@@ -241,16 +233,11 @@ def ingest_video(
                 transcript_text_rows.append({"content": segment.text})
                 transcript_vector_rows.append({"text_embedding": vector})
                 derived_edges.append({"src_id": segment_id, "dst_id": media_asset_id})
-                if segment.index > 0:
-                    prev_id = str(
-                        uuid.uuid5(
-                            uuid.NAMESPACE_URL,
-                            f"{media_asset_id}:segment:{segment.index - 1}",
-                        )
-                    )
-                    next_transcript_edges.append(
-                        {"src_id": prev_id, "dst_id": segment_id}
-                    )
+
+            for idx in range(1, len(segment_ids)):
+                next_transcript_edges.append(
+                    {"src_id": segment_ids[idx - 1], "dst_id": segment_ids[idx]}
+                )
 
         files.append(
             write_parquet(

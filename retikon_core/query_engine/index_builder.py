@@ -399,7 +399,7 @@ def build_snapshot(
                 """
                 CREATE TABLE media_assets AS
                 SELECT id, uri, media_type
-                FROM read_parquet(?)
+                FROM read_parquet(?, union_by_name=true)
                 """,
                 (
                     "CREATE TABLE media_assets "
@@ -439,7 +439,8 @@ def build_snapshot(
                        c.media_asset_id
                 FROM read_parquet({_sql_list(core_files)},
                                   filename=true,
-                                  file_row_number=true) AS c
+                                  file_row_number=true,
+                                  union_by_name=true) AS c
                 JOIN doc_chunk_map m ON c.filename = m.core
                 """
             )
@@ -451,7 +452,8 @@ def build_snapshot(
                        t.content
                 FROM read_parquet({_sql_list(text_files)},
                                   filename=true,
-                                  file_row_number=true) AS t
+                                  file_row_number=true,
+                                  union_by_name=true) AS t
                 JOIN doc_chunk_map m ON t.filename = m.text
                 """
             )
@@ -463,7 +465,8 @@ def build_snapshot(
                        v.text_vector
                 FROM read_parquet({_sql_list(vector_files)},
                                   filename=true,
-                                  file_row_number=true) AS v
+                                  file_row_number=true,
+                                  union_by_name=true) AS v
                 JOIN doc_chunk_map m ON v.filename = m.vector
                 """
             )
@@ -535,7 +538,8 @@ def build_snapshot(
                        c.start_ms
                 FROM read_parquet({_sql_list(core_files)},
                                   filename=true,
-                                  file_row_number=true) AS c
+                                  file_row_number=true,
+                                  union_by_name=true) AS c
                 JOIN transcript_map m ON c.filename = m.core
                 """
             )
@@ -547,7 +551,8 @@ def build_snapshot(
                        t.content
                 FROM read_parquet({_sql_list(text_files)},
                                   filename=true,
-                                  file_row_number=true) AS t
+                                  file_row_number=true,
+                                  union_by_name=true) AS t
                 JOIN transcript_map m ON t.filename = m.text
                 """
             )
@@ -559,7 +564,8 @@ def build_snapshot(
                        v.text_embedding
                 FROM read_parquet({_sql_list(vector_files)},
                                   filename=true,
-                                  file_row_number=true) AS v
+                                  file_row_number=true,
+                                  union_by_name=true) AS v
                 JOIN transcript_map m ON v.filename = m.vector
                 """
             )
@@ -646,7 +652,8 @@ def build_snapshot(
                        v.clip_vector
                 FROM read_parquet({_sql_list(vector_files)},
                                   filename=true,
-                                  file_row_number=true) AS v
+                                  file_row_number=true,
+                                  union_by_name=true) AS v
                 JOIN image_asset_map m ON v.filename = m.vector
                 """
             )
@@ -715,7 +722,8 @@ def build_snapshot(
                        c.media_asset_id
                 FROM read_parquet({_sql_list(core_files)},
                                   filename=true,
-                                  file_row_number=true) AS c
+                                  file_row_number=true,
+                                  union_by_name=true) AS c
                 JOIN audio_clip_map m ON c.filename = m.core
                 """
             )
@@ -727,7 +735,8 @@ def build_snapshot(
                        v.clap_embedding
                 FROM read_parquet({_sql_list(vector_files)},
                                   filename=true,
-                                  file_row_number=true) AS v
+                                  file_row_number=true,
+                                  union_by_name=true) AS v
                 JOIN audio_clip_map m ON v.filename = m.vector
                 """
             )

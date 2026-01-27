@@ -32,6 +32,51 @@ def test_allowlist_rejects_extension():
         _ensure_allowed(event, config, "document")
 
 
+def test_allowlist_rejects_legacy_doc():
+    config = get_config()
+    event = GcsEvent(
+        bucket="test",
+        name="raw/docs/sample.doc",
+        generation="1",
+        content_type="application/msword",
+        size=10,
+        md5_hash=None,
+        crc32c=None,
+    )
+    with pytest.raises(PermanentError):
+        _ensure_allowed(event, config, "document")
+
+
+def test_allowlist_rejects_legacy_ppt():
+    config = get_config()
+    event = GcsEvent(
+        bucket="test",
+        name="raw/docs/sample.ppt",
+        generation="1",
+        content_type="application/vnd.ms-powerpoint",
+        size=10,
+        md5_hash=None,
+        crc32c=None,
+    )
+    with pytest.raises(PermanentError):
+        _ensure_allowed(event, config, "document")
+
+
+def test_content_type_mismatch_rejected():
+    config = get_config()
+    event = GcsEvent(
+        bucket="test",
+        name="raw/docs/sample.pdf",
+        generation="1",
+        content_type="image/jpeg",
+        size=10,
+        md5_hash=None,
+        crc32c=None,
+    )
+    with pytest.raises(PermanentError):
+        _ensure_allowed(event, config, "document")
+
+
 def test_size_guard():
     config = get_config()
     event = GcsEvent(

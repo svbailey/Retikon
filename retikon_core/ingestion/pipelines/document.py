@@ -4,6 +4,7 @@ import os
 import uuid
 from dataclasses import dataclass
 from datetime import datetime, timezone
+from functools import lru_cache
 from pathlib import Path
 
 import fitz
@@ -14,6 +15,7 @@ from pptx import Presentation
 from retikon_core.config import Config
 from retikon_core.embeddings import get_text_embedder
 from retikon_core.errors import PermanentError
+from retikon_core.ingestion.ocr import ocr_text_from_pdf
 from retikon_core.ingestion.pipelines.types import PipelineResult
 from retikon_core.ingestion.types import IngestSource
 from retikon_core.storage.manifest import build_manifest, write_manifest
@@ -40,6 +42,26 @@ class Chunk:
 
 def _pipeline_model() -> str:
     return os.getenv("TEXT_MODEL_NAME", "BAAI/bge-base-en-v1.5")
+
+
+def _tokenizer_name() -> str:
+    return os.getenv("TEXT_MODEL_NAME", "BAAI/bge-base-en-v1.5")
+
+
+def _tokenizer_cache_dir() -> str | None:
+    return os.getenv("MODEL_DIR")
+
+
+@lru_cache(maxsize=1)
+def _load_tokenizer():
+    from transformers import AutoTokenizer
+
+    cache_dir = _tokenizer_cache_dir()
+    return AutoTokenizer.from_pretrained(
+        _tokenizer_name(),
+        cache_dir=cache_dir,
+        use_fast=True,
+    )
 
 
 def _extract_text(path: str, extension: str) -> str:
@@ -85,37 +107,45 @@ def _table_to_text(df: pd.DataFrame) -> str:
 
 
 def _chunk_text(text: str, target_tokens: int, overlap_tokens: int) -> list[Chunk]:
-    target_chars = target_tokens * 4
-    overlap_chars = overlap_tokens * 4
+    tokenizer = _load_tokenizer()
+    encoded = tokenizer(
+        text,
+        return_offsets_mapping=True,
+        add_special_tokens=False,
+    )
+    input_ids = encoded.get("input_ids", [])
+    offsets = encoded.get("offset_mapping", [])
+    if not input_ids or not offsets:
+        raise PermanentError("No tokens produced")
+
+    step = max(1, target_tokens - overlap_tokens)
     chunks: list[Chunk] = []
     start = 0
     index = 0
-    text_len = len(text)
 
-    while start < text_len:
-        end = min(text_len, start + target_chars)
+    while start < len(input_ids):
+        end = min(start + target_tokens, len(input_ids))
         if end <= start:
             break
-        chunk_text = text[start:end]
-        token_start = start // 4
-        token_end = max(token_start + 1, (end + 3) // 4)
-        token_count = token_end - token_start
+        char_start = offsets[start][0]
+        char_end = offsets[end - 1][1]
+        if char_end <= char_start:
+            start += step
+            continue
+        chunk_text = text[char_start:char_end]
         chunks.append(
             Chunk(
                 index=index,
                 text=chunk_text,
-                char_start=start,
-                char_end=end,
-                token_start=token_start,
-                token_end=token_end,
-                token_count=token_count,
+                char_start=char_start,
+                char_end=char_end,
+                token_start=start,
+                token_end=end,
+                token_count=end - start,
             )
         )
         index += 1
-        next_start = end - overlap_chars
-        if next_start <= start:
-            next_start = end
-        start = next_start
+        start += step
 
     return chunks
 
@@ -131,6 +161,8 @@ def ingest_document(
     started_at = datetime.now(timezone.utc)
     extension = source.extension
     text = _extract_text(source.local_path, extension)
+    if not text.strip() and config.enable_ocr and extension == ".pdf":
+        text = ocr_text_from_pdf(source.local_path, config.ocr_max_pages)
     if not text.strip():
         raise PermanentError("No extractable text")
 
@@ -176,9 +208,7 @@ def ingest_document(
     edge_rows = []
 
     for chunk, vector in zip(chunks, embeddings, strict=False):
-        chunk_id = str(
-            uuid.uuid5(uuid.NAMESPACE_URL, f"{media_asset_id}:{chunk.index}")
-        )
+        chunk_id = str(uuid.uuid4())
         chunk_core_rows.append(
             {
                 "id": chunk_id,

@@ -7,8 +7,15 @@ from datetime import datetime, timezone
 
 from fastapi import FastAPI, Header, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
+from PIL import Image
 from pydantic import BaseModel, Field
 
+from retikon_core.embeddings import (
+    get_audio_text_embedder,
+    get_image_embedder,
+    get_image_text_embedder,
+    get_text_embedder,
+)
 from retikon_core.logging import configure_logging, get_logger
 from retikon_core.query_engine import download_snapshot, get_secure_connection
 from retikon_core.query_engine.query_runner import (
@@ -30,6 +37,12 @@ app = FastAPI()
 
 MAX_QUERY_BYTES = int(os.getenv("MAX_QUERY_BYTES", "4000000"))
 MAX_IMAGE_BASE64_BYTES = int(os.getenv("MAX_IMAGE_BASE64_BYTES", "2000000"))
+SLOW_QUERY_MS = int(os.getenv("SLOW_QUERY_MS", "2000"))
+LOG_QUERY_TIMINGS = os.getenv("LOG_QUERY_TIMINGS", "0") == "1"
+QUERY_WARMUP = os.getenv("QUERY_WARMUP", "1") == "1"
+QUERY_WARMUP_TEXT = os.getenv("QUERY_WARMUP_TEXT", "retikon warmup")
+
+ALLOWED_MODALITIES = {"document", "transcript", "image", "audio"}
 
 
 @dataclass
@@ -54,6 +67,8 @@ class QueryRequest(BaseModel):
     query_text: str | None = None
     image_base64: str | None = None
     top_k: int = Field(default=5, ge=1, le=50)
+    mode: str | None = None
+    modalities: list[str] | None = None
 
 
 class QueryHit(BaseModel):
@@ -147,10 +162,18 @@ def _load_snapshot() -> None:
     if not snapshot_uri:
         graph_bucket, graph_prefix = _graph_settings()
         snapshot_uri = f"gs://{graph_bucket}/{graph_prefix}/snapshots/retikon.duckdb"
+    start = time.monotonic()
     snapshot = download_snapshot(snapshot_uri)
+    load_ms = int((time.monotonic() - start) * 1000)
     STATE.local_path = snapshot.local_path
     STATE.metadata = snapshot.metadata
     STATE.loaded_at = datetime.now(timezone.utc)
+    snapshot_size = None
+    if snapshot.local_path:
+        try:
+            snapshot_size = os.path.getsize(snapshot.local_path)
+        except OSError:
+            snapshot_size = None
     logger.info(
         "Snapshot loaded",
         extra={
@@ -159,8 +182,79 @@ def _load_snapshot() -> None:
             if STATE.loaded_at
             else None,
             "snapshot_metadata": STATE.metadata,
+            "snapshot_load_ms": load_ms,
+            "snapshot_size_bytes": snapshot_size,
         },
     )
+
+
+def _resolve_modalities(payload: QueryRequest) -> set[str]:
+    if payload.mode and payload.modalities:
+        raise HTTPException(
+            status_code=400,
+            detail="Specify either mode or modalities, not both",
+        )
+
+    if payload.mode:
+        mode = payload.mode.strip().lower()
+        if mode == "text":
+            return {"document", "transcript"}
+        if mode == "all":
+            return set(ALLOWED_MODALITIES)
+        if mode == "image":
+            return {"image"}
+        if mode == "audio":
+            return {"audio"}
+        raise HTTPException(status_code=400, detail=f"Unsupported mode: {payload.mode}")
+
+    if payload.modalities is None:
+        return set(ALLOWED_MODALITIES)
+
+    modalities = {modality.strip().lower() for modality in payload.modalities}
+    if not modalities:
+        raise HTTPException(status_code=400, detail="modalities cannot be empty")
+    unknown = sorted(modalities - ALLOWED_MODALITIES)
+    if unknown:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Unknown modalities: {', '.join(unknown)}",
+        )
+    return modalities
+
+
+def _warm_query_models() -> None:
+    if not QUERY_WARMUP:
+        logger.info("Query model warmup skipped")
+        return
+    timings: dict[str, float] = {}
+    try:
+        start = time.monotonic()
+        get_text_embedder(768).encode([QUERY_WARMUP_TEXT])
+        timings["text_embed_ms"] = round((time.monotonic() - start) * 1000.0, 2)
+
+        start = time.monotonic()
+        get_image_text_embedder(512).encode([QUERY_WARMUP_TEXT])
+        timings["image_text_embed_ms"] = round(
+            (time.monotonic() - start) * 1000.0, 2
+        )
+
+        start = time.monotonic()
+        get_audio_text_embedder(512).encode([QUERY_WARMUP_TEXT])
+        timings["audio_text_embed_ms"] = round(
+            (time.monotonic() - start) * 1000.0, 2
+        )
+
+        start = time.monotonic()
+        dummy = Image.new("RGB", (1, 1), color=(0, 0, 0))
+        get_image_embedder(512).encode([dummy])
+        timings["image_embed_ms"] = round((time.monotonic() - start) * 1000.0, 2)
+
+        logger.info("Query model warmup completed", extra={"timings": timings})
+    except Exception as exc:
+        logger.warning(
+            "Query model warmup failed",
+            extra={"error_message": str(exc), "timings": timings},
+        )
 
 
 @app.get("/health", response_model=HealthResponse)
@@ -184,13 +278,21 @@ async def startup() -> None:
         healthcheck_uri = f"gs://{graph_bucket}/{graph_prefix}/healthcheck.parquet"
 
     conn = None
+    healthcheck_start = time.monotonic()
     try:
         conn, _ = get_secure_connection(healthcheck_uri=healthcheck_uri)
     finally:
         if conn is not None:
             conn.close()
+    logger.info(
+        "DuckDB healthcheck completed",
+        extra={
+            "healthcheck_ms": int((time.monotonic() - healthcheck_start) * 1000),
+        },
+    )
 
     _load_snapshot()
+    _warm_query_models()
 
 
 @app.post("/query", response_model=QueryResponse)
@@ -216,6 +318,13 @@ async def query(
     if payload.image_base64 and len(payload.image_base64) > MAX_IMAGE_BASE64_BYTES:
         raise HTTPException(status_code=413, detail="Image payload too large")
 
+    modalities = _resolve_modalities(payload)
+    if payload.image_base64 and "image" not in modalities:
+        raise HTTPException(
+            status_code=400,
+            detail="image_base64 requires image modality",
+        )
+
     if STATE.local_path is None:
         try:
             _load_snapshot()
@@ -234,6 +343,7 @@ async def query(
         },
     )
 
+    timings: dict[str, float | int | str] = {}
     results: list[QueryResult] = []
     if payload.query_text:
         results.extend(
@@ -241,6 +351,8 @@ async def query(
                 snapshot_path=snapshot_path,
                 query_text=payload.query_text,
                 top_k=payload.top_k,
+                modalities=list(modalities),
+                trace=timings,
             )
         )
     if payload.image_base64:
@@ -250,6 +362,7 @@ async def query(
                     snapshot_path=snapshot_path,
                     image_base64=payload.image_base64,
                     top_k=payload.top_k,
+                    trace=timings,
                 )
             )
         except ValueError as exc:
@@ -274,6 +387,29 @@ async def query(
             "duration_ms": duration_ms,
         },
     )
+    if LOG_QUERY_TIMINGS or duration_ms >= SLOW_QUERY_MS:
+        snapshot_age_s = None
+        if STATE.loaded_at:
+            snapshot_age_s = round(
+                (datetime.now(timezone.utc) - STATE.loaded_at).total_seconds(), 2
+            )
+        log_fn = logger.warning if duration_ms >= SLOW_QUERY_MS else logger.info
+        log_fn(
+            "Slow query" if duration_ms >= SLOW_QUERY_MS else "Query timings",
+            extra={
+                "request_id": trace_id,
+                "correlation_id": request.state.correlation_id,
+                "modality": modality,
+                "duration_ms": duration_ms,
+                "top_k": payload.top_k,
+                "snapshot_loaded_at": STATE.loaded_at.isoformat()
+                if STATE.loaded_at
+                else None,
+                "snapshot_age_s": snapshot_age_s,
+                "snapshot_path": snapshot_path,
+                "timings": timings,
+            },
+        )
     return QueryResponse(
         results=[
             QueryHit(

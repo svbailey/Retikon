@@ -129,6 +129,23 @@ Deliverables:
 - Chaos policies and reports in staging.
 - Updated ops runbooks.
 
+## Sprint 9 - Query performance acceleration
+Goal: reduce multimodal tail latency with optimized runtimes and tiered query services.
+
+Tasks:
+- Add ONNX/quantized embedding backends in `retikon_core/embeddings/`.
+- Add GPU query service profile/entrypoint in `gcp_adapter/` and deploy via Terraform.
+- Add query routing by modality/SLA tier in `retikon_core/query_engine/` and adapters.
+- Add SLO load tests for text-only vs multimodal queries in `Dev Docs/Load-Testing.md`.
+
+Tests:
+- `tests/test_embedding_backends.py`
+- `tests/test_query_routing.py`
+
+Deliverables:
+- CPU-optimized (ONNX/quantized) and GPU query tiers available in Pro.
+- Documented routing rules and performance baselines.
+
 ## Feature-to-Sprint Mapping
 See `Dev Docs/Feature-to-Sprint-Mapping.md`.
 

@@ -3,6 +3,7 @@
 - [x] All sprint exit criteria satisfied (Sprints 1-8).
 - [x] `make lint` and `make test` pass in CI.
 - [x] Load testing results recorded in `Dev Docs/Load-Testing.md`.
+- [x] Release notes published in `Dev Docs/Release-Notes-v2.5.md`.
 - [x] Snapshot refresh strategy approved.
 - [x] Ops runbook reviewed.
 - [x] Security checklist completed.

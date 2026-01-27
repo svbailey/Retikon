@@ -1,6 +1,9 @@
+import json
+import uuid
 from pathlib import Path
 
 import pytest
+import pyarrow.parquet as pq
 
 from retikon_core.config import get_config
 from retikon_core.errors import PermanentError, RecoverableError
@@ -8,6 +11,13 @@ from retikon_core.ingestion.media import FrameInfo
 from retikon_core.ingestion.pipelines import audio as audio_pipeline
 from retikon_core.ingestion.pipelines import video as video_pipeline
 from retikon_core.ingestion.types import IngestSource
+
+
+def _is_uuid4(value: str) -> bool:
+    try:
+        return uuid.UUID(value).version == 4
+    except ValueError:
+        return False
 
 
 def test_audio_pipeline_writes_graphar(tmp_path, monkeypatch):
@@ -58,6 +68,35 @@ def test_audio_pipeline_writes_graphar(tmp_path, monkeypatch):
     )
 
     assert result.counts["AudioClip"] == 1
+
+    payload = json.loads(Path(result.manifest_uri).read_text(encoding="utf-8"))
+    files = [item["uri"] for item in payload.get("files", [])]
+    media_uri = next(uri for uri in files if "vertices/MediaAsset/core" in uri)
+    transcript_core_uri = next(
+        uri for uri in files if "vertices/Transcript/core" in uri
+    )
+    audio_core_uri = next(uri for uri in files if "vertices/AudioClip/core" in uri)
+    edge_uri = next(uri for uri in files if "edges/DerivedFrom/adj_list" in uri)
+
+    media_table = pq.read_table(media_uri)
+    transcript_table = pq.read_table(transcript_core_uri)
+    audio_table = pq.read_table(audio_core_uri)
+    edge_table = pq.read_table(edge_uri)
+
+    for value in media_table.column("id").to_pylist():
+        assert _is_uuid4(value)
+    for value in transcript_table.column("id").to_pylist():
+        assert _is_uuid4(value)
+    for value in transcript_table.column("media_asset_id").to_pylist():
+        assert _is_uuid4(value)
+    for value in audio_table.column("id").to_pylist():
+        assert _is_uuid4(value)
+    for value in audio_table.column("media_asset_id").to_pylist():
+        assert _is_uuid4(value)
+    for value in edge_table.column("src_id").to_pylist():
+        assert _is_uuid4(value)
+    for value in edge_table.column("dst_id").to_pylist():
+        assert _is_uuid4(value)
 
 
 def test_audio_duration_cap(monkeypatch):
@@ -187,6 +226,41 @@ def test_video_pipeline_writes_graphar(tmp_path, monkeypatch):
     )
 
     assert result.counts["ImageAsset"] == 2
+
+    payload = json.loads(Path(result.manifest_uri).read_text(encoding="utf-8"))
+    files = [item["uri"] for item in payload.get("files", [])]
+    media_uri = next(uri for uri in files if "vertices/MediaAsset/core" in uri)
+    image_core_uri = next(uri for uri in files if "vertices/ImageAsset/core" in uri)
+    transcript_core_uri = next(
+        uri for uri in files if "vertices/Transcript/core" in uri
+    )
+    audio_core_uri = next(uri for uri in files if "vertices/AudioClip/core" in uri)
+    edge_uri = next(uri for uri in files if "edges/DerivedFrom/adj_list" in uri)
+
+    media_table = pq.read_table(media_uri)
+    image_table = pq.read_table(image_core_uri)
+    transcript_table = pq.read_table(transcript_core_uri)
+    audio_table = pq.read_table(audio_core_uri)
+    edge_table = pq.read_table(edge_uri)
+
+    for value in media_table.column("id").to_pylist():
+        assert _is_uuid4(value)
+    for value in image_table.column("id").to_pylist():
+        assert _is_uuid4(value)
+    for value in image_table.column("media_asset_id").to_pylist():
+        assert _is_uuid4(value)
+    for value in transcript_table.column("id").to_pylist():
+        assert _is_uuid4(value)
+    for value in transcript_table.column("media_asset_id").to_pylist():
+        assert _is_uuid4(value)
+    for value in audio_table.column("id").to_pylist():
+        assert _is_uuid4(value)
+    for value in audio_table.column("media_asset_id").to_pylist():
+        assert _is_uuid4(value)
+    for value in edge_table.column("src_id").to_pylist():
+        assert _is_uuid4(value)
+    for value in edge_table.column("dst_id").to_pylist():
+        assert _is_uuid4(value)
 
 
 def test_video_duration_cap(monkeypatch):

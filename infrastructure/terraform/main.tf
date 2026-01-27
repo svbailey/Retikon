@@ -323,7 +323,7 @@ resource "google_cloud_run_service" "ingestion" {
         }
         env {
           name  = "ALLOWED_DOC_EXT"
-          value = ".pdf,.txt,.md,.rtf,.docx,.doc,.pptx,.ppt,.csv,.tsv,.xlsx,.xls"
+          value = ".pdf,.txt,.md,.rtf,.docx,.pptx,.csv,.tsv,.xlsx,.xls"
         }
         env {
           name  = "ALLOWED_IMAGE_EXT"
@@ -391,6 +391,7 @@ resource "google_cloud_run_service" "query" {
     spec {
       service_account_name = google_service_account.query.email
       container_concurrency = var.query_concurrency
+      timeout_seconds      = var.query_timeout_seconds
 
       containers {
         image = var.query_image
@@ -478,6 +479,34 @@ resource "google_cloud_run_service" "query" {
         env {
           name  = "MAX_IMAGE_BASE64_BYTES"
           value = tostring(var.max_image_base64_bytes)
+        }
+        env {
+          name  = "SLOW_QUERY_MS"
+          value = tostring(var.query_slow_ms)
+        }
+        env {
+          name  = "LOG_QUERY_TIMINGS"
+          value = var.query_log_timings ? "1" : "0"
+        }
+        env {
+          name  = "QUERY_WARMUP"
+          value = var.query_warmup ? "1" : "0"
+        }
+        env {
+          name  = "QUERY_WARMUP_TEXT"
+          value = var.query_warmup_text
+        }
+        env {
+          name  = "DUCKDB_THREADS"
+          value = var.duckdb_threads != null ? tostring(var.duckdb_threads) : ""
+        }
+        env {
+          name  = "DUCKDB_MEMORY_LIMIT"
+          value = var.duckdb_memory_limit
+        }
+        env {
+          name  = "DUCKDB_TEMP_DIRECTORY"
+          value = var.duckdb_temp_directory
         }
         env {
           name  = "DUCKDB_ALLOW_INSTALL"

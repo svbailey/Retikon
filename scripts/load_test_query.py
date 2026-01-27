@@ -34,12 +34,18 @@ def _build_payload(
     query_text: str | None,
     image_base64: str | None,
     top_k: int,
+    mode: str | None,
+    modalities: str | None,
 ) -> dict[str, Any]:
     payload: dict[str, Any] = {"top_k": top_k}
     if query_text:
         payload["query_text"] = query_text
     if image_base64:
         payload["image_base64"] = image_base64
+    if mode:
+        payload["mode"] = mode
+    if modalities:
+        payload["modalities"] = [m.strip() for m in modalities.split(",") if m.strip()]
     return payload
 
 
@@ -153,6 +159,11 @@ def main() -> None:
     parser.add_argument("--top-k", type=int, default=5)
     parser.add_argument("--query-text", default="Retikon demo query")
     parser.add_argument("--image-path", help="Optional image path to send as base64.")
+    parser.add_argument("--mode", help="Optional query mode (text|all|image|audio).")
+    parser.add_argument(
+        "--modalities",
+        help="Comma-separated modalities (document,transcript,image,audio).",
+    )
     parser.add_argument("--timeout", type=float, default=15.0)
     args = parser.parse_args()
 
@@ -163,7 +174,13 @@ def main() -> None:
     if args.image_path:
         image_base64 = _load_image_base64(args.image_path)
 
-    payload = _build_payload(args.query_text, image_base64, args.top_k)
+    payload = _build_payload(
+        args.query_text,
+        image_base64,
+        args.top_k,
+        args.mode,
+        args.modalities,
+    )
     summary = asyncio.run(
         run_load_test(
             url=args.url,

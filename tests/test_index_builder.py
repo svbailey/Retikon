@@ -4,6 +4,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 import duckdb
+import pyarrow as pa
 import pytest
 
 from retikon_core.errors import RecoverableError
@@ -62,7 +63,7 @@ def _write_manifest(output_root: str, files, counts) -> None:
     write_manifest(manifest, manifest_uri(output_root, run_id))
 
 
-def _write_doc_run(output_root: str, paths: GraphPaths) -> None:
+def _write_doc_run(output_root: str, paths: GraphPaths, extra_core_column: bool = False) -> None:
     media_id = str(uuid.uuid4())
     media_row = _media_row(
         media_id=media_id,
@@ -95,13 +96,25 @@ def _write_doc_run(output_root: str, paths: GraphPaths) -> None:
             paths.vertex("MediaAsset", "core", str(uuid.uuid4())),
         )
     )
-    files.append(
-        write_parquet(
-            [chunk_core],
-            schema_for("DocChunk", "core"),
-            paths.vertex("DocChunk", "core", str(uuid.uuid4())),
+    if extra_core_column:
+        extra_schema = schema_for("DocChunk", "core").append(
+            pa.field("extra_col", pa.string(), nullable=True)
         )
-    )
+        files.append(
+            write_parquet(
+                [dict(chunk_core, extra_col="extra")],
+                extra_schema,
+                paths.vertex("DocChunk", "core", str(uuid.uuid4())),
+            )
+        )
+    else:
+        files.append(
+            write_parquet(
+                [chunk_core],
+                schema_for("DocChunk", "core"),
+                paths.vertex("DocChunk", "core", str(uuid.uuid4())),
+            )
+        )
     files.append(
         write_parquet(
             [chunk_text],
@@ -291,6 +304,7 @@ def test_index_builder_creates_snapshot(tmp_path):
     paths = GraphPaths(base_uri=output_root)
 
     _write_doc_run(output_root, paths)
+    _write_doc_run(output_root, paths, extra_core_column=True)
     _write_image_run(output_root, paths)
     _write_audio_run(output_root, paths)
 
@@ -313,7 +327,7 @@ def test_index_builder_creates_snapshot(tmp_path):
     assert Path(f"{snapshot_uri}.json").exists()
 
     report_payload = json.loads(Path(f"{snapshot_uri}.json").read_text())
-    assert report_payload["tables"]["doc_chunks"]["rows"] == 1
+    assert report_payload["tables"]["doc_chunks"]["rows"] == 2
     assert report_payload["tables"]["transcripts"]["rows"] == 1
     assert report_payload["tables"]["image_assets"]["rows"] == 1
     assert report_payload["tables"]["audio_clips"]["rows"] == 1

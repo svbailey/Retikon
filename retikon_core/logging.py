@@ -2,7 +2,9 @@ import json
 import logging
 import os
 import time
-from typing import Any
+from typing import Any, Sequence
+
+from retikon_core.capabilities import get_edition, resolve_capabilities
 
 
 def _utc_timestamp() -> str:
@@ -26,6 +28,8 @@ class JsonFormatter(logging.Formatter):
             "duration_ms",
             "processing_ms",
             "version",
+            "edition",
+            "capabilities",
             "modality",
             "bytes_downloaded",
             "media_asset_id",
@@ -33,6 +37,15 @@ class JsonFormatter(logging.Formatter):
             "status",
             "error_code",
             "error_message",
+            "top_k",
+            "snapshot_path",
+            "snapshot_loaded_at",
+            "snapshot_age_s",
+            "snapshot_load_ms",
+            "snapshot_size_bytes",
+            "snapshot_metadata",
+            "healthcheck_ms",
+            "timings",
         ):
             value = getattr(record, key, None)
             if value is not None:
@@ -45,11 +58,20 @@ class JsonFormatter(logging.Formatter):
 
 
 class BaseFieldFilter(logging.Filter):
-    def __init__(self, service: str, env: str | None, version: str | None) -> None:
+    def __init__(
+        self,
+        service: str,
+        env: str | None,
+        version: str | None,
+        edition: str,
+        capabilities: Sequence[str],
+    ) -> None:
         super().__init__()
         self.service = service
         self.env = env
         self.version = version
+        self.edition = edition
+        self.capabilities = list(capabilities)
 
     def filter(self, record: logging.LogRecord) -> bool:
         if getattr(record, "service", None) is None:
@@ -58,6 +80,10 @@ class BaseFieldFilter(logging.Filter):
             record.env = self.env
         if getattr(record, "version", None) is None:
             record.version = self.version
+        if getattr(record, "edition", None) is None:
+            record.edition = self.edition
+        if getattr(record, "capabilities", None) is None:
+            record.capabilities = self.capabilities
         return True
 
 
@@ -65,6 +91,8 @@ def configure_logging(
     service: str,
     env: str | None = None,
     version: str | None = None,
+    edition: str | None = None,
+    capabilities: Sequence[str] | None = None,
 ) -> None:
     log_level = os.getenv("LOG_LEVEL", "INFO").upper()
     root = logging.getLogger()
@@ -72,7 +100,20 @@ def configure_logging(
 
     handler = logging.StreamHandler()
     handler.setFormatter(JsonFormatter())
-    handler.addFilter(BaseFieldFilter(service=service, env=env, version=version))
+    resolved_edition = get_edition(edition)
+    if capabilities is None:
+        resolved_caps = resolve_capabilities(edition=resolved_edition)
+    else:
+        resolved_caps = tuple(capabilities)
+    handler.addFilter(
+        BaseFieldFilter(
+            service=service,
+            env=env,
+            version=version,
+            edition=resolved_edition,
+            capabilities=resolved_caps,
+        )
+    )
 
     if root.handlers:
         root.handlers = []

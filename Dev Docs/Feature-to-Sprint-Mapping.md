@@ -9,9 +9,9 @@ Feature | Sprint
 --- | ---
 OSS packaging and open-core boundary | v3.0 Sprint 01
 Core local storage + schema evolution | v3.0 Sprint 02
-Local query + search | v3.0 Sprint 03
+Local query + search + query modes/warmup | v3.0 Sprint 03
 CLI + local services + edge agent | v3.0 Sprint 04
-SDKs + minimal web console + optional OCR plugin | v3.0 Sprint 05
+SDKs + minimal web console + optional OCR plugin + query mode UX | v3.0 Sprint 05
 Managed edge gateway + adaptive buffering | v3.0 Sprint 06
 Streaming ingestion + queue dispatch + DLQ | v3.0 Sprint 07
 Compaction + retention optimization + audit | v3.0 Sprint 08
@@ -30,6 +30,7 @@ Advanced Data Factory + connectors + legacy Office conversion | v3.1 Sprint 05
 Workflow orchestration | v3.1 Sprint 06
 BYOC Kubernetes adapter | v3.1 Sprint 07
 Reliability hardening + chaos testing | v3.1 Sprint 08
+Query performance acceleration (ONNX/GPU) | v3.1 Sprint 09
 
 ## Usage
 - Reference `Dev Docs/Retikon-Execution-Plan-v3.0.md` and `Dev Docs/Retikon-Execution-Plan-v3.1.md` for detailed task lists.

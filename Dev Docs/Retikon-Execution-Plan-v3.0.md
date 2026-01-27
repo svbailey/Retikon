@@ -51,10 +51,14 @@ Tasks:
 - Add local snapshot support in `retikon_core/query_engine/index_builder.py`.
 - Update `retikon_core/storage/schemas.py` to merge schema versions cleanly.
 - Add metadata and keyword search support in `retikon_core/query_engine/`.
+- Add query mode/modality filtering to skip unused embeddings (text-only default).
+- Add model warmup hooks in local and hosted query services.
+- Add slow-query timing breakdown logging (embeddings vs DuckDB).
 
 Tests:
 - `tests/test_query_runner.py` with local data.
 - `tests/test_graphar_schemas.py` to validate new fields.
+- `tests/test_query_modes.py` for modality filtering and warmup toggles.
 
 Deliverables:
 - Local query returns text/image/audio results against local GraphAr.
@@ -89,6 +93,8 @@ Tasks:
 - Wire console API calls to local services.
 - Update `frontend/dev-console/README.md` and `.env.example`.
 - Add optional OCR plugin packaging (extra deps + build target) and `ENABLE_OCR` flag documentation.
+- Update SDKs/CLI/OpenAPI to expose query modes/modalities.
+- Add console toggle for text-only vs multimodal queries and persist defaults.
 
 Tests:
 - Add minimal frontend smoke tests if used.
@@ -175,6 +181,7 @@ Tasks:
 - Add autoscaling configuration in Terraform (`infrastructure/terraform/`).
 - Update `Dev Docs/Load-Testing.md` with streaming/compaction benchmarks.
 - Update `Dev Docs/Release-Checklist.md` for v3.0.
+- Add load test baselines for text-only vs multimodal queries.
 
 Tests:
 - `tests/test_query_auth.py`, `tests/test_metering.py`.

@@ -2,6 +2,8 @@ import os
 from dataclasses import dataclass
 from functools import lru_cache
 
+from retikon_core.capabilities import get_edition, resolve_capabilities
+
 
 @dataclass(frozen=True)
 class Config:
@@ -35,6 +37,10 @@ class Config:
     rate_limit_audio_per_min: int
     rate_limit_video_per_min: int
     dlq_topic: str | None
+    enable_ocr: bool
+    ocr_max_pages: int
+    edition: str
+    capabilities: tuple[str, ...]
     snapshot_uri: str | None = None
 
     @classmethod
@@ -80,7 +86,7 @@ class Config:
         allowed_doc_ext = _parse_ext_list(
             os.getenv(
                 "ALLOWED_DOC_EXT",
-                ".pdf,.txt,.md,.rtf,.docx,.doc,.pptx,.ppt,.csv,.tsv,.xlsx,.xls",
+                ".pdf,.txt,.md,.rtf,.docx,.pptx,.csv,.tsv,.xlsx,.xls",
             )
         )
         allowed_image_ext = _parse_ext_list(
@@ -111,7 +117,14 @@ class Config:
         rate_limit_audio_per_min = int(os.getenv("RATE_LIMIT_AUDIO_PER_MIN", "20"))
         rate_limit_video_per_min = int(os.getenv("RATE_LIMIT_VIDEO_PER_MIN", "10"))
         dlq_topic = os.getenv("DLQ_TOPIC")
+        enable_ocr = os.getenv("ENABLE_OCR", "0") == "1"
+        ocr_max_pages = int(os.getenv("OCR_MAX_PAGES", "5"))
         snapshot_uri = os.getenv("SNAPSHOT_URI")
+        edition = get_edition(os.getenv("RETIKON_EDITION"))
+        capabilities = resolve_capabilities(
+            edition=edition,
+            override=os.getenv("RETIKON_CAPABILITIES"),
+        )
 
         if missing:
             missing_str = ", ".join(missing)
@@ -148,6 +161,10 @@ class Config:
             rate_limit_audio_per_min=rate_limit_audio_per_min,
             rate_limit_video_per_min=rate_limit_video_per_min,
             dlq_topic=dlq_topic,
+            enable_ocr=enable_ocr,
+            ocr_max_pages=ocr_max_pages,
+            edition=edition,
+            capabilities=capabilities,
             snapshot_uri=snapshot_uri,
         )
 

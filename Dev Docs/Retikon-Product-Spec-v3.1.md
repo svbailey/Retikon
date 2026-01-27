@@ -5,13 +5,14 @@ Owner: Product + Eng
 Date: 2026-01-26
 
 ## Summary
-Retikon v3.1 extends the v3.0 open-core platform with enterprise governance, fleet operations, advanced Data Factory tooling, privacy controls, and a BYOC Kubernetes deployment option. v3.1 focuses on regulated, multi-tenant production environments and adds full enterprise identity, RBAC/ABAC policies, fleet UI, annotation/model registry workflows, connectors, and portability beyond GCP.
+Retikon v3.1 extends the v3.0 open-core platform with enterprise governance, fleet operations, advanced Data Factory tooling, privacy controls, a BYOC Kubernetes deployment option, and Pro performance acceleration. v3.1 focuses on regulated, multi-tenant production environments and adds full enterprise identity, RBAC/ABAC policies, fleet UI, annotation/model registry workflows, connectors, portability beyond GCP, and a high-performance query tier (ONNX/quantized + GPU).
 
 ## Goals
 - Deliver enterprise identity, access control, and auditability.
 - Add BYOC (Kubernetes) deployment for Pro Enterprise.
 - Expand Data Factory with annotation QA, training orchestration, and model registry.
 - Provide fleet management, device hardening, and staged rollouts for edge devices.
+- Reduce multimodal query tail latency with runtime/model acceleration and tiered query services.
 
 ## Non-goals
 - Core license changes (Core remains Apache 2.0).
@@ -25,6 +26,7 @@ Retikon v3.1 extends the v3.0 open-core platform with enterprise governance, fle
 - Advanced Data Factory UI (annotation QA, model registry, training orchestration).
 - Privacy controls (redaction, PII masking) and compliance exports.
 - BYOC Kubernetes deployment with provider abstractions.
+- Performance tiering for queries (ONNX/quantized embeddings, GPU-backed query service).
 
 ## Functional Requirements
 
@@ -54,6 +56,12 @@ Retikon v3.1 extends the v3.0 open-core platform with enterprise governance, fle
 - Workflow DSL/API for batch jobs with retries and schedules.
 - Legacy Office conversion pipeline (.doc/.ppt -> .docx/.pptx) for ingestion.
 
+### Query Performance Acceleration
+- ONNX/quantized embedding backends for CPU query services.
+- GPU-backed query service for multimodal requests at scale.
+- Query routing based on modality and SLA tier.
+- Optional async query workflow for heavy multimodal requests.
+
 ### Portability
 - BYOC Kubernetes adapter for Pro Enterprise.
 - Provider abstraction layers for object store, queue, secrets, state store.
@@ -63,7 +71,7 @@ Retikon v3.1 extends the v3.0 open-core platform with enterprise governance, fle
 - Streaming connectors (Kafka and Pub/Sub).
 - Warehouse/lakehouse export connectors (Snowflake, BigQuery, S3-compatible).
 - SIEM/observability connectors (Splunk or generic HTTP collector).
- - OCR service connectors for scalable processing (managed).
+- OCR service connectors for scalable processing (managed).
 
 ## Architecture Requirements
 - Keep GraphAr additive evolution and `retikon_v2/` prefix.
@@ -92,6 +100,7 @@ Retikon v3.1 extends the v3.0 open-core platform with enterprise governance, fle
 - Fleet operations: staged rollout to 10k devices within 1 hour.
 - Audit log query p95 <= 1s for 7-day window.
 - Privacy redaction pipeline adds <= 10 percent latency to media processing.
+- Pro multimodal query p99 <= 3s on GPU tier under target throughput.
 
 ## Acceptance Criteria (v3.1)
 - Enterprise identity and RBAC/ABAC enforced across APIs.
@@ -101,6 +110,7 @@ Retikon v3.1 extends the v3.0 open-core platform with enterprise governance, fle
 - BYOC Kubernetes deployment documented and validated.
 - Developer consumption patterns documented in `Dev Docs/Developer-Integration-Guide.md`.
 - Advanced UI behavior documented in `Dev Docs/Developer-Console-UI-Guide.md`.
+- Query acceleration tier (ONNX/quantized + GPU) available and documented.
 
 ## Dependencies
 - v3.0 Core and Pro MVP complete.

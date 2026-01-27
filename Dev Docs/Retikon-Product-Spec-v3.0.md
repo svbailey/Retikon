@@ -5,7 +5,7 @@ Owner: Product + Eng
 Date: 2026-01-26
 
 ## Summary
-Retikon v3.0 delivers an open-source Core developer platform that runs locally for free, plus a proprietary Pro tier for production-scale deployments. Core provides universal batch ingestion, multimodal pipelines, local query, SDKs, CLI, a minimal web console, and a local edge agent. Pro adds streaming ingestion, queue-based dispatch, adaptive batching/backpressure, managed edge gateways, mandatory compaction, event lifecycle state, webhooks with delivery logs, basic multi-tenancy/metering, and GCP-first SaaS deployment.
+Retikon v3.0 delivers an open-source Core developer platform that runs locally for free, plus a proprietary Pro tier for production-scale deployments. Core provides universal batch ingestion, multimodal pipelines, local query, SDKs, CLI, a minimal web console, and a local edge agent. Core also introduces query modes (text-first by default) with modality filtering plus model warmup to reduce tail latency. Pro adds streaming ingestion, queue-based dispatch, adaptive batching/backpressure, managed edge gateways, mandatory compaction, event lifecycle state, webhooks with delivery logs, basic multi-tenancy/metering, and GCP-first SaaS deployment.
 
 ## Goals
 - Make Retikon Core a zero-friction developer onramp with Apache 2.0 licensing.
@@ -97,6 +97,7 @@ Core:
 - Text, image, and audio similarity search using existing embeddings.
 - Keyword and metadata search.
 - Reverse image search.
+- Query modes / modality filters to skip unnecessary embeddings (text-only default in console and CLI).
 
 Pro:
 - Multi-modal query composition (combine text + image + audio).
@@ -107,6 +108,7 @@ Core:
 - CLI: local up/daemon, ingest, query, status, events tail.
 - SDKs: Python + JS with API parity; C++ target for v3.1.
 - Minimal web console: ingest status, media preview, query runner, logs.
+- Query UX includes mode selector (text-only vs multimodal) and saved defaults.
 
 Pro:
 - Web console with delivery logs, usage view, and stream health.
@@ -173,6 +175,9 @@ Core endpoints (local + GCP):
 - `POST /alerts` (basic rules)
 - `POST /webhooks` (basic config)
 
+Notes:
+- `POST /query` accepts `mode` or `modalities` to control which embeddings are computed.
+
 Pro endpoints:
 - `POST /ingest/stream` (streaming)
 - `GET /ingest/stream/status`
@@ -184,6 +189,7 @@ Pro endpoints:
 - `retikon daemon` (headless)
 - `retikon ingest --path ...`
 - `retikon query --text ... --image ... --audio ...`
+- `retikon query --mode text|all` or `--modalities doc,transcript,image,audio`
 - `retikon status`
 - `retikon events tail`
 
@@ -191,7 +197,7 @@ Pro endpoints:
 Core console (minimal):
 - Ingestion status list
 - Media preview and basic timeline
-- Query runner (text/image/audio)
+- Query runner with mode selector (text-only vs multimodal)
 - Recent logs
 
 Pro console (v3.0):
@@ -203,6 +209,7 @@ Pro console (v3.0):
 - JSON structured logs with service, env, request_id, correlation_id, duration_ms, version.
 - Metrics: ingest rate, queue backlog, processing latency, compaction lag.
 - Alert thresholds configurable per environment.
+- Slow-query logging with per-phase timing breakdown (embeddings vs DuckDB).
 
 ## Security and Compliance
 - Encryption in transit for all tiers.
@@ -211,7 +218,8 @@ Pro console (v3.0):
 
 ## Performance Targets
 Core:
-- Local query p95 <= 800ms on small datasets (<10k assets).
+- Local text-only query p95 <= 800ms on small datasets (<10k assets).
+- Local multimodal query p95 <= 1500ms on small datasets (<10k assets).
 
 Pro:
 - Streaming ingestion backlog < 60s under target throughput.
@@ -231,6 +239,8 @@ Pro:
 - Load test baselines documented in `Dev Docs/Load-Testing.md`.
 - Developer consumption patterns documented in `Dev Docs/Developer-Integration-Guide.md`.
 - Advanced UI behavior documented in `Dev Docs/Developer-Console-UI-Guide.md`.
+- Query modes/modality filters documented and available in Core UI/CLI/SDK.
+- Model warmup configured for query services in local and Pro deployments.
 
 ## Out of Scope (v3.1)
 - SSO/SAML/OAuth integration.

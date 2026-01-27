@@ -1,9 +1,19 @@
 import json
+import uuid
 from pathlib import Path
+
+import pyarrow.parquet as pq
 
 from retikon_core.config import get_config
 from retikon_core.ingestion.pipelines.image import ingest_image
 from retikon_core.ingestion.types import IngestSource
+
+
+def _is_uuid4(value: str) -> bool:
+    try:
+        return uuid.UUID(value).version == 4
+    except ValueError:
+        return False
 
 
 def test_image_pipeline_writes_graphar(tmp_path):
@@ -32,3 +42,23 @@ def test_image_pipeline_writes_graphar(tmp_path):
     assert manifest_path.exists()
     payload = json.loads(manifest_path.read_text(encoding="utf-8"))
     assert payload["counts"]["ImageAsset"] == 1
+
+    files = [item["uri"] for item in payload.get("files", [])]
+    media_uri = next(uri for uri in files if "vertices/MediaAsset/core" in uri)
+    image_core_uri = next(uri for uri in files if "vertices/ImageAsset/core" in uri)
+    edge_uri = next(uri for uri in files if "edges/DerivedFrom/adj_list" in uri)
+
+    media_table = pq.read_table(media_uri)
+    image_table = pq.read_table(image_core_uri)
+    edge_table = pq.read_table(edge_uri)
+
+    for value in media_table.column("id").to_pylist():
+        assert _is_uuid4(value)
+    for value in image_table.column("id").to_pylist():
+        assert _is_uuid4(value)
+    for value in image_table.column("media_asset_id").to_pylist():
+        assert _is_uuid4(value)
+    for value in edge_table.column("src_id").to_pylist():
+        assert _is_uuid4(value)
+    for value in edge_table.column("dst_id").to_pylist():
+        assert _is_uuid4(value)

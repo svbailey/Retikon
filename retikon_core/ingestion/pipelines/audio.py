@@ -79,7 +79,7 @@ def ingest_audio(
             "schema_version": schema_version,
         }
 
-        audio_clip_id = str(uuid.uuid5(uuid.NAMESPACE_URL, f"{media_asset_id}:audio"))
+        audio_clip_id = str(uuid.uuid4())
         audio_clip_core = {
             "id": audio_clip_id,
             "media_asset_id": media_asset_id,
@@ -96,15 +96,12 @@ def ingest_audio(
         transcript_text_rows = []
         transcript_vector_rows = []
         next_edges = []
+        segment_ids: list[str] = []
         derived_edges = [{"src_id": audio_clip_id, "dst_id": media_asset_id}]
 
         for segment, vector in zip(segments, text_vectors, strict=False):
-            segment_id = str(
-                uuid.uuid5(
-                    uuid.NAMESPACE_URL,
-                    f"{media_asset_id}:segment:{segment.index}",
-                )
-            )
+            segment_id = str(uuid.uuid4())
+            segment_ids.append(segment_id)
             transcript_core_rows.append(
                 {
                     "id": segment_id,
@@ -121,14 +118,10 @@ def ingest_audio(
             transcript_text_rows.append({"content": segment.text})
             transcript_vector_rows.append({"text_embedding": vector})
             derived_edges.append({"src_id": segment_id, "dst_id": media_asset_id})
-            if segment.index > 0:
-                prev_id = str(
-                    uuid.uuid5(
-                        uuid.NAMESPACE_URL,
-                        f"{media_asset_id}:segment:{segment.index - 1}",
-                    )
-                )
-                next_edges.append({"src_id": prev_id, "dst_id": segment_id})
+        for idx in range(1, len(segment_ids)):
+            next_edges.append(
+                {"src_id": segment_ids[idx - 1], "dst_id": segment_ids[idx]}
+            )
 
         files: list[WriteResult] = []
         files.append(

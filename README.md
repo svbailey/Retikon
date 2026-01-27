@@ -21,6 +21,27 @@ tracks the v2.5 build kit and the development plan.
 - Developer integration guide: `Dev Docs/Developer-Integration-Guide.md`
 - Developer console UI guide: `Dev Docs/Developer-Console-UI-Guide.md`
 
+## Open-core model (Core vs Pro)
+
+Retikon is an open-core platform:
+
+- **Retikon Core (OSS, Apache 2.0)**: local runtime, batch ingestion pipelines,
+  GraphAr writer, SDKs + CLI, and a minimal developer console.
+- **Retikon Pro (Commercial)**: managed control plane, streaming ingestion,
+  compaction/retention automation, fleet ops, observability, governance,
+  multi-tenant metering, and enterprise support.
+
+## Support policy
+
+- Core is community-supported via GitHub issues and docs.
+- Pro includes SLAs, priority support, and managed operations.
+
+## Quickstart
+
+- Core local run: `Dev Docs/Local-Development.md`
+- Deployment (GCP): `Dev Docs/Deployment.md`
+- Console usage: `Dev Docs/Developer-Console-UI-Guide.md`
+
 ## Repository layout (expected)
 
 - `retikon_core/`: cloud-agnostic ingestion and query logic.

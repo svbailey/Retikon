@@ -54,9 +54,35 @@ def _ensure_allowed(event: GcsEvent, config: Config, modality: str) -> None:
         raise PermanentError(f"Unsupported audio extension: {extension}")
     if modality == "video" and extension not in config.allowed_video_ext:
         raise PermanentError(f"Unsupported video extension: {extension}")
+    if event.content_type:
+        normalized = _normalize_content_type(event.content_type)
+        allowed_types = _CONTENT_TYPE_BY_EXT.get(extension, set())
+        if not normalized or normalized not in allowed_types:
+            raise PermanentError(
+                f"Content type does not match extension: {event.content_type}"
+            )
 
 
 _CONTENT_TYPE_EXT: dict[str, str] = {
+    "application/pdf": ".pdf",
+    "text/plain": ".txt",
+    "text/markdown": ".md",
+    "application/rtf": ".rtf",
+    "text/rtf": ".rtf",
+    "application/vnd.openxmlformats-officedocument.wordprocessingml.document": ".docx",
+    "application/vnd.openxmlformats-officedocument.presentationml.presentation": ".pptx",
+    "text/csv": ".csv",
+    "application/csv": ".csv",
+    "text/tab-separated-values": ".tsv",
+    "text/tsv": ".tsv",
+    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet": ".xlsx",
+    "application/vnd.ms-excel": ".xls",
+    "image/jpeg": ".jpg",
+    "image/png": ".png",
+    "image/webp": ".webp",
+    "image/bmp": ".bmp",
+    "image/tiff": ".tiff",
+    "image/gif": ".gif",
     "audio/mpeg": ".mp3",
     "audio/mp3": ".mp3",
     "audio/wav": ".wav",
@@ -64,20 +90,38 @@ _CONTENT_TYPE_EXT: dict[str, str] = {
     "audio/flac": ".flac",
     "audio/x-flac": ".flac",
     "audio/mp4": ".m4a",
+    "audio/m4a": ".m4a",
     "audio/aac": ".aac",
     "audio/ogg": ".ogg",
     "audio/opus": ".opus",
     "video/mp4": ".mp4",
     "video/quicktime": ".mov",
     "video/x-msvideo": ".avi",
+    "video/webm": ".webm",
+    "video/x-matroska": ".mkv",
+    "video/mpeg": ".mpeg",
 }
+
+_CONTENT_TYPE_BY_EXT: dict[str, set[str]] = {}
+for _ctype, _ext in _CONTENT_TYPE_EXT.items():
+    _CONTENT_TYPE_BY_EXT.setdefault(_ext, set()).add(_ctype)
+_CONTENT_TYPE_BY_EXT.setdefault(".jpeg", set()).add("image/jpeg")
+_CONTENT_TYPE_BY_EXT.setdefault(".mpg", set()).add("video/mpeg")
+
+
+def _normalize_content_type(value: str | None) -> str | None:
+    if not value:
+        return None
+    return value.split(";", 1)[0].strip().lower()
 
 
 def _extension_for_event(event: GcsEvent) -> str:
     if event.extension:
         return event.extension
     if event.content_type:
-        return _CONTENT_TYPE_EXT.get(event.content_type.lower(), "")
+        normalized = _normalize_content_type(event.content_type)
+        if normalized:
+            return _CONTENT_TYPE_EXT.get(normalized, "")
     return ""
 
 

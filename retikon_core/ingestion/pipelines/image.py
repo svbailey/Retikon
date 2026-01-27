@@ -74,7 +74,7 @@ def ingest_image(
         vector = embedder.encode([rgb])[0]
 
     media_asset_id = str(uuid.uuid4())
-    image_asset_id = str(uuid.uuid5(uuid.NAMESPACE_URL, f"{media_asset_id}:0"))
+    image_asset_id = str(uuid.uuid4())
     now = datetime.now(timezone.utc)
     thumb_uri = None
     if config.video_thumbnail_width > 0:

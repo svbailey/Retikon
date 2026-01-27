@@ -4,6 +4,7 @@ ARG APP_MODULE=gcp_adapter.query_service:app
 ENV APP_MODULE=${APP_MODULE}
 ARG PRELOAD_MODELS=1
 ARG MODEL_DIR=/app/models
+ARG INSTALL_OCR=0
 
 WORKDIR /app
 
@@ -16,6 +17,13 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 
 COPY requirements.txt /app/requirements.txt
 RUN pip install --no-cache-dir -r /app/requirements.txt
+COPY requirements-ocr.txt /app/requirements-ocr.txt
+RUN if [ "${INSTALL_OCR}" = "1" ]; then \
+        apt-get update && apt-get install -y --no-install-recommends \
+        tesseract-ocr tesseract-ocr-eng && \
+        pip install --no-cache-dir -r /app/requirements-ocr.txt && \
+        rm -rf /var/lib/apt/lists/* ; \
+    fi
 
 ENV MODEL_DIR=${MODEL_DIR}
 ENV HF_HOME=${MODEL_DIR}

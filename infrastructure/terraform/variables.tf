@@ -99,6 +99,46 @@ variable "query_concurrency" {
   default = 10
 }
 
+variable "query_timeout_seconds" {
+  type    = number
+  default = 300
+}
+
+variable "query_slow_ms" {
+  type    = number
+  default = 2000
+}
+
+variable "query_log_timings" {
+  type    = bool
+  default = false
+}
+
+variable "query_warmup" {
+  type    = bool
+  default = true
+}
+
+variable "query_warmup_text" {
+  type    = string
+  default = "retikon warmup"
+}
+
+variable "duckdb_threads" {
+  type    = number
+  default = null
+}
+
+variable "duckdb_memory_limit" {
+  type    = string
+  default = ""
+}
+
+variable "duckdb_temp_directory" {
+  type    = string
+  default = ""
+}
+
 variable "query_max_scale" {
   type    = number
   default = 20
