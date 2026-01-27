@@ -1,0 +1,548 @@
+version: 1
+updated_at: 2026-01-27
+schema:
+  fields:
+    - id
+    - name
+    - category
+    - tier
+    - edition
+    - direction
+    - auth_methods
+    - incremental
+    - streaming
+    - modalities
+    - status
+    - notes
+
+tiers:
+  - id: tier0
+    name: must_have_3_2
+    description: Baseline connectors targeted for v3.2 release.
+  - id: tier1
+    name: should_have_3_2
+    description: Important connectors targeted for v3.2 or early v3.2.x.
+  - id: tier2
+    name: backlog
+    description: Extended ecosystem connectors for post-v3.2.
+
+connectors:
+  - id: gcs
+    name: Google Cloud Storage
+    category: object_storage
+    tier: tier0
+    edition: core
+    direction: [source, destination]
+    auth_methods: [service_account, workload_identity]
+    incremental: true
+    streaming: false
+    modalities: [document, image, audio, video]
+    status: target
+    notes: Baseline storage connector for Core and Pro.
+
+  - id: s3
+    name: Amazon S3
+    category: object_storage
+    tier: tier0
+    edition: core
+    direction: [source, destination]
+    auth_methods: [access_key, iam_role]
+    incremental: true
+    streaming: false
+    modalities: [document, image, audio, video]
+    status: target
+    notes: Baseline storage connector for Core and Pro.
+
+  - id: azure_blob
+    name: Azure Blob Storage
+    category: object_storage
+    tier: tier0
+    edition: core
+    direction: [source, destination]
+    auth_methods: [access_key, managed_identity]
+    incremental: true
+    streaming: false
+    modalities: [document, image, audio, video]
+    status: target
+    notes: Baseline storage connector for Core and Pro.
+
+  - id: bigquery
+    name: BigQuery
+    category: warehouse
+    tier: tier0
+    edition: pro
+    direction: [destination]
+    auth_methods: [service_account, workload_identity]
+    incremental: true
+    streaming: false
+    modalities: [document, image, audio, video]
+    status: target
+    notes: Pro export destination and analytics integration.
+
+  - id: snowflake
+    name: Snowflake
+    category: warehouse
+    tier: tier0
+    edition: pro
+    direction: [destination]
+    auth_methods: [user_password, key_pair, oauth]
+    incremental: true
+    streaming: false
+    modalities: [document, image, audio, video]
+    status: target
+    notes: Pro export destination and analytics integration.
+
+  - id: postgres
+    name: PostgreSQL
+    category: database
+    tier: tier0
+    edition: core
+    direction: [source, destination]
+    auth_methods: [user_password, iam_auth]
+    incremental: true
+    streaming: false
+    modalities: [document, image, audio, video]
+    status: target
+    notes: Baseline relational connector for Core and Pro.
+
+  - id: mysql
+    name: MySQL
+    category: database
+    tier: tier0
+    edition: core
+    direction: [source, destination]
+    auth_methods: [user_password]
+    incremental: true
+    streaming: false
+    modalities: [document, image, audio, video]
+    status: target
+    notes: Baseline relational connector for Core and Pro.
+
+  - id: kafka
+    name: Apache Kafka
+    category: streaming
+    tier: tier0
+    edition: pro
+    direction: [source, destination]
+    auth_methods: [tls, sasl_plain, sasl_scram]
+    incremental: true
+    streaming: true
+    modalities: [document, image, audio, video]
+    status: target
+    notes: Pro streaming ingestion and event delivery.
+
+  - id: pubsub
+    name: Google Pub/Sub
+    category: streaming
+    tier: tier0
+    edition: pro
+    direction: [source, destination]
+    auth_methods: [service_account, workload_identity]
+    incremental: true
+    streaming: true
+    modalities: [document, image, audio, video]
+    status: target
+    notes: Pro streaming ingestion and event delivery.
+
+  - id: google_drive
+    name: Google Drive
+    category: collaboration
+    tier: tier0
+    edition: core
+    direction: [source]
+    auth_methods: [oauth]
+    incremental: true
+    streaming: false
+    modalities: [document, image]
+    status: target
+    notes: Starter Core connector for user-friendly onboarding.
+
+  - id: sharepoint
+    name: Microsoft SharePoint (Cloud)
+    category: collaboration
+    tier: tier0
+    edition: pro
+    direction: [source]
+    auth_methods: [oauth]
+    incremental: true
+    streaming: false
+    modalities: [document, image]
+    status: target
+    notes: Pro collaboration source.
+
+  - id: onedrive
+    name: Microsoft OneDrive
+    category: collaboration
+    tier: tier0
+    edition: pro
+    direction: [source]
+    auth_methods: [oauth]
+    incremental: true
+    streaming: false
+    modalities: [document, image]
+    status: target
+    notes: Pro collaboration source.
+
+  - id: slack
+    name: Slack
+    category: messaging
+    tier: tier0
+    edition: pro
+    direction: [source, destination]
+    auth_methods: [oauth, webhook]
+    incremental: true
+    streaming: false
+    modalities: [document]
+    status: target
+    notes: Pro messaging connector for alerts and content ingestion.
+
+  - id: github
+    name: GitHub
+    category: dev_tools
+    tier: tier0
+    edition: core
+    direction: [source]
+    auth_methods: [oauth, token]
+    incremental: true
+    streaming: false
+    modalities: [document]
+    status: target
+    notes: Starter Core connector for code/docs ingestion.
+
+  - id: gitlab
+    name: GitLab
+    category: dev_tools
+    tier: tier0
+    edition: core
+    direction: [source]
+    auth_methods: [oauth, token]
+    incremental: true
+    streaming: false
+    modalities: [document]
+    status: target
+    notes: Starter Core connector for code/docs ingestion.
+
+  - id: redshift
+    name: Amazon Redshift
+    category: warehouse
+    tier: tier1
+    edition: pro
+    direction: [destination]
+    auth_methods: [user_password, iam_auth]
+    incremental: true
+    streaming: false
+    modalities: [document, image, audio, video]
+    status: target
+    notes: Pro analytics export.
+
+  - id: databricks_delta
+    name: Databricks Delta Lake
+    category: warehouse
+    tier: tier1
+    edition: pro
+    direction: [destination]
+    auth_methods: [token]
+    incremental: true
+    streaming: false
+    modalities: [document, image, audio, video]
+    status: target
+    notes: Pro analytics export.
+
+  - id: sqlserver
+    name: Microsoft SQL Server
+    category: database
+    tier: tier1
+    edition: pro
+    direction: [source, destination]
+    auth_methods: [user_password]
+    incremental: true
+    streaming: false
+    modalities: [document, image, audio, video]
+    status: target
+    notes: Enterprise database source and export.
+
+  - id: mongodb
+    name: MongoDB
+    category: database
+    tier: tier1
+    edition: pro
+    direction: [source, destination]
+    auth_methods: [user_password, x509]
+    incremental: true
+    streaming: false
+    modalities: [document, image, audio, video]
+    status: target
+    notes: Document database source and export.
+
+  - id: salesforce
+    name: Salesforce
+    category: crm_support
+    tier: tier1
+    edition: pro
+    direction: [source]
+    auth_methods: [oauth]
+    incremental: true
+    streaming: false
+    modalities: [document]
+    status: target
+    notes: CRM ingestion for knowledge and case data.
+
+  - id: zendesk
+    name: Zendesk
+    category: crm_support
+    tier: tier1
+    edition: pro
+    direction: [source]
+    auth_methods: [oauth, token]
+    incremental: true
+    streaming: false
+    modalities: [document]
+    status: target
+    notes: Support ticket ingestion.
+
+  - id: servicenow
+    name: ServiceNow
+    category: crm_support
+    tier: tier1
+    edition: pro
+    direction: [source]
+    auth_methods: [oauth, user_password]
+    incremental: true
+    streaming: false
+    modalities: [document]
+    status: target
+    notes: ITSM data ingestion.
+
+  - id: jira
+    name: Jira
+    category: crm_support
+    tier: tier1
+    edition: pro
+    direction: [source]
+    auth_methods: [oauth, token]
+    incremental: true
+    streaming: false
+    modalities: [document]
+    status: target
+    notes: Issue and project data ingestion.
+
+  - id: confluence
+    name: Confluence
+    category: knowledge_base
+    tier: tier1
+    edition: pro
+    direction: [source]
+    auth_methods: [oauth, token]
+    incremental: true
+    streaming: false
+    modalities: [document]
+    status: target
+    notes: Knowledge base ingestion.
+
+  - id: notion
+    name: Notion
+    category: knowledge_base
+    tier: tier1
+    edition: pro
+    direction: [source]
+    auth_methods: [oauth, token]
+    incremental: true
+    streaming: false
+    modalities: [document]
+    status: target
+    notes: Workspace knowledge ingestion.
+
+  - id: teams
+    name: Microsoft Teams
+    category: messaging
+    tier: tier1
+    edition: pro
+    direction: [source, destination]
+    auth_methods: [oauth, webhook]
+    incremental: true
+    streaming: false
+    modalities: [document]
+    status: target
+    notes: Messaging + alerts integration.
+
+  - id: sftp
+    name: SFTP
+    category: file_transfer
+    tier: tier1
+    edition: pro
+    direction: [source, destination]
+    auth_methods: [user_password, ssh_key]
+    incremental: true
+    streaming: false
+    modalities: [document, image, audio, video]
+    status: target
+    notes: Batch file transfers for regulated environments.
+
+  - id: kinesis
+    name: Amazon Kinesis
+    category: streaming
+    tier: tier2
+    edition: pro
+    direction: [source, destination]
+    auth_methods: [access_key, iam_role]
+    incremental: true
+    streaming: true
+    modalities: [document, image, audio, video]
+    status: backlog
+    notes: Streaming ingestion and delivery.
+
+  - id: event_hubs
+    name: Azure Event Hubs
+    category: streaming
+    tier: tier2
+    edition: pro
+    direction: [source, destination]
+    auth_methods: [access_key, managed_identity]
+    incremental: true
+    streaming: true
+    modalities: [document, image, audio, video]
+    status: backlog
+    notes: Streaming ingestion and delivery.
+
+  - id: rabbitmq
+    name: RabbitMQ
+    category: streaming
+    tier: tier2
+    edition: pro
+    direction: [source, destination]
+    auth_methods: [user_password, tls]
+    incremental: true
+    streaming: true
+    modalities: [document, image, audio, video]
+    status: backlog
+    notes: Queue-based ingestion and delivery.
+
+  - id: oracle
+    name: Oracle Database
+    category: database
+    tier: tier2
+    edition: pro
+    direction: [source, destination]
+    auth_methods: [user_password]
+    incremental: true
+    streaming: false
+    modalities: [document, image, audio, video]
+    status: backlog
+    notes: Enterprise database connector.
+
+  - id: dynamodb
+    name: Amazon DynamoDB
+    category: database
+    tier: tier2
+    edition: pro
+    direction: [source, destination]
+    auth_methods: [access_key, iam_role]
+    incremental: true
+    streaming: false
+    modalities: [document, image, audio, video]
+    status: backlog
+    notes: NoSQL connector.
+
+  - id: neo4j
+    name: Neo4j
+    category: graph_db
+    tier: tier2
+    edition: pro
+    direction: [source, destination]
+    auth_methods: [user_password]
+    incremental: true
+    streaming: false
+    modalities: [document, image, audio, video]
+    status: backlog
+    notes: Graph database export/import.
+
+  - id: minio
+    name: MinIO
+    category: object_storage
+    tier: tier2
+    edition: pro
+    direction: [source, destination]
+    auth_methods: [access_key]
+    incremental: true
+    streaming: false
+    modalities: [document, image, audio, video]
+    status: backlog
+    notes: S3-compatible object storage.
+
+  - id: wasabi
+    name: Wasabi
+    category: object_storage
+    tier: tier2
+    edition: pro
+    direction: [source, destination]
+    auth_methods: [access_key]
+    incremental: true
+    streaming: false
+    modalities: [document, image, audio, video]
+    status: backlog
+    notes: S3-compatible object storage.
+
+  - id: splunk
+    name: Splunk
+    category: observability
+    tier: tier2
+    edition: pro
+    direction: [destination]
+    auth_methods: [token]
+    incremental: true
+    streaming: false
+    modalities: [document]
+    status: backlog
+    notes: Log/alert export.
+
+  - id: datadog
+    name: Datadog
+    category: observability
+    tier: tier2
+    edition: pro
+    direction: [destination]
+    auth_methods: [api_key]
+    incremental: true
+    streaming: false
+    modalities: [document]
+    status: backlog
+    notes: Metrics and alert export.
+
+  - id: sharepoint_onprem
+    name: SharePoint (On-prem)
+    category: collaboration
+    tier: tier2
+    edition: pro
+    direction: [source]
+    auth_methods: [user_password]
+    incremental: true
+    streaming: false
+    modalities: [document, image]
+    status: backlog
+    notes: Legacy enterprise environments.
+
+  - id: box
+    name: Box
+    category: collaboration
+    tier: tier2
+    edition: pro
+    direction: [source]
+    auth_methods: [oauth]
+    incremental: true
+    streaming: false
+    modalities: [document, image]
+    status: backlog
+    notes: Cloud file storage ingestion.
+
+  - id: dropbox
+    name: Dropbox
+    category: collaboration
+    tier: tier2
+    edition: pro
+    direction: [source]
+    auth_methods: [oauth]
+    incremental: true
+    streaming: false
+    modalities: [document, image]
+    status: backlog
+    notes: Cloud file storage ingestion.

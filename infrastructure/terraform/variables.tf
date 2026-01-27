@@ -54,6 +54,16 @@ variable "edge_gateway_service_name" {
   default = "retikon-edge-gateway"
 }
 
+variable "stream_ingest_service_account_name" {
+  type    = string
+  default = "retikon-stream-ingest"
+}
+
+variable "stream_ingest_service_name" {
+  type    = string
+  default = "retikon-stream-ingest"
+}
+
 variable "ingestion_image" {
   type    = string
   default = "us-docker.pkg.dev/cloudrun/container/hello"
@@ -75,6 +85,11 @@ variable "dev_console_image" {
 }
 
 variable "edge_gateway_image" {
+  type    = string
+  default = "us-docker.pkg.dev/cloudrun/container/hello"
+}
+
+variable "stream_ingest_image" {
   type    = string
   default = "us-docker.pkg.dev/cloudrun/container/hello"
 }
@@ -237,6 +252,66 @@ variable "edge_gateway_concurrency" {
 variable "edge_gateway_max_scale" {
   type    = number
   default = 20
+}
+
+variable "stream_ingest_memory" {
+  type    = string
+  default = "1Gi"
+}
+
+variable "stream_ingest_cpu" {
+  type    = string
+  default = "1000m"
+}
+
+variable "stream_ingest_concurrency" {
+  type    = number
+  default = 10
+}
+
+variable "stream_ingest_max_scale" {
+  type    = number
+  default = 20
+}
+
+variable "stream_ingest_topic_name" {
+  type    = string
+  default = "retikon-stream-ingest"
+}
+
+variable "stream_ingest_subscription_name" {
+  type    = string
+  default = "retikon-stream-ingest-sub"
+}
+
+variable "stream_ingest_batch_max" {
+  type    = number
+  default = 50
+}
+
+variable "stream_ingest_batch_max_delay_ms" {
+  type    = number
+  default = 2000
+}
+
+variable "stream_ingest_backlog_max" {
+  type    = number
+  default = 1000
+}
+
+variable "stream_ingest_max_delivery_attempts" {
+  type    = number
+  default = 10
+}
+
+variable "stream_ingest_retry_min_backoff" {
+  type    = number
+  default = 10
+}
+
+variable "stream_ingest_retry_max_backoff" {
+  type    = number
+  default = 600
 }
 
 variable "index_memory" {

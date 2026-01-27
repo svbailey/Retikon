@@ -56,3 +56,4 @@ query_image = "us-central1-docker.pkg.dev/simitor/retikon-repo/retikon-query:dev
 index_image = "us-central1-docker.pkg.dev/simitor/retikon-repo/retikon-query:dev-20260126-161145"
 dev_console_image = "us-central1-docker.pkg.dev/simitor/retikon-repo/retikon-dev-console:dev-20260126-184417"
 edge_gateway_image = "us-central1-docker.pkg.dev/simitor/retikon-repo/retikon-edge-gateway:dev-20260127-134811"
+stream_ingest_image = "us-central1-docker.pkg.dev/simitor/retikon-repo/retikon-stream-ingest:dev-20260127-144705"

@@ -40,12 +40,38 @@ resource "google_pubsub_topic" "ingest_dlq" {
   name = var.ingest_dlq_topic_name
 }
 
+resource "google_pubsub_topic" "stream_ingest" {
+  name = var.stream_ingest_topic_name
+}
+
 resource "google_pubsub_subscription" "ingest_dlq" {
   name  = var.ingest_dlq_subscription_name
   topic = google_pubsub_topic.ingest_dlq.name
 
   ack_deadline_seconds       = 60
   message_retention_duration = "604800s"
+}
+
+resource "google_pubsub_subscription" "stream_ingest" {
+  name  = var.stream_ingest_subscription_name
+  topic = google_pubsub_topic.stream_ingest.name
+
+  ack_deadline_seconds       = 60
+  message_retention_duration = "604800s"
+
+  retry_policy {
+    minimum_backoff = "${var.stream_ingest_retry_min_backoff}s"
+    maximum_backoff = "${var.stream_ingest_retry_max_backoff}s"
+  }
+
+  dead_letter_policy {
+    dead_letter_topic     = google_pubsub_topic.ingest_dlq.id
+    max_delivery_attempts = var.stream_ingest_max_delivery_attempts
+  }
+
+  push_config {
+    push_endpoint = "${google_cloud_run_service.stream_ingest.status[0].url}/ingest/stream/push"
+  }
 }
 
 resource "google_service_account" "ingestion" {
@@ -66,6 +92,11 @@ resource "google_service_account" "dev_console" {
 resource "google_service_account" "edge_gateway" {
   account_id   = var.edge_gateway_service_account_name
   display_name = "Retikon Edge Gateway Service Account"
+}
+
+resource "google_service_account" "stream_ingest" {
+  account_id   = var.stream_ingest_service_account_name
+  display_name = "Retikon Stream Ingest Service Account"
 }
 
 resource "google_service_account" "index_builder" {
@@ -114,6 +145,18 @@ resource "google_pubsub_topic_iam_member" "ingest_dlq_publisher" {
   member = "serviceAccount:${google_service_account.ingestion.email}"
 }
 
+resource "google_pubsub_topic_iam_member" "stream_ingest_dlq_publisher" {
+  topic  = google_pubsub_topic.ingest_dlq.name
+  role   = "roles/pubsub.publisher"
+  member = "serviceAccount:${google_service_account.stream_ingest.email}"
+}
+
+resource "google_pubsub_topic_iam_member" "stream_ingest_publisher" {
+  topic  = google_pubsub_topic.stream_ingest.name
+  role   = "roles/pubsub.publisher"
+  member = "serviceAccount:${google_service_account.stream_ingest.email}"
+}
+
 resource "google_pubsub_topic_iam_member" "eventarc_transport_publisher" {
   topic  = google_pubsub_topic.ingest_transport.name
   role   = "roles/pubsub.publisher"
@@ -148,6 +191,24 @@ resource "google_storage_bucket_iam_member" "edge_gateway_raw_create" {
   bucket = google_storage_bucket.raw.name
   role   = "roles/storage.objectCreator"
   member = "serviceAccount:${google_service_account.edge_gateway.email}"
+}
+
+resource "google_storage_bucket_iam_member" "stream_ingest_raw_view" {
+  bucket = google_storage_bucket.raw.name
+  role   = "roles/storage.objectViewer"
+  member = "serviceAccount:${google_service_account.stream_ingest.email}"
+}
+
+resource "google_storage_bucket_iam_member" "stream_ingest_graph_admin" {
+  bucket = google_storage_bucket.graph.name
+  role   = "roles/storage.objectAdmin"
+  member = "serviceAccount:${google_service_account.stream_ingest.email}"
+}
+
+resource "google_project_iam_member" "stream_ingest_firestore_user" {
+  project = var.project_id
+  role    = "roles/datastore.user"
+  member  = "serviceAccount:${google_service_account.stream_ingest.email}"
 }
 
 resource "google_storage_bucket_iam_member" "index_graph_admin" {
@@ -739,6 +800,192 @@ resource "google_cloud_run_service" "edge_gateway" {
   autogenerate_revision_name = true
 }
 
+resource "google_cloud_run_service" "stream_ingest" {
+  name     = "${var.stream_ingest_service_name}-${var.env}"
+  location = var.region
+
+  metadata {
+    annotations = {
+      "run.googleapis.com/ingress" = "all"
+    }
+  }
+
+  template {
+    metadata {
+      annotations = {
+        "autoscaling.knative.dev/maxScale" = tostring(var.stream_ingest_max_scale)
+      }
+    }
+
+    spec {
+      service_account_name = google_service_account.stream_ingest.email
+      container_concurrency = var.stream_ingest_concurrency
+
+      containers {
+        image = var.stream_ingest_image
+
+        resources {
+          limits = {
+            cpu    = var.stream_ingest_cpu
+            memory = var.stream_ingest_memory
+          }
+        }
+
+        env {
+          name  = "APP_MODULE"
+          value = "gcp_adapter.stream_ingest_service:app"
+        }
+        env {
+          name  = "ENV"
+          value = var.env
+        }
+        env {
+          name  = "LOG_LEVEL"
+          value = var.log_level
+        }
+        env {
+          name  = "USE_REAL_MODELS"
+          value = var.use_real_models ? "1" : "0"
+        }
+        env {
+          name  = "MODEL_DIR"
+          value = var.model_dir
+        }
+        env {
+          name  = "TEXT_MODEL_NAME"
+          value = var.text_model_name
+        }
+        env {
+          name  = "IMAGE_MODEL_NAME"
+          value = var.image_model_name
+        }
+        env {
+          name  = "AUDIO_MODEL_NAME"
+          value = var.audio_model_name
+        }
+        env {
+          name  = "WHISPER_MODEL_NAME"
+          value = var.whisper_model_name
+        }
+        env {
+          name  = "RAW_BUCKET"
+          value = google_storage_bucket.raw.name
+        }
+        env {
+          name  = "GRAPH_BUCKET"
+          value = google_storage_bucket.graph.name
+        }
+        env {
+          name  = "GRAPH_PREFIX"
+          value = var.graph_prefix
+        }
+        env {
+          name  = "MAX_RAW_BYTES"
+          value = tostring(var.max_raw_bytes)
+        }
+        env {
+          name  = "MAX_VIDEO_SECONDS"
+          value = tostring(var.max_video_seconds)
+        }
+        env {
+          name  = "MAX_AUDIO_SECONDS"
+          value = tostring(var.max_audio_seconds)
+        }
+        env {
+          name  = "MAX_FRAMES_PER_VIDEO"
+          value = tostring(var.max_frames_per_video)
+        }
+        env {
+          name  = "CHUNK_TARGET_TOKENS"
+          value = tostring(var.chunk_target_tokens)
+        }
+        env {
+          name  = "CHUNK_OVERLAP_TOKENS"
+          value = tostring(var.chunk_overlap_tokens)
+        }
+        env {
+          name  = "MAX_INGEST_ATTEMPTS"
+          value = tostring(var.max_ingest_attempts)
+        }
+        env {
+          name  = "RATE_LIMIT_DOC_PER_MIN"
+          value = tostring(var.rate_limit_doc_per_min)
+        }
+        env {
+          name  = "RATE_LIMIT_IMAGE_PER_MIN"
+          value = tostring(var.rate_limit_image_per_min)
+        }
+        env {
+          name  = "RATE_LIMIT_AUDIO_PER_MIN"
+          value = tostring(var.rate_limit_audio_per_min)
+        }
+        env {
+          name  = "RATE_LIMIT_VIDEO_PER_MIN"
+          value = tostring(var.rate_limit_video_per_min)
+        }
+        env {
+          name  = "DLQ_TOPIC"
+          value = "projects/${var.project_id}/topics/${var.ingest_dlq_topic_name}"
+        }
+        env {
+          name  = "FIRESTORE_COLLECTION"
+          value = "ingestion_events"
+        }
+        env {
+          name  = "IDEMPOTENCY_TTL_SECONDS"
+          value = "600"
+        }
+        env {
+          name  = "ALLOWED_DOC_EXT"
+          value = ".pdf,.txt,.md,.rtf,.docx,.pptx,.csv,.tsv,.xlsx,.xls"
+        }
+        env {
+          name  = "ALLOWED_IMAGE_EXT"
+          value = ".jpg,.jpeg,.png,.webp,.bmp,.tiff,.gif"
+        }
+        env {
+          name  = "ALLOWED_AUDIO_EXT"
+          value = ".mp3,.wav,.flac,.m4a,.aac,.ogg,.opus"
+        }
+        env {
+          name  = "ALLOWED_VIDEO_EXT"
+          value = ".mp4,.mov,.mkv,.webm,.avi,.mpeg,.mpg"
+        }
+        env {
+          name  = "INGESTION_DRY_RUN"
+          value = "0"
+        }
+        env {
+          name  = "VIDEO_SAMPLE_FPS"
+          value = "1.0"
+        }
+        env {
+          name  = "VIDEO_SAMPLE_INTERVAL_SECONDS"
+          value = "0"
+        }
+        env {
+          name  = "STREAM_INGEST_TOPIC"
+          value = "projects/${var.project_id}/topics/${var.stream_ingest_topic_name}"
+        }
+        env {
+          name  = "STREAM_BATCH_MAX"
+          value = tostring(var.stream_ingest_batch_max)
+        }
+        env {
+          name  = "STREAM_BATCH_MAX_DELAY_MS"
+          value = tostring(var.stream_ingest_batch_max_delay_ms)
+        }
+        env {
+          name  = "STREAM_BACKLOG_MAX"
+          value = tostring(var.stream_ingest_backlog_max)
+        }
+      }
+    }
+  }
+
+  autogenerate_revision_name = true
+}
+
 resource "google_cloud_run_service_iam_member" "query_invoker" {
   location = google_cloud_run_service.query.location
   service  = google_cloud_run_service.query.name
@@ -756,6 +1003,13 @@ resource "google_cloud_run_service_iam_member" "dev_console_invoker" {
 resource "google_cloud_run_service_iam_member" "edge_gateway_invoker" {
   location = google_cloud_run_service.edge_gateway.location
   service  = google_cloud_run_service.edge_gateway.name
+  role     = "roles/run.invoker"
+  member   = "allUsers"
+}
+
+resource "google_cloud_run_service_iam_member" "stream_ingest_invoker" {
+  location = google_cloud_run_service.stream_ingest.location
+  service  = google_cloud_run_service.stream_ingest.name
   role     = "roles/run.invoker"
   member   = "allUsers"
 }

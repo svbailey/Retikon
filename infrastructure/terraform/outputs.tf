@@ -34,6 +34,10 @@ output "edge_gateway_service_url" {
   value = google_cloud_run_service.edge_gateway.status[0].url
 }
 
+output "stream_ingest_service_url" {
+  value = google_cloud_run_service.stream_ingest.status[0].url
+}
+
 output "query_api_key" {
   value     = local.resolved_query_api_key
   sensitive = true
@@ -45,4 +49,12 @@ output "ingest_dlq_topic" {
 
 output "ingest_dlq_subscription" {
   value = google_pubsub_subscription.ingest_dlq.name
+}
+
+output "stream_ingest_topic" {
+  value = google_pubsub_topic.stream_ingest.name
+}
+
+output "stream_ingest_subscription" {
+  value = google_pubsub_subscription.stream_ingest.name
 }
