@@ -2,8 +2,8 @@ import json
 import uuid
 from pathlib import Path
 
-import pytest
 import pyarrow.parquet as pq
+import pytest
 
 from retikon_core.config import get_config
 from retikon_core.errors import PermanentError, RecoverableError

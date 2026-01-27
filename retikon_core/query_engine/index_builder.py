@@ -403,7 +403,8 @@ def build_snapshot(
                 """,
                 (
                     "CREATE TABLE media_assets "
-                    "(id VARCHAR, uri VARCHAR, media_type VARCHAR, content_type VARCHAR)"
+                    "(id VARCHAR, uri VARCHAR, media_type VARCHAR, "
+                    "content_type VARCHAR)"
                 ),
                 [media_files],
             )

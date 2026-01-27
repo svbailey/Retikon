@@ -6,7 +6,7 @@ import time
 import uuid
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Callable, Iterable
+from typing import Any, Callable
 
 
 @dataclass(frozen=True)
@@ -96,7 +96,12 @@ class EdgeBuffer:
     def stats(self) -> BufferStats:
         items = self.list_items()
         if not items:
-            return BufferStats(count=0, total_bytes=0, oldest_age_s=None, newest_age_s=None)
+            return BufferStats(
+                count=0,
+                total_bytes=0,
+                oldest_age_s=None,
+                newest_age_s=None,
+            )
         now = self._now()
         total_bytes = sum(item.size_bytes for item in items)
         created_times = sorted(item.created_at for item in items)

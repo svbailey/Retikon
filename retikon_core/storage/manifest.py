@@ -8,8 +8,8 @@ from urllib.parse import urlparse
 
 import fsspec
 
-from retikon_core.storage.writer import WriteResult
 from retikon_core.storage.object_store import ObjectStore, atomic_write_bytes
+from retikon_core.storage.writer import WriteResult
 
 
 @dataclass(frozen=True)

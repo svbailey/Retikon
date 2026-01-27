@@ -68,8 +68,14 @@ _CONTENT_TYPE_EXT: dict[str, str] = {
     "text/markdown": ".md",
     "application/rtf": ".rtf",
     "text/rtf": ".rtf",
-    "application/vnd.openxmlformats-officedocument.wordprocessingml.document": ".docx",
-    "application/vnd.openxmlformats-officedocument.presentationml.presentation": ".pptx",
+    (
+        "application/vnd.openxmlformats-officedocument."
+        "wordprocessingml.document"
+    ): ".docx",
+    (
+        "application/vnd.openxmlformats-officedocument."
+        "presentationml.presentation"
+    ): ".pptx",
     "text/csv": ".csv",
     "application/csv": ".csv",
     "text/tab-separated-values": ".tsv",

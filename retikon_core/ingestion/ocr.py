@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import shutil
-from typing import Iterable
 
 import fitz
 from PIL import Image

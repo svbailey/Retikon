@@ -79,8 +79,18 @@ def _run_services(
     background: bool,
     dry_run: bool,
 ) -> int:
-    ingest_cmd = _uvicorn_cmd("local_adapter.ingestion_service:app", host, ingest_port, log_level)
-    query_cmd = _uvicorn_cmd("local_adapter.query_service:app", host, query_port, log_level)
+    ingest_cmd = _uvicorn_cmd(
+        "local_adapter.ingestion_service:app",
+        host,
+        ingest_port,
+        log_level,
+    )
+    query_cmd = _uvicorn_cmd(
+        "local_adapter.query_service:app",
+        host,
+        query_port,
+        log_level,
+    )
 
     if dry_run:
         print(" ".join(ingest_cmd))

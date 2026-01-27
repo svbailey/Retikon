@@ -170,9 +170,14 @@ def _default_healthcheck_uri() -> str | None:
         return healthcheck_uri
     candidate = join_uri(config.graph_root_uri(), "healthcheck.parquet")
     if _is_local_uri(candidate):
-        candidate_path = Path(urlparse(candidate).path if candidate.startswith("file") else candidate)
+        candidate_path = Path(
+            urlparse(candidate).path if candidate.startswith("file") else candidate
+        )
         if not candidate_path.exists():
-            logger.info("Local healthcheck file missing; skipping", extra={"path": str(candidate_path)})
+            logger.info(
+                "Local healthcheck file missing; skipping",
+                extra={"path": str(candidate_path)},
+            )
             return None
     return candidate
 
@@ -335,7 +340,11 @@ async def query(
     _authorize(request)
 
     search_type = _resolve_search_type(payload)
-    if not payload.query_text and not payload.image_base64 and search_type != "metadata":
+    if (
+        not payload.query_text
+        and not payload.image_base64
+        and search_type != "metadata"
+    ):
         raise HTTPException(
             status_code=400,
             detail="query_text or image_base64 is required",

@@ -210,7 +210,9 @@ def search_by_text(
 
         transcript_sql = f"""
             SELECT m.uri, m.media_type, t.media_asset_id, t.content, t.start_ms,
-                   (1.0 - list_cosine_similarity(t.text_embedding, ?::FLOAT[])) AS distance
+                   (1.0 - list_cosine_similarity(
+                       t.text_embedding, ?::FLOAT[]
+                   )) AS distance
             FROM transcripts t
             JOIN media_assets m ON t.media_asset_id = m.id
             ORDER BY distance
@@ -282,7 +284,9 @@ def search_by_text(
 
         audio_sql = f"""
             SELECT m.uri, m.media_type, a.media_asset_id,
-                   (1.0 - list_cosine_similarity(a.clap_embedding, ?::FLOAT[])) AS distance
+                   (1.0 - list_cosine_similarity(
+                       a.clap_embedding, ?::FLOAT[]
+                   )) AS distance
             FROM audio_clips a
             JOIN media_assets m ON a.media_asset_id = m.id
             ORDER BY distance

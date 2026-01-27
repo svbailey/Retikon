@@ -111,7 +111,11 @@ class StreamIngestPipeline:
         self.topic = topic
         self.batcher = batcher
 
-    def enqueue(self, event: StreamEvent, now: float | None = None) -> StreamDispatchResult:
+    def enqueue(
+        self,
+        event: StreamEvent,
+        now: float | None = None,
+    ) -> StreamDispatchResult:
         return self.enqueue_events([event], now=now)
 
     def enqueue_events(
@@ -168,7 +172,9 @@ def stream_event_from_dict(payload: dict[str, Any]) -> StreamEvent:
     generation = payload.get("generation")
     stream_id = payload.get("stream_id")
     if not bucket or not name or generation is None or not stream_id:
-        raise ValueError("Stream event requires bucket, name, generation, and stream_id")
+        raise ValueError(
+            "Stream event requires bucket, name, generation, and stream_id"
+        )
     return StreamEvent(
         bucket=str(bucket),
         name=str(name),

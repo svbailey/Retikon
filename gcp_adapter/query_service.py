@@ -326,7 +326,11 @@ async def query(
     _authorize(request)
 
     search_type = _resolve_search_type(payload)
-    if not payload.query_text and not payload.image_base64 and search_type != "metadata":
+    if (
+        not payload.query_text
+        and not payload.image_base64
+        and search_type != "metadata"
+    ):
         raise HTTPException(
             status_code=400,
             detail="query_text or image_base64 is required",

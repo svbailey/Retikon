@@ -63,7 +63,11 @@ def _write_manifest(output_root: str, files, counts) -> None:
     write_manifest(manifest, manifest_uri(output_root, run_id))
 
 
-def _write_doc_run(output_root: str, paths: GraphPaths, extra_core_column: bool = False) -> None:
+def _write_doc_run(
+    output_root: str,
+    paths: GraphPaths,
+    extra_core_column: bool = False,
+) -> None:
     media_id = str(uuid.uuid4())
     media_row = _media_row(
         media_id=media_id,

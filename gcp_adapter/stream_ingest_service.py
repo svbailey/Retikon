@@ -20,7 +20,6 @@ from retikon_core.ingestion.router import pipeline_version
 from retikon_core.ingestion.streaming import (
     StreamBackpressureError,
     StreamBatcher,
-    StreamDispatchResult,
     StreamEvent,
     StreamIngestPipeline,
     decode_stream_batch,
@@ -295,7 +294,10 @@ async def ingest_stream_push(request: Request) -> dict[str, Any]:
         if decision.action == "skip_processing":
             skipped += 1
             continue
-        if config.max_ingest_attempts > 0 and attempt_count >= config.max_ingest_attempts:
+        if (
+            config.max_ingest_attempts > 0
+            and attempt_count >= config.max_ingest_attempts
+        ):
             _publish_dlq(
                 dlq_publisher,
                 error_code="MAX_ATTEMPTS",

@@ -9,7 +9,8 @@ import retikon_core.query_engine.query_runner as query_runner
 
 
 def _client() -> TestClient:
-    query_service.STATE.local_path = os.getenv("SNAPSHOT_URI", "/tmp/retikon-test.duckdb")
+    snapshot_uri = os.getenv("SNAPSHOT_URI", "/tmp/retikon-test.duckdb")
+    query_service.STATE.local_path = snapshot_uri
     return TestClient(query_service.app)
 
 
@@ -85,7 +86,11 @@ def test_search_by_text_skips_unused_embeddings(monkeypatch):
             return None
 
     monkeypatch.setattr(query_runner, "_connect", lambda snapshot_path: DummyConn())
-    monkeypatch.setattr(query_runner, "_table_has_column", lambda *args, **kwargs: False)
+    monkeypatch.setattr(
+        query_runner,
+        "_table_has_column",
+        lambda *args, **kwargs: False,
+    )
     monkeypatch.setattr(query_runner, "_query_rows", lambda *args, **kwargs: [])
     monkeypatch.setattr(query_runner, "_cached_text_vector", lambda text: [0.0])
     monkeypatch.setattr(

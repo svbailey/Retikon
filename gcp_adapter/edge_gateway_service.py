@@ -4,8 +4,7 @@ import os
 import time
 import uuid
 from dataclasses import dataclass
-from pathlib import Path
-from typing import Any
+from typing import Annotated
 
 import fsspec
 from fastapi import FastAPI, File, Form, HTTPException, UploadFile
@@ -347,11 +346,11 @@ async def buffer_prune() -> dict[str, int]:
 
 @app.post("/edge/upload", response_model=UploadResponse)
 async def upload(
-    file: UploadFile = File(...),
-    modality: str = Form(...),
-    device_id: str | None = Form(default=None),
-    stream_id: str | None = Form(default=None),
-    site_id: str | None = Form(default=None),
+    file: Annotated[UploadFile, File(...)],
+    modality: Annotated[str, Form(...)],
+    device_id: Annotated[str | None, Form(default=None)],
+    stream_id: Annotated[str | None, Form(default=None)],
+    site_id: Annotated[str | None, Form(default=None)],
 ) -> UploadResponse:
     backlog = STATE.buffer.stats().count
     if not STATE.backpressure.should_accept(backlog):

@@ -81,4 +81,7 @@ class RetikonClient:
         return self._request("GET", f"{self.query_url.rstrip('/')}/health")
 
     def reload_snapshot(self) -> dict[str, Any]:
-        return self._request("POST", f"{self.query_url.rstrip('/')}/admin/reload-snapshot")
+        return self._request(
+            "POST",
+            f"{self.query_url.rstrip('/')}/admin/reload-snapshot",
+        )

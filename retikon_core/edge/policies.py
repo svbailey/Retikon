@@ -12,7 +12,11 @@ class AdaptiveBatchPolicy:
     min_delay_ms: int = 0
     max_delay_ms: int = 2000
 
-    def tune(self, backlog: int, avg_latency_ms: float | None = None) -> tuple[int, int]:
+    def tune(
+        self,
+        backlog: int,
+        avg_latency_ms: float | None = None,
+    ) -> tuple[int, int]:
         backlog = max(0, backlog)
         if backlog <= self.low_watermark:
             batch = self.min_batch
@@ -25,7 +29,10 @@ class AdaptiveBatchPolicy:
                 self.high_watermark - self.low_watermark
             )
             batch = int(self.min_batch + ratio * (self.max_batch - self.min_batch))
-            delay = int(self.min_delay_ms + ratio * (self.max_delay_ms - self.min_delay_ms))
+            delay = int(
+                self.min_delay_ms
+                + ratio * (self.max_delay_ms - self.min_delay_ms)
+            )
 
         if avg_latency_ms:
             delay = min(self.max_delay_ms, delay + int(avg_latency_ms * 0.25))
