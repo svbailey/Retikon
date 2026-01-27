@@ -95,6 +95,10 @@ def _query_rows(
     return conn.execute(sql, list(params)).fetchall()
 
 
+def _keyword_pattern(query_text: str) -> str:
+    return f"%{query_text.strip()}%"
+
+
 def _table_has_column(
     conn: duckdb.DuckDBPyConnection,
     table: str,
@@ -309,6 +313,153 @@ def search_by_text(
         conn.close()
 
     results.sort(key=lambda item: item.score, reverse=True)
+    return results[: int(top_k)]
+
+
+def search_by_keyword(
+    *,
+    snapshot_path: str,
+    query_text: str,
+    top_k: int,
+    trace: dict[str, float | int | str] | None = None,
+) -> list[QueryResult]:
+    results: list[QueryResult] = []
+    pattern = _keyword_pattern(query_text)
+
+    connect_start = time.monotonic()
+    conn = _connect(snapshot_path)
+    if trace is not None:
+        trace["duckdb_connect_ms"] = round(
+            (time.monotonic() - connect_start) * 1000.0, 2
+        )
+        trace.update(_apply_duckdb_settings(conn))
+    try:
+        doc_sql = f"""
+            SELECT m.uri, m.media_type, d.media_asset_id, d.content
+            FROM doc_chunks d
+            JOIN media_assets m ON d.media_asset_id = m.id
+            WHERE d.content ILIKE ?
+            LIMIT {int(top_k)}
+        """
+        doc_start = time.monotonic()
+        doc_rows = _query_rows(conn, doc_sql, [pattern])
+        if trace is not None:
+            trace["keyword_doc_query_ms"] = round(
+                (time.monotonic() - doc_start) * 1000.0, 2
+            )
+            trace["keyword_doc_rows"] = len(doc_rows)
+        for uri, media_type, media_asset_id, content in doc_rows:
+            results.append(
+                QueryResult(
+                    modality="document",
+                    uri=uri,
+                    snippet=content,
+                    timestamp_ms=None,
+                    thumbnail_uri=None,
+                    score=1.0,
+                    media_asset_id=media_asset_id,
+                    media_type=media_type,
+                )
+            )
+
+        transcript_sql = f"""
+            SELECT m.uri, m.media_type, t.media_asset_id, t.content, t.start_ms
+            FROM transcripts t
+            JOIN media_assets m ON t.media_asset_id = m.id
+            WHERE t.content ILIKE ?
+            LIMIT {int(top_k)}
+        """
+        transcript_start = time.monotonic()
+        transcript_rows = _query_rows(conn, transcript_sql, [pattern])
+        if trace is not None:
+            trace["keyword_transcript_query_ms"] = round(
+                (time.monotonic() - transcript_start) * 1000.0, 2
+            )
+            trace["keyword_transcript_rows"] = len(transcript_rows)
+        for uri, media_type, media_asset_id, content, start_ms in transcript_rows:
+            results.append(
+                QueryResult(
+                    modality="transcript",
+                    uri=uri,
+                    snippet=content,
+                    timestamp_ms=int(start_ms) if start_ms is not None else None,
+                    thumbnail_uri=None,
+                    score=1.0,
+                    media_asset_id=media_asset_id,
+                    media_type=media_type,
+                )
+            )
+    finally:
+        conn.close()
+
+    return results[: int(top_k)]
+
+
+def search_by_metadata(
+    *,
+    snapshot_path: str,
+    filters: dict[str, str],
+    top_k: int,
+    trace: dict[str, float | int | str] | None = None,
+) -> list[QueryResult]:
+    connect_start = time.monotonic()
+    conn = _connect(snapshot_path)
+    if trace is not None:
+        trace["duckdb_connect_ms"] = round(
+            (time.monotonic() - connect_start) * 1000.0, 2
+        )
+        trace.update(_apply_duckdb_settings(conn))
+    try:
+        allowed = {"uri", "media_type", "content_type"}
+        conditions: list[str] = []
+        params: list[object] = []
+        for key, value in filters.items():
+            if key not in allowed:
+                raise ValueError(f"Unsupported metadata filter: {key}")
+            if key == "uri":
+                conditions.append("uri ILIKE ?")
+                params.append(_keyword_pattern(value))
+            elif key == "media_type":
+                conditions.append("media_type = ?")
+                params.append(value)
+            elif key == "content_type":
+                if not _table_has_column(conn, "media_assets", "content_type"):
+                    raise ValueError("content_type is not available in snapshot")
+                conditions.append("content_type = ?")
+                params.append(value)
+
+        where_clause = ""
+        if conditions:
+            where_clause = "WHERE " + " AND ".join(conditions)
+        sql = f"""
+            SELECT id, uri, media_type
+            FROM media_assets
+            {where_clause}
+            LIMIT {int(top_k)}
+        """
+        query_start = time.monotonic()
+        rows = _query_rows(conn, sql, params)
+        if trace is not None:
+            trace["metadata_query_ms"] = round(
+                (time.monotonic() - query_start) * 1000.0, 2
+            )
+            trace["metadata_rows"] = len(rows)
+        results = [
+            QueryResult(
+                modality="metadata",
+                uri=uri,
+                snippet=None,
+                timestamp_ms=None,
+                thumbnail_uri=None,
+                score=1.0,
+                media_asset_id=media_asset_id,
+                media_type=media_type,
+            )
+            for media_asset_id, uri, media_type in rows
+        ]
+    finally:
+        conn.close()
+
     return results[: int(top_k)]
 
 

@@ -398,12 +398,12 @@ def build_snapshot(
                 media_source,
                 """
                 CREATE TABLE media_assets AS
-                SELECT id, uri, media_type
+                SELECT id, uri, media_type, content_type
                 FROM read_parquet(?, union_by_name=true)
                 """,
                 (
                     "CREATE TABLE media_assets "
-                    "(id VARCHAR, uri VARCHAR, media_type VARCHAR)"
+                    "(id VARCHAR, uri VARCHAR, media_type VARCHAR, content_type VARCHAR)"
                 ),
                 [media_files],
             )
@@ -865,11 +865,15 @@ def build_snapshot(
 def _config_from_env() -> dict[str, Any]:
     graph_uri = os.getenv("GRAPH_URI")
     if not graph_uri:
-        graph_bucket = os.getenv("GRAPH_BUCKET")
-        graph_prefix = os.getenv("GRAPH_PREFIX", "")
-        if not graph_bucket:
-            raise ValueError("GRAPH_BUCKET is required")
-        graph_uri = graph_root(graph_bucket, graph_prefix)
+        local_graph_root = os.getenv("LOCAL_GRAPH_ROOT")
+        if local_graph_root:
+            graph_uri = local_graph_root
+        else:
+            graph_bucket = os.getenv("GRAPH_BUCKET")
+            graph_prefix = os.getenv("GRAPH_PREFIX", "")
+            if not graph_bucket:
+                raise ValueError("GRAPH_BUCKET is required")
+            graph_uri = graph_root(graph_bucket, graph_prefix)
     snapshot_uri = os.getenv("SNAPSHOT_URI")
     if not snapshot_uri:
         raise ValueError("SNAPSHOT_URI is required")

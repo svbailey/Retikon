@@ -112,7 +112,14 @@ def merge_schemas(schemas: Iterable[pa.Schema]) -> pa.Schema:
     ordered: list[str] = []
     for schema in schemas:
         for field in schema:
-            if field.name not in merged_fields:
+            existing = merged_fields.get(field.name)
+            if existing is None:
                 merged_fields[field.name] = field
                 ordered.append(field.name)
+                continue
+            if existing.type != field.type:
+                raise ValueError(
+                    f"Schema mismatch for field {field.name}: "
+                    f"{existing.type} != {field.type}"
+                )
     return pa.schema([merged_fields[name] for name in ordered])

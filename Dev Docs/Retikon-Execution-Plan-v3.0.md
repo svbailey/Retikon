@@ -46,6 +46,7 @@ Deliverables:
 
 ## Sprint 3 - Local query + search
 Goal: local query works with additive schema evolution and search across modalities.
+Status: Complete (2026-01-27)
 
 Tasks:
 - Update `retikon_core/query_engine/query_runner.py` to support local file paths.
@@ -67,6 +68,7 @@ Deliverables:
 
 ## Sprint 4 - Local services + CLI + edge agent
 Goal: developer can run Core locally via CLI and edge agent.
+Status: Complete (2026-01-27)
 
 Tasks:
 - Add local API entrypoints: `local_adapter/ingestion_service.py`, `local_adapter/query_service.py`.

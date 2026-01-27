@@ -1,15 +1,20 @@
+from __future__ import annotations
+
 import os
 import secrets
 import time
 import uuid
 from dataclasses import dataclass
 from datetime import datetime, timezone
+from pathlib import Path
+from urllib.parse import urlparse
 
 from fastapi import FastAPI, Header, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from PIL import Image
 from pydantic import BaseModel, Field
 
+from retikon_core.config import get_config
 from retikon_core.embeddings import (
     get_audio_text_embedder,
     get_image_embedder,
@@ -25,12 +30,13 @@ from retikon_core.query_engine.query_runner import (
     search_by_metadata,
     search_by_text,
 )
+from retikon_core.storage.paths import join_uri
 
-SERVICE_NAME = "retikon-query"
+SERVICE_NAME = "retikon-local-query"
 
 configure_logging(
     service=SERVICE_NAME,
-    env=os.getenv("ENV"),
+    env=os.getenv("ENV", "local"),
     version=os.getenv("RETIKON_VERSION"),
 )
 logger = get_logger(__name__)
@@ -101,10 +107,7 @@ def _cors_origins() -> list[str]:
     raw = os.getenv("CORS_ALLOW_ORIGINS", "")
     if raw:
         return [origin.strip() for origin in raw.split(",") if origin.strip()]
-    env = os.getenv("ENV", "dev").lower()
-    if env in {"dev", "local", "test"}:
-        return ["*"]
-    return []
+    return ["*"]
 
 
 _cors = _cors_origins()
@@ -128,7 +131,7 @@ async def add_correlation_id(request: Request, call_next):
 
 
 def _api_key_required() -> bool:
-    env = os.getenv("ENV", "dev").lower()
+    env = os.getenv("ENV", "local").lower()
     return env not in {"dev", "local", "test"}
 
 
@@ -147,26 +150,35 @@ def _authorize(request: Request) -> None:
         raise HTTPException(status_code=401, detail="Unauthorized")
 
 
-def _graph_settings() -> tuple[str, str]:
-    graph_bucket = os.getenv("GRAPH_BUCKET")
-    graph_prefix = os.getenv("GRAPH_PREFIX")
-    missing = []
-    if not graph_bucket:
-        missing.append("GRAPH_BUCKET")
-    if not graph_prefix:
-        missing.append("GRAPH_PREFIX")
-    if missing:
-        raise RuntimeError(f"Missing required env vars: {', '.join(missing)}")
-    assert graph_bucket is not None
-    assert graph_prefix is not None
-    return graph_bucket, graph_prefix
+def _is_local_uri(uri: str) -> bool:
+    parsed = urlparse(uri)
+    return parsed.scheme in {"", "file"}
+
+
+def _default_snapshot_uri() -> str:
+    config = get_config()
+    snapshot_uri = os.getenv("SNAPSHOT_URI")
+    if snapshot_uri:
+        return snapshot_uri
+    return join_uri(config.graph_root_uri(), "snapshots", "retikon.duckdb")
+
+
+def _default_healthcheck_uri() -> str | None:
+    config = get_config()
+    healthcheck_uri = os.getenv("DUCKDB_HEALTHCHECK_URI")
+    if healthcheck_uri:
+        return healthcheck_uri
+    candidate = join_uri(config.graph_root_uri(), "healthcheck.parquet")
+    if _is_local_uri(candidate):
+        candidate_path = Path(urlparse(candidate).path if candidate.startswith("file") else candidate)
+        if not candidate_path.exists():
+            logger.info("Local healthcheck file missing; skipping", extra={"path": str(candidate_path)})
+            return None
+    return candidate
 
 
 def _load_snapshot() -> None:
-    snapshot_uri = os.getenv("SNAPSHOT_URI")
-    if not snapshot_uri:
-        graph_bucket, graph_prefix = _graph_settings()
-        snapshot_uri = f"gs://{graph_bucket}/{graph_prefix}/snapshots/retikon.duckdb"
+    snapshot_uri = _default_snapshot_uri()
     start = time.monotonic()
     snapshot = download_snapshot(snapshot_uri)
     load_ms = int((time.monotonic() - start) * 1000)
@@ -288,11 +300,7 @@ async def health() -> HealthResponse:
 
 @app.on_event("startup")
 async def startup() -> None:
-    healthcheck_uri = os.getenv("DUCKDB_HEALTHCHECK_URI")
-    if not healthcheck_uri:
-        graph_bucket, graph_prefix = _graph_settings()
-        healthcheck_uri = f"gs://{graph_bucket}/{graph_prefix}/healthcheck.parquet"
-
+    healthcheck_uri = _default_healthcheck_uri()
     conn = None
     healthcheck_start = time.monotonic()
     try:
@@ -304,6 +312,7 @@ async def startup() -> None:
         "DuckDB healthcheck completed",
         extra={
             "healthcheck_ms": int((time.monotonic() - healthcheck_start) * 1000),
+            "healthcheck_uri": healthcheck_uri,
         },
     )
 

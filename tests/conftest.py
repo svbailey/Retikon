@@ -52,7 +52,8 @@ def _ensure_test_snapshot() -> str:
         CREATE TABLE media_assets (
             id VARCHAR,
             uri VARCHAR,
-            media_type VARCHAR
+            media_type VARCHAR,
+            content_type VARCHAR
         )
         """
     )
@@ -95,20 +96,20 @@ def _ensure_test_snapshot() -> str:
     )
 
     conn.execute(
-        "INSERT INTO media_assets VALUES (?, ?, ?)",
-        ["asset-doc", "gs://test/doc.pdf", "document"],
+        "INSERT INTO media_assets VALUES (?, ?, ?, ?)",
+        ["asset-doc", "gs://test/doc.pdf", "document", "application/pdf"],
     )
     conn.execute(
-        "INSERT INTO media_assets VALUES (?, ?, ?)",
-        ["asset-transcript", "gs://test/video.mp4", "video"],
+        "INSERT INTO media_assets VALUES (?, ?, ?, ?)",
+        ["asset-transcript", "gs://test/video.mp4", "video", "video/mp4"],
     )
     conn.execute(
-        "INSERT INTO media_assets VALUES (?, ?, ?)",
-        ["asset-image", "gs://test/image.jpg", "image"],
+        "INSERT INTO media_assets VALUES (?, ?, ?, ?)",
+        ["asset-image", "gs://test/image.jpg", "image", "image/jpeg"],
     )
     conn.execute(
-        "INSERT INTO media_assets VALUES (?, ?, ?)",
-        ["asset-audio", "gs://test/audio.wav", "audio"],
+        "INSERT INTO media_assets VALUES (?, ?, ?, ?)",
+        ["asset-audio", "gs://test/audio.wav", "audio", "audio/wav"],
     )
     conn.execute(
         "INSERT INTO doc_chunks VALUES (?, ?, ?)",

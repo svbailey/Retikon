@@ -1,4 +1,5 @@
 import base64
+import os
 from pathlib import Path
 
 from fastapi.testclient import TestClient
@@ -8,7 +9,7 @@ import retikon_core.query_engine.query_runner as query_runner
 
 
 def _client() -> TestClient:
-    query_service.STATE.local_path = "/tmp/retikon-test.duckdb"
+    query_service.STATE.local_path = os.getenv("SNAPSHOT_URI", "/tmp/retikon-test.duckdb")
     return TestClient(query_service.app)
 
 
@@ -35,6 +36,36 @@ def test_query_modalities_reject_unknown():
         json={"query_text": "hello", "modalities": ["document", "unknown"]},
     )
     assert resp.status_code == 400
+
+
+def test_query_rejects_unknown_search_type():
+    client = _client()
+    resp = client.post(
+        "/query",
+        json={"query_text": "hello", "search_type": "bogus"},
+    )
+    assert resp.status_code == 400
+
+
+def test_query_keyword_search():
+    client = _client()
+    resp = client.post(
+        "/query",
+        json={"query_text": "hello", "search_type": "keyword"},
+    )
+    assert resp.status_code == 200
+
+
+def test_query_metadata_search():
+    client = _client()
+    resp = client.post(
+        "/query",
+        json={
+            "search_type": "metadata",
+            "metadata_filters": {"media_type": "image"},
+        },
+    )
+    assert resp.status_code == 200
 
 
 def test_query_image_requires_image_modality():
