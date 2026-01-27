@@ -131,7 +131,13 @@ def _write_doc_run(output_root: str, paths: GraphPaths, extra_core_column: bool 
     )
     files.append(
         write_parquet(
-            [{"src_id": chunk_id, "dst_id": media_id}],
+            [
+                {
+                    "src_id": chunk_id,
+                    "dst_id": media_id,
+                    "schema_version": "1",
+                }
+            ],
             schema_for("DerivedFrom", "adj_list"),
             edge_part_uri(output_root, "DerivedFrom", str(uuid.uuid4())),
         )
@@ -189,7 +195,13 @@ def _write_image_run(output_root: str, paths: GraphPaths) -> None:
     )
     files.append(
         write_parquet(
-            [{"src_id": image_id, "dst_id": media_id}],
+            [
+                {
+                    "src_id": image_id,
+                    "dst_id": media_id,
+                    "schema_version": "1",
+                }
+            ],
             schema_for("DerivedFrom", "adj_list"),
             edge_part_uri(output_root, "DerivedFrom", str(uuid.uuid4())),
         )
@@ -283,8 +295,8 @@ def _write_audio_run(output_root: str, paths: GraphPaths) -> None:
     files.append(
         write_parquet(
             [
-                {"src_id": transcript_id, "dst_id": media_id},
-                {"src_id": audio_id, "dst_id": media_id},
+                {"src_id": transcript_id, "dst_id": media_id, "schema_version": "1"},
+                {"src_id": audio_id, "dst_id": media_id, "schema_version": "1"},
             ],
             schema_for("DerivedFrom", "adj_list"),
             edge_part_uri(output_root, "DerivedFrom", str(uuid.uuid4())),

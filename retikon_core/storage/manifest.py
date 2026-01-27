@@ -4,10 +4,12 @@ import json
 from dataclasses import asdict, dataclass
 from datetime import datetime, timezone
 from typing import Iterable
+from urllib.parse import urlparse
 
 import fsspec
 
 from retikon_core.storage.writer import WriteResult
+from retikon_core.storage.object_store import ObjectStore, atomic_write_bytes
 
 
 @dataclass(frozen=True)
@@ -47,6 +49,11 @@ def build_manifest(
 
 def write_manifest(manifest: dict[str, object], dest_uri: str) -> None:
     payload = json.dumps(manifest, indent=2, sort_keys=True).encode("utf-8")
+    parsed = urlparse(dest_uri)
+    if parsed.scheme == "file" or not parsed.scheme:
+        store = ObjectStore.from_base_uri(dest_uri)
+        atomic_write_bytes(store.base_path, payload)
+        return
     fs, path = fsspec.core.url_to_fs(dest_uri)
     fs.makedirs("/".join(path.split("/")[:-1]), exist_ok=True)
     with fs.open(path, "wb") as handle:

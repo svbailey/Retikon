@@ -56,7 +56,9 @@ def write_parquet(
         bytes_written = os.path.getsize(tmp_path)
         checksum = _sha256_file(tmp_path)
         parsed = urlparse(dest_uri)
-        if parsed.scheme and parsed.netloc:
+        if parsed.scheme == "file":
+            _write_local(tmp_path, parsed.path)
+        elif parsed.scheme and parsed.netloc:
             _write_remote(tmp_path, dest_uri)
         else:
             _write_local(tmp_path, dest_uri)

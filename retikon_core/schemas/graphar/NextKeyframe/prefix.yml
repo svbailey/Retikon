@@ -12,3 +12,6 @@ fields:
   - name: dst_id
     type: string
     nullable: false
+  - name: schema_version
+    type: string
+    nullable: false

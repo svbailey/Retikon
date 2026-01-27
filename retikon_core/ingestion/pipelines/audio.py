@@ -15,7 +15,6 @@ from retikon_core.ingestion.types import IngestSource
 from retikon_core.storage.manifest import build_manifest, write_manifest
 from retikon_core.storage.paths import (
     edge_part_uri,
-    graph_root,
     manifest_uri,
     vertex_part_uri,
 )
@@ -53,7 +52,7 @@ def ingest_audio(
         texts = [segment.text for segment in segments]
         text_vectors = get_text_embedder(768).encode(texts)
 
-        output_root = output_uri or graph_root(config.graph_bucket, config.graph_prefix)
+        output_root = output_uri or config.graph_root_uri()
         media_asset_id = str(uuid.uuid4())
         now = datetime.now(timezone.utc)
         duration_ms = int(probe.duration_seconds * 1000.0)
@@ -97,7 +96,13 @@ def ingest_audio(
         transcript_vector_rows = []
         next_edges = []
         segment_ids: list[str] = []
-        derived_edges = [{"src_id": audio_clip_id, "dst_id": media_asset_id}]
+        derived_edges = [
+            {
+                "src_id": audio_clip_id,
+                "dst_id": media_asset_id,
+                "schema_version": schema_version,
+            }
+        ]
 
         for segment, vector in zip(segments, text_vectors, strict=False):
             segment_id = str(uuid.uuid4())
@@ -117,10 +122,20 @@ def ingest_audio(
             )
             transcript_text_rows.append({"content": segment.text})
             transcript_vector_rows.append({"text_embedding": vector})
-            derived_edges.append({"src_id": segment_id, "dst_id": media_asset_id})
+            derived_edges.append(
+                {
+                    "src_id": segment_id,
+                    "dst_id": media_asset_id,
+                    "schema_version": schema_version,
+                }
+            )
         for idx in range(1, len(segment_ids)):
             next_edges.append(
-                {"src_id": segment_ids[idx - 1], "dst_id": segment_ids[idx]}
+                {
+                    "src_id": segment_ids[idx - 1],
+                    "dst_id": segment_ids[idx],
+                    "schema_version": schema_version,
+                }
             )
 
         files: list[WriteResult] = []

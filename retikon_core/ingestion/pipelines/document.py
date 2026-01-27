@@ -21,7 +21,6 @@ from retikon_core.ingestion.types import IngestSource
 from retikon_core.storage.manifest import build_manifest, write_manifest
 from retikon_core.storage.paths import (
     edge_part_uri,
-    graph_root,
     manifest_uri,
     vertex_part_uri,
 )
@@ -177,7 +176,7 @@ def ingest_document(
     embedder = get_text_embedder(768)
     embeddings = embedder.encode([chunk.text for chunk in chunks])
 
-    output_root = output_uri or graph_root(config.graph_bucket, config.graph_prefix)
+    output_root = output_uri or config.graph_root_uri()
     media_asset_id = str(uuid.uuid4())
     now = datetime.now(timezone.utc)
 
@@ -226,7 +225,13 @@ def ingest_document(
         )
         chunk_text_rows.append({"content": chunk.text})
         chunk_vector_rows.append({"text_vector": vector})
-        edge_rows.append({"src_id": chunk_id, "dst_id": media_asset_id})
+        edge_rows.append(
+            {
+                "src_id": chunk_id,
+                "dst_id": media_asset_id,
+                "schema_version": schema_version,
+            }
+        )
 
     files: list[WriteResult] = []
     files.append(

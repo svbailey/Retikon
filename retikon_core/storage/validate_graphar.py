@@ -126,6 +126,17 @@ def _validate_schema(path: Path, data: dict[str, Any]) -> list[ValidationError]:
                     )
                 )
 
+    schema_field = next(
+        (field for field in fields if field.get("name") == "schema_version"),
+        None,
+    )
+    if schema_field is None:
+        errors.append(ValidationError(path, "Missing schema_version field"))
+    elif schema_field.get("type") != "string":
+        errors.append(
+            ValidationError(path, "schema_version field must be type string")
+        )
+
     return errors
 
 

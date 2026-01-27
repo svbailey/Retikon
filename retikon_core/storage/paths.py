@@ -23,6 +23,9 @@ def graph_root(bucket: str, prefix: str) -> str:
 
 def join_uri(base_uri: str, *parts: str) -> str:
     parsed = urlparse(base_uri)
+    if parsed.scheme == "file":
+        safe_parts = [_strip_slashes(part) for part in parts if part]
+        return str(Path(parsed.path).joinpath(*safe_parts))
     if parsed.scheme and parsed.netloc:
         base = base_uri.rstrip("/")
         return f"{base}/{_join_parts(parts)}"

@@ -16,7 +16,6 @@ from retikon_core.ingestion.types import IngestSource
 from retikon_core.storage.manifest import build_manifest, write_manifest
 from retikon_core.storage.paths import (
     edge_part_uri,
-    graph_root,
     join_uri,
     manifest_uri,
     vertex_part_uri,
@@ -62,7 +61,7 @@ def ingest_image(
     schema_version: str,
 ) -> PipelineResult:
     started_at = datetime.now(timezone.utc)
-    output_root = output_uri or graph_root(config.graph_bucket, config.graph_prefix)
+    output_root = output_uri or config.graph_root_uri()
 
     with Image.open(source.local_path) as img:
         exif_img = ImageOps.exif_transpose(img)
@@ -139,7 +138,13 @@ def ingest_image(
     )
     files.append(
         write_parquet(
-            [{"src_id": image_asset_id, "dst_id": media_asset_id}],
+            [
+                {
+                    "src_id": image_asset_id,
+                    "dst_id": media_asset_id,
+                    "schema_version": schema_version,
+                }
+            ],
             schema_for("DerivedFrom", "adj_list"),
             edge_part_uri(output_root, "DerivedFrom", str(uuid.uuid4())),
         )

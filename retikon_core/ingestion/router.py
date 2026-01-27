@@ -12,7 +12,6 @@ from retikon_core.ingestion.eventarc import GcsEvent
 from retikon_core.ingestion.pipelines import audio, document, image, video
 from retikon_core.ingestion.rate_limit import enforce_rate_limit
 from retikon_core.ingestion.types import IngestSource
-from retikon_core.storage.paths import graph_root
 
 
 @dataclass(frozen=True)
@@ -237,7 +236,7 @@ def process_event(
     _ensure_allowed(event, config, modality)
     enforce_rate_limit(modality, config)
 
-    output_uri = graph_root(config.graph_bucket, config.graph_prefix)
+    output_uri = config.graph_root_uri()
     pipeline_version_value = pipeline_version()
     schema_version = _schema_version()
 

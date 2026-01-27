@@ -3,6 +3,7 @@ from dataclasses import dataclass
 from functools import lru_cache
 
 from retikon_core.capabilities import get_edition, resolve_capabilities
+from retikon_core.storage.paths import graph_root
 
 
 @dataclass(frozen=True)
@@ -10,6 +11,8 @@ class Config:
     raw_bucket: str
     graph_bucket: str
     graph_prefix: str
+    storage_backend: str
+    local_graph_root: str | None
     env: str
     log_level: str
     max_raw_bytes: int
@@ -43,6 +46,13 @@ class Config:
     capabilities: tuple[str, ...]
     snapshot_uri: str | None = None
 
+    def graph_root_uri(self) -> str:
+        if self.storage_backend == "local":
+            if not self.local_graph_root:
+                raise ValueError("LOCAL_GRAPH_ROOT is required for local storage")
+            return self.local_graph_root
+        return graph_root(self.graph_bucket, self.graph_prefix)
+
     @classmethod
     def from_env(cls) -> "Config":
         missing: list[str] = []
@@ -63,9 +73,26 @@ class Config:
             except ValueError as exc:
                 raise ValueError(f"{name} must be an integer") from exc
 
-        raw_bucket = require("RAW_BUCKET")
-        graph_bucket = require("GRAPH_BUCKET")
-        graph_prefix = require("GRAPH_PREFIX")
+        storage_backend = os.getenv("STORAGE_BACKEND", "gcs").strip().lower()
+        if storage_backend not in {"gcs", "local"}:
+            raise ValueError("STORAGE_BACKEND must be 'gcs' or 'local'")
+
+        raw_bucket = require("RAW_BUCKET") if storage_backend == "gcs" else os.getenv(
+            "RAW_BUCKET", ""
+        )
+        graph_bucket = (
+            require("GRAPH_BUCKET")
+            if storage_backend == "gcs"
+            else os.getenv("GRAPH_BUCKET", "")
+        )
+        graph_prefix = (
+            require("GRAPH_PREFIX")
+            if storage_backend == "gcs"
+            else os.getenv("GRAPH_PREFIX", "")
+        )
+        local_graph_root = os.getenv("LOCAL_GRAPH_ROOT")
+        if storage_backend == "local" and not local_graph_root:
+            missing.append("LOCAL_GRAPH_ROOT")
         env = require("ENV")
         log_level = require("LOG_LEVEL")
         max_raw_bytes = require_int("MAX_RAW_BYTES")
@@ -134,6 +161,8 @@ class Config:
             raw_bucket=raw_bucket,
             graph_bucket=graph_bucket,
             graph_prefix=graph_prefix,
+            storage_backend=storage_backend,
+            local_graph_root=local_graph_root,
             env=env,
             log_level=log_level,
             max_raw_bytes=max_raw_bytes,

@@ -4,6 +4,7 @@ Cadence: 2-week sprints
 
 ## Sprint 1 - OSS packaging + v3.0 blueprint
 Goal: establish open-core boundary, licensing, and v3.0 plan docs without behavior changes.
+Status: Complete (2026-01-27)
 
 Tasks (repo paths):
 - Add OSS legal docs: `LICENSE`, `NOTICE`, `CONTRIBUTING.md`, `CODE_OF_CONDUCT.md`.
@@ -24,6 +25,7 @@ Deliverables:
 
 ## Sprint 2 - Core local storage + schema evolution
 Goal: Core runs locally with filesystem GraphAr storage and additive schemas.
+Status: Complete (2026-01-27)
 
 Tasks:
 - Add local storage configuration to `retikon_core/config.py` (local base URIs, storage backend).

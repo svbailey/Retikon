@@ -1,4 +1,5 @@
 from retikon_core.storage.manifest import build_manifest, write_manifest
+from retikon_core.storage.object_store import ObjectStore
 from retikon_core.storage.paths import (
     edge_part_uri,
     graph_root,
@@ -21,6 +22,7 @@ __all__ = [
     "load_schema",
     "load_schemas",
     "manifest_uri",
+    "ObjectStore",
     "merge_schemas",
     "schema_for",
     "vertex_part_uri",
