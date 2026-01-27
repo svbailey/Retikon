@@ -16,6 +16,7 @@ class DownloadResult:
     content_type: str | None
     md5_hash: str | None
     crc32c: str | None
+    metadata: dict[str, str] | None = None
 
 
 def fetch_blob_metadata(client: storage.Client, bucket: str, name: str) -> storage.Blob:
@@ -63,6 +64,7 @@ def download_to_tmp(
         content_type=blob.content_type,
         md5_hash=blob.md5_hash,
         crc32c=blob.crc32c,
+        metadata=blob.metadata or None,
     )
 
 

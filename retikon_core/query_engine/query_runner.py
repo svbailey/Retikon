@@ -19,6 +19,7 @@ from retikon_core.embeddings import (
 )
 from retikon_core.logging import get_logger
 from retikon_core.query_engine.warm_start import load_extensions
+from retikon_core.tenancy.types import TenantScope
 
 logger = get_logger(__name__)
 
@@ -111,6 +112,44 @@ def _table_has_column(
     return any(row[1] == column for row in rows)
 
 
+def _scope_filters(
+    conn: duckdb.DuckDBPyConnection,
+    scope: TenantScope | None,
+    *,
+    table: str = "media_assets",
+    alias: str = "m",
+) -> tuple[str, list[object]]:
+    if scope is None or scope.is_empty():
+        return "", []
+
+    required: list[str] = []
+    conditions: list[str] = []
+    params: list[object] = []
+
+    if scope.org_id:
+        required.append("org_id")
+        conditions.append(f"{alias}.org_id = ?")
+        params.append(scope.org_id)
+    if scope.site_id:
+        required.append("site_id")
+        conditions.append(f"{alias}.site_id = ?")
+        params.append(scope.site_id)
+    if scope.stream_id:
+        required.append("stream_id")
+        conditions.append(f"{alias}.stream_id = ?")
+        params.append(scope.stream_id)
+
+    missing = [col for col in required if not _table_has_column(conn, table, col)]
+    if missing:
+        raise ValueError(
+            "Scope columns missing in snapshot: " + ", ".join(sorted(set(missing)))
+        )
+
+    if not conditions:
+        return "", []
+    return "WHERE " + " AND ".join(conditions), params
+
+
 @lru_cache(maxsize=256)
 def _cached_text_vector(text: str) -> tuple[float, ...]:
     return tuple(get_text_embedder(768).encode([text])[0])
@@ -132,6 +171,7 @@ def search_by_text(
     query_text: str,
     top_k: int,
     modalities: Sequence[str] | None = None,
+    scope: TenantScope | None = None,
     trace: dict[str, float | int | str] | None = None,
 ) -> list[QueryResult]:
     modalities_set = _normalize_modalities(modalities)
@@ -177,18 +217,20 @@ def search_by_text(
     try:
         has_thumbnail = _table_has_column(conn, "image_assets", "thumbnail_uri")
         thumbnail_expr = "i.thumbnail_uri" if has_thumbnail else "NULL AS thumbnail_uri"
+        scope_clause, scope_params = _scope_filters(conn, scope)
 
         doc_sql = f"""
             SELECT m.uri, m.media_type, d.media_asset_id, d.content,
                    (1.0 - list_cosine_similarity(d.text_vector, ?::FLOAT[])) AS distance
             FROM doc_chunks d
             JOIN media_assets m ON d.media_asset_id = m.id
+            {scope_clause}
             ORDER BY distance
             LIMIT {int(top_k)}
         """
         if need_text and text_vec is not None:
             doc_start = time.monotonic()
-            doc_rows = _query_rows(conn, doc_sql, [text_vec])
+            doc_rows = _query_rows(conn, doc_sql, [text_vec, *scope_params])
             if trace is not None:
                 trace["doc_query_ms"] = round(
                     (time.monotonic() - doc_start) * 1000.0, 2
@@ -215,12 +257,17 @@ def search_by_text(
                    )) AS distance
             FROM transcripts t
             JOIN media_assets m ON t.media_asset_id = m.id
+            {scope_clause}
             ORDER BY distance
             LIMIT {int(top_k)}
         """
         if need_text and text_vec is not None:
             transcript_start = time.monotonic()
-            transcript_rows = _query_rows(conn, transcript_sql, [text_vec])
+            transcript_rows = _query_rows(
+                conn,
+                transcript_sql,
+                [text_vec, *scope_params],
+            )
             if trace is not None:
                 trace["transcript_query_ms"] = round(
                     (time.monotonic() - transcript_start) * 1000.0, 2
@@ -248,12 +295,13 @@ def search_by_text(
                    (1.0 - list_cosine_similarity(i.clip_vector, ?::FLOAT[])) AS distance
             FROM image_assets i
             JOIN media_assets m ON i.media_asset_id = m.id
+            {scope_clause}
             ORDER BY distance
             LIMIT {int(top_k)}
         """
         if need_image and image_text_vec is not None:
             image_start = time.monotonic()
-            image_rows = _query_rows(conn, image_sql, [image_text_vec])
+            image_rows = _query_rows(conn, image_sql, [image_text_vec, *scope_params])
             if trace is not None:
                 trace["image_query_ms"] = round(
                     (time.monotonic() - image_start) * 1000.0, 2
@@ -289,12 +337,13 @@ def search_by_text(
                    )) AS distance
             FROM audio_clips a
             JOIN media_assets m ON a.media_asset_id = m.id
+            {scope_clause}
             ORDER BY distance
             LIMIT {int(top_k)}
         """
         if need_audio and audio_text_vec is not None:
             audio_start = time.monotonic()
-            audio_rows = _query_rows(conn, audio_sql, [audio_text_vec])
+            audio_rows = _query_rows(conn, audio_sql, [audio_text_vec, *scope_params])
             if trace is not None:
                 trace["audio_query_ms"] = round(
                     (time.monotonic() - audio_start) * 1000.0, 2
@@ -325,6 +374,7 @@ def search_by_keyword(
     snapshot_path: str,
     query_text: str,
     top_k: int,
+    scope: TenantScope | None = None,
     trace: dict[str, float | int | str] | None = None,
 ) -> list[QueryResult]:
     results: list[QueryResult] = []
@@ -338,15 +388,18 @@ def search_by_keyword(
         )
         trace.update(_apply_duckdb_settings(conn))
     try:
+        scope_clause, scope_params = _scope_filters(conn, scope)
+        scope_filter = scope_clause.replace("WHERE ", "", 1) if scope_clause else ""
+        scope_sql = f" AND {scope_filter}" if scope_filter else ""
         doc_sql = f"""
             SELECT m.uri, m.media_type, d.media_asset_id, d.content
             FROM doc_chunks d
             JOIN media_assets m ON d.media_asset_id = m.id
-            WHERE d.content ILIKE ?
+            WHERE d.content ILIKE ?{scope_sql}
             LIMIT {int(top_k)}
         """
         doc_start = time.monotonic()
-        doc_rows = _query_rows(conn, doc_sql, [pattern])
+        doc_rows = _query_rows(conn, doc_sql, [pattern, *scope_params])
         if trace is not None:
             trace["keyword_doc_query_ms"] = round(
                 (time.monotonic() - doc_start) * 1000.0, 2
@@ -370,11 +423,11 @@ def search_by_keyword(
             SELECT m.uri, m.media_type, t.media_asset_id, t.content, t.start_ms
             FROM transcripts t
             JOIN media_assets m ON t.media_asset_id = m.id
-            WHERE t.content ILIKE ?
+            WHERE t.content ILIKE ?{scope_sql}
             LIMIT {int(top_k)}
         """
         transcript_start = time.monotonic()
-        transcript_rows = _query_rows(conn, transcript_sql, [pattern])
+        transcript_rows = _query_rows(conn, transcript_sql, [pattern, *scope_params])
         if trace is not None:
             trace["keyword_transcript_query_ms"] = round(
                 (time.monotonic() - transcript_start) * 1000.0, 2
@@ -404,6 +457,7 @@ def search_by_metadata(
     snapshot_path: str,
     filters: dict[str, str],
     top_k: int,
+    scope: TenantScope | None = None,
     trace: dict[str, float | int | str] | None = None,
 ) -> list[QueryResult]:
     connect_start = time.monotonic()
@@ -432,12 +486,17 @@ def search_by_metadata(
                 conditions.append("content_type = ?")
                 params.append(value)
 
+        scope_clause, scope_params = _scope_filters(conn, scope, alias="m")
+        if scope_clause:
+            conditions.append(scope_clause.replace("WHERE ", "", 1))
+            params.extend(scope_params)
+
         where_clause = ""
         if conditions:
             where_clause = "WHERE " + " AND ".join(conditions)
         sql = f"""
-            SELECT id, uri, media_type
-            FROM media_assets
+            SELECT m.id, m.uri, m.media_type
+            FROM media_assets m
             {where_clause}
             LIMIT {int(top_k)}
         """
@@ -472,6 +531,7 @@ def search_by_image(
     snapshot_path: str,
     image_base64: str,
     top_k: int,
+    scope: TenantScope | None = None,
     trace: dict[str, float | int | str] | None = None,
 ) -> list[QueryResult]:
     try:
@@ -498,6 +558,7 @@ def search_by_image(
     try:
         has_thumbnail = _table_has_column(conn, "image_assets", "thumbnail_uri")
         thumbnail_expr = "i.thumbnail_uri" if has_thumbnail else "NULL AS thumbnail_uri"
+        scope_clause, scope_params = _scope_filters(conn, scope)
 
         image_sql = f"""
             SELECT m.uri, m.media_type, i.media_asset_id, i.timestamp_ms,
@@ -505,11 +566,12 @@ def search_by_image(
                    (1.0 - list_cosine_similarity(i.clip_vector, ?::FLOAT[])) AS distance
             FROM image_assets i
             JOIN media_assets m ON i.media_asset_id = m.id
+            {scope_clause}
             ORDER BY distance
             LIMIT {int(top_k)}
         """
         image_start = time.monotonic()
-        image_rows = _query_rows(conn, image_sql, [vector])
+        image_rows = _query_rows(conn, image_sql, [vector, *scope_params])
         if trace is not None:
             trace["image_query_ms"] = round(
                 (time.monotonic() - image_start) * 1000.0, 2

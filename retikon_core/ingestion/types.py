@@ -13,6 +13,10 @@ class IngestSource:
     md5_hash: str | None
     crc32c: str | None
     local_path: str
+    org_id: str | None = None
+    site_id: str | None = None
+    stream_id: str | None = None
+    metadata: dict[str, str] | None = None
 
     @property
     def uri(self) -> str:

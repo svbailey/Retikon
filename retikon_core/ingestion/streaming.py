@@ -16,6 +16,7 @@ class StreamEvent:
     name: str
     generation: str
     stream_id: str
+    org_id: str | None = None
     content_type: str | None = None
     size: int | None = None
     device_id: str | None = None
@@ -157,6 +158,7 @@ def stream_event_to_dict(event: StreamEvent) -> dict[str, Any]:
         "name": event.name,
         "generation": event.generation,
         "stream_id": event.stream_id,
+        "org_id": event.org_id,
         "content_type": event.content_type,
         "size": event.size,
         "device_id": event.device_id,
@@ -180,6 +182,7 @@ def stream_event_from_dict(payload: dict[str, Any]) -> StreamEvent:
         name=str(name),
         generation=str(generation),
         stream_id=str(stream_id),
+        org_id=payload.get("org_id"),
         content_type=payload.get("content_type"),
         size=_coerce_int(payload.get("size")),
         device_id=payload.get("device_id"),

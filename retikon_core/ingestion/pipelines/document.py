@@ -26,6 +26,7 @@ from retikon_core.storage.paths import (
 )
 from retikon_core.storage.schemas import schema_for
 from retikon_core.storage.writer import WriteResult, write_parquet
+from retikon_core.tenancy import tenancy_fields
 
 
 @dataclass(frozen=True)
@@ -196,6 +197,11 @@ def ingest_document(
         "frame_count": None,
         "sample_rate_hz": None,
         "channels": None,
+        **tenancy_fields(
+            org_id=source.org_id,
+            site_id=source.site_id,
+            stream_id=source.stream_id,
+        ),
         "created_at": now,
         "pipeline_version": pipeline_version,
         "schema_version": schema_version,
@@ -219,6 +225,11 @@ def ingest_document(
                 "token_end": chunk.token_end,
                 "token_count": chunk.token_count,
                 "embedding_model": _pipeline_model(),
+                **tenancy_fields(
+                    org_id=source.org_id,
+                    site_id=source.site_id,
+                    stream_id=source.stream_id,
+                ),
                 "pipeline_version": pipeline_version,
                 "schema_version": schema_version,
             }

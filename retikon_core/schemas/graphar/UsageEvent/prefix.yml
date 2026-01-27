@@ -1,0 +1,44 @@
+version: 1
+name: UsageEvent
+entity: vertex
+path_prefix: vertices/UsageEvent
+files:
+  core: vertices/UsageEvent/core
+primary_key: id
+fields:
+  - name: id
+    type: string
+    nullable: false
+  - name: org_id
+    type: string
+    nullable: true
+  - name: site_id
+    type: string
+    nullable: true
+  - name: stream_id
+    type: string
+    nullable: true
+  - name: api_key_id
+    type: string
+    nullable: true
+  - name: event_type
+    type: string
+    nullable: false
+  - name: modality
+    type: string
+    nullable: true
+  - name: units
+    type: int64
+    nullable: true
+  - name: bytes
+    type: int64
+    nullable: true
+  - name: created_at
+    type: timestamp
+    nullable: false
+  - name: pipeline_version
+    type: string
+    nullable: false
+  - name: schema_version
+    type: string
+    nullable: false

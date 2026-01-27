@@ -1,5 +1,4 @@
 import os
-import secrets
 import time
 import uuid
 from dataclasses import dataclass
@@ -10,13 +9,16 @@ from fastapi.middleware.cors import CORSMiddleware
 from PIL import Image
 from pydantic import BaseModel, Field
 
+from retikon_core.auth import AuthContext, authorize_api_key
 from retikon_core.embeddings import (
     get_audio_text_embedder,
     get_image_embedder,
     get_image_text_embedder,
     get_text_embedder,
 )
+from retikon_core.errors import AuthError
 from retikon_core.logging import configure_logging, get_logger
+from retikon_core.metering import record_usage
 from retikon_core.query_engine import download_snapshot, get_secure_connection
 from retikon_core.query_engine.query_runner import (
     QueryResult,
@@ -25,6 +27,7 @@ from retikon_core.query_engine.query_runner import (
     search_by_metadata,
     search_by_text,
 )
+from retikon_core.storage.paths import graph_root
 
 SERVICE_NAME = "retikon-query"
 
@@ -136,15 +139,32 @@ def _get_api_key() -> str | None:
     return os.getenv("QUERY_API_KEY")
 
 
-def _authorize(request: Request) -> None:
+def _graph_root_uri() -> str:
+    graph_bucket, graph_prefix = _graph_settings()
+    return graph_root(graph_bucket, graph_prefix)
+
+
+def _authorize(request: Request) -> AuthContext | None:
     api_key = _get_api_key()
-    if not api_key:
-        if _api_key_required():
-            raise HTTPException(status_code=500, detail="QUERY_API_KEY is required")
-        return
-    header_key = request.headers.get("x-api-key")
-    if not header_key or not secrets.compare_digest(header_key, api_key):
-        raise HTTPException(status_code=401, detail="Unauthorized")
+    raw_key = request.headers.get("x-api-key")
+    try:
+        context = authorize_api_key(
+            base_uri=_graph_root_uri(),
+            raw_key=raw_key,
+            fallback_key=api_key,
+            require=_api_key_required(),
+        )
+    except AuthError as exc:
+        raise HTTPException(status_code=401, detail="Unauthorized") from exc
+    return context
+
+
+def _metering_enabled() -> bool:
+    return os.getenv("METERING_ENABLED", "0") == "1"
+
+
+def _schema_version() -> str:
+    return os.getenv("SCHEMA_VERSION", "1")
 
 
 def _graph_settings() -> tuple[str, str]:
@@ -323,7 +343,8 @@ async def query(
         if content_length > MAX_QUERY_BYTES:
             raise HTTPException(status_code=413, detail="Request too large")
 
-    _authorize(request)
+    auth_context = _authorize(request)
+    scope = auth_context.scope if auth_context else None
 
     search_type = _resolve_search_type(payload)
     if (
@@ -393,6 +414,7 @@ async def query(
                 query_text=payload.query_text,
                 top_k=payload.top_k,
                 modalities=list(modalities),
+                scope=scope,
                 trace=timings,
             )
         )
@@ -402,6 +424,7 @@ async def query(
                 snapshot_path=snapshot_path,
                 query_text=payload.query_text,
                 top_k=payload.top_k,
+                scope=scope,
                 trace=timings,
             )
         )
@@ -412,6 +435,7 @@ async def query(
                     snapshot_path=snapshot_path,
                     filters=payload.metadata_filters,
                     top_k=payload.top_k,
+                    scope=scope,
                     trace=timings,
                 )
             )
@@ -424,6 +448,7 @@ async def query(
                     snapshot_path=snapshot_path,
                     image_base64=payload.image_base64,
                     top_k=payload.top_k,
+                    scope=scope,
                     trace=timings,
                 )
             )
@@ -453,6 +478,29 @@ async def query(
             "duration_ms": duration_ms,
         },
     )
+    if _metering_enabled():
+        payload_bytes = None
+        if request.headers.get("content-length"):
+            try:
+                payload_bytes = int(request.headers["content-length"])
+            except ValueError:
+                payload_bytes = None
+        if payload_bytes is None:
+            payload_bytes = len(payload.model_dump_json().encode("utf-8"))
+        try:
+            record_usage(
+                base_uri=_graph_root_uri(),
+                event_type="query",
+                scope=scope,
+                api_key_id=auth_context.api_key_id if auth_context else None,
+                modality=modality,
+                units=1,
+                bytes_in=payload_bytes,
+                pipeline_version=os.getenv("RETIKON_VERSION", "dev"),
+                schema_version=_schema_version(),
+            )
+        except Exception as exc:
+            logger.warning("Failed to record usage", extra={"error_message": str(exc)})
     if LOG_QUERY_TIMINGS or duration_ms >= SLOW_QUERY_MS:
         snapshot_age_s = None
         if STATE.loaded_at:
@@ -495,7 +543,9 @@ async def query(
 
 @app.post("/admin/reload-snapshot", response_model=HealthResponse)
 async def reload_snapshot(request: Request) -> HealthResponse:
-    _authorize(request)
+    auth_context = _authorize(request)
+    if auth_context and not auth_context.is_admin:
+        raise HTTPException(status_code=403, detail="Admin API key required")
 
     try:
         _load_snapshot()

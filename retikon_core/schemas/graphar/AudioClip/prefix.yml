@@ -13,6 +13,15 @@ fields:
   - name: media_asset_id
     type: string
     nullable: false
+  - name: org_id
+    type: string
+    nullable: true
+  - name: site_id
+    type: string
+    nullable: true
+  - name: stream_id
+    type: string
+    nullable: true
   - name: start_ms
     type: int64
     nullable: false

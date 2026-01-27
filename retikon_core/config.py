@@ -42,6 +42,9 @@ class Config:
     dlq_topic: str | None
     enable_ocr: bool
     ocr_max_pages: int
+    default_org_id: str | None
+    default_site_id: str | None
+    default_stream_id: str | None
     edition: str
     capabilities: tuple[str, ...]
     snapshot_uri: str | None = None
@@ -146,6 +149,9 @@ class Config:
         dlq_topic = os.getenv("DLQ_TOPIC")
         enable_ocr = os.getenv("ENABLE_OCR", "0") == "1"
         ocr_max_pages = int(os.getenv("OCR_MAX_PAGES", "5"))
+        default_org_id = os.getenv("DEFAULT_ORG_ID")
+        default_site_id = os.getenv("DEFAULT_SITE_ID")
+        default_stream_id = os.getenv("DEFAULT_STREAM_ID")
         snapshot_uri = os.getenv("SNAPSHOT_URI")
         edition = get_edition(os.getenv("RETIKON_EDITION"))
         capabilities = resolve_capabilities(
@@ -192,6 +198,9 @@ class Config:
             dlq_topic=dlq_topic,
             enable_ocr=enable_ocr,
             ocr_max_pages=ocr_max_pages,
+            default_org_id=default_org_id,
+            default_site_id=default_site_id,
+            default_stream_id=default_stream_id,
             edition=edition,
             capabilities=capabilities,
             snapshot_uri=snapshot_uri,

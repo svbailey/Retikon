@@ -8,6 +8,9 @@ def test_docchunk_schema_split():
     assert core.names == [
         "id",
         "media_asset_id",
+        "org_id",
+        "site_id",
+        "stream_id",
         "chunk_index",
         "char_start",
         "char_end",

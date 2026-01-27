@@ -17,7 +17,15 @@ def _client() -> TestClient:
 def test_query_mode_text_limits_modalities(monkeypatch):
     captured = {}
 
-    def fake_search_by_text(*, snapshot_path, query_text, top_k, modalities, trace):
+    def fake_search_by_text(
+        *,
+        snapshot_path,
+        query_text,
+        top_k,
+        modalities,
+        scope,
+        trace,
+    ):
         captured["modalities"] = modalities
         return []
 

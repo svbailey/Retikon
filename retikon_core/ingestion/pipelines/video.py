@@ -32,6 +32,7 @@ from retikon_core.storage.paths import (
 )
 from retikon_core.storage.schemas import schema_for
 from retikon_core.storage.writer import WriteResult, write_parquet
+from retikon_core.tenancy import tenancy_fields
 
 
 def _text_model() -> str:
@@ -126,6 +127,11 @@ def ingest_video(
         "frame_count": probe.frame_count,
         "sample_rate_hz": None,
         "channels": None,
+        **tenancy_fields(
+            org_id=source.org_id,
+            site_id=source.site_id,
+            stream_id=source.stream_id,
+        ),
         "created_at": now,
         "pipeline_version": pipeline_version,
         "schema_version": schema_version,
@@ -171,6 +177,11 @@ def ingest_video(
                     "height_px": height,
                     "thumbnail_uri": thumb_uri,
                     "embedding_model": _image_model(),
+                    **tenancy_fields(
+                        org_id=source.org_id,
+                        site_id=source.site_id,
+                        stream_id=source.stream_id,
+                    ),
                     "pipeline_version": pipeline_version,
                     "schema_version": schema_version,
                 }
@@ -218,6 +229,11 @@ def ingest_video(
                 "sample_rate_hz": probe.audio_sample_rate or 48000,
                 "channels": probe.audio_channels or 1,
                 "embedding_model": _audio_model(),
+                **tenancy_fields(
+                    org_id=source.org_id,
+                    site_id=source.site_id,
+                    stream_id=source.stream_id,
+                ),
                 "pipeline_version": pipeline_version,
                 "schema_version": schema_version,
             }
@@ -241,6 +257,11 @@ def ingest_video(
                         "end_ms": segment.end_ms,
                         "language": segment.language,
                         "embedding_model": _text_model(),
+                        **tenancy_fields(
+                            org_id=source.org_id,
+                            site_id=source.site_id,
+                            stream_id=source.stream_id,
+                        ),
                         "pipeline_version": pipeline_version,
                         "schema_version": schema_version,
                     }

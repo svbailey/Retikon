@@ -12,6 +12,8 @@ from retikon_core.ingestion.eventarc import GcsEvent
 from retikon_core.ingestion.pipelines import audio, document, image, video
 from retikon_core.ingestion.rate_limit import enforce_rate_limit
 from retikon_core.ingestion.types import IngestSource
+from retikon_core.tenancy import scope_from_metadata
+from retikon_core.tenancy.types import TenantScope
 
 
 @dataclass(frozen=True)
@@ -138,7 +140,14 @@ def _check_size(event: GcsEvent, config: Config) -> None:
 def _make_source(
     event: GcsEvent,
     download: DownloadResult,
+    config: Config,
 ) -> IngestSource:
+    default_scope = TenantScope(
+        org_id=config.default_org_id,
+        site_id=config.default_site_id,
+        stream_id=config.default_stream_id,
+    )
+    scope = scope_from_metadata(download.metadata, defaults=default_scope)
     return IngestSource(
         bucket=event.bucket,
         name=event.name,
@@ -148,6 +157,10 @@ def _make_source(
         md5_hash=download.md5_hash or event.md5_hash,
         crc32c=download.crc32c or event.crc32c,
         local_path=download.path,
+        org_id=scope.org_id,
+        site_id=scope.site_id,
+        stream_id=scope.stream_id,
+        metadata=download.metadata,
     )
 
 
@@ -253,7 +266,7 @@ def process_event(
         config.max_raw_bytes,
     )
     try:
-        source = _make_source(event, download)
+        source = _make_source(event, download, config)
         outcome = _run_pipeline(
             modality=modality,
             source=source,

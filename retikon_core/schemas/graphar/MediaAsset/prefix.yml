@@ -30,6 +30,15 @@ fields:
   - name: source_generation
     type: string
     nullable: false
+  - name: org_id
+    type: string
+    nullable: true
+  - name: site_id
+    type: string
+    nullable: true
+  - name: stream_id
+    type: string
+    nullable: true
   - name: checksum
     type: string
     nullable: true

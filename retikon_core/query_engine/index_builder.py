@@ -398,13 +398,14 @@ def build_snapshot(
                 media_source,
                 """
                 CREATE TABLE media_assets AS
-                SELECT id, uri, media_type, content_type
+                SELECT *
                 FROM read_parquet(?, union_by_name=true)
                 """,
                 (
                     "CREATE TABLE media_assets "
                     "(id VARCHAR, uri VARCHAR, media_type VARCHAR, "
-                    "content_type VARCHAR)"
+                    "content_type VARCHAR, org_id VARCHAR, site_id VARCHAR, "
+                    "stream_id VARCHAR)"
                 ),
                 [media_files],
             )

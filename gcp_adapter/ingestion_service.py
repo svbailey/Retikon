@@ -9,12 +9,20 @@ from fastapi import FastAPI, Header, HTTPException, Request
 from google.cloud import firestore, storage
 from pydantic import BaseModel
 
-from retikon_core.config import get_config
-from retikon_core.errors import PermanentError, RecoverableError, ValidationError
+from retikon_core.auth import AuthContext, authorize_api_key
+from retikon_core.config import Config, get_config
+from retikon_core.errors import (
+    AuthError,
+    PermanentError,
+    RecoverableError,
+    ValidationError,
+)
 from retikon_core.ingestion import FirestoreIdempotency, parse_cloudevent, process_event
 from retikon_core.ingestion.dlq import DlqPublisher
 from retikon_core.ingestion.router import pipeline_version
 from retikon_core.logging import configure_logging, get_logger
+from retikon_core.metering import record_usage
+from retikon_core.tenancy.types import TenantScope
 
 SERVICE_NAME = "retikon-ingestion"
 
@@ -47,6 +55,44 @@ def _correlation_id(header_value: str | None) -> str:
     if header_value:
         return header_value
     return str(uuid.uuid4())
+
+
+def _require_ingest_auth() -> bool:
+    return os.getenv("INGEST_REQUIRE_API_KEY", "0") == "1"
+
+
+def _ingest_api_key() -> str | None:
+    return os.getenv("INGEST_API_KEY") or os.getenv("QUERY_API_KEY")
+
+
+def _authorize_ingest(request: Request, config: Config) -> AuthContext | None:
+    api_key = _ingest_api_key()
+    raw_key = request.headers.get("x-api-key")
+    try:
+        return authorize_api_key(
+            base_uri=config.graph_root_uri(),
+            raw_key=raw_key,
+            fallback_key=api_key,
+            require=_require_ingest_auth(),
+        )
+    except AuthError as exc:
+        raise HTTPException(status_code=401, detail="Unauthorized") from exc
+
+
+def _metering_enabled() -> bool:
+    return os.getenv("METERING_ENABLED", "0") == "1"
+
+
+def _schema_version() -> str:
+    return os.getenv("SCHEMA_VERSION", "1")
+
+
+def _default_scope(config: Config) -> TenantScope:
+    return TenantScope(
+        org_id=config.default_org_id,
+        site_id=config.default_site_id,
+        stream_id=config.default_stream_id,
+    )
 
 
 @app.middleware("http")
@@ -82,12 +128,15 @@ async def ingest(
     except ValueError as exc:
         raise HTTPException(status_code=500, detail=str(exc)) from exc
 
+    auth_context = _authorize_ingest(request, config)
+
     trace_id = x_request_id or str(uuid.uuid4())
     logger.info(
         "Received ingest event",
         extra={
             "request_id": trace_id,
             "correlation_id": request.state.correlation_id,
+            "status": "authorized" if auth_context else "anonymous",
         },
     )
 
@@ -181,6 +230,26 @@ async def ingest(
                 "attempt_count": attempt_count,
             },
         )
+        if _metering_enabled():
+            scope = auth_context.scope if auth_context else _default_scope(config)
+            bytes_in = gcs_event.size if gcs_event.size is not None else 0
+            try:
+                record_usage(
+                    base_uri=config.graph_root_uri(),
+                    event_type="ingest",
+                    scope=scope,
+                    api_key_id=auth_context.api_key_id if auth_context else None,
+                    modality=outcome.modality,
+                    units=1,
+                    bytes_in=bytes_in,
+                    pipeline_version=pipeline_version(),
+                    schema_version=_schema_version(),
+                )
+            except Exception as exc:
+                logger.warning(
+                    "Failed to record usage",
+                    extra={"error_message": str(exc)},
+                )
         return IngestResponse(status=outcome.status, trace_id=trace_id)
     except PermanentError as exc:
         _publish_dlq(

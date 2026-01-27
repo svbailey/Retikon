@@ -53,7 +53,10 @@ def _ensure_test_snapshot() -> str:
             id VARCHAR,
             uri VARCHAR,
             media_type VARCHAR,
-            content_type VARCHAR
+            content_type VARCHAR,
+            org_id VARCHAR,
+            site_id VARCHAR,
+            stream_id VARCHAR
         )
         """
     )
@@ -96,20 +99,52 @@ def _ensure_test_snapshot() -> str:
     )
 
     conn.execute(
-        "INSERT INTO media_assets VALUES (?, ?, ?, ?)",
-        ["asset-doc", "gs://test/doc.pdf", "document", "application/pdf"],
+        "INSERT INTO media_assets VALUES (?, ?, ?, ?, ?, ?, ?)",
+        [
+            "asset-doc",
+            "gs://test/doc.pdf",
+            "document",
+            "application/pdf",
+            "org-1",
+            "site-1",
+            "stream-1",
+        ],
     )
     conn.execute(
-        "INSERT INTO media_assets VALUES (?, ?, ?, ?)",
-        ["asset-transcript", "gs://test/video.mp4", "video", "video/mp4"],
+        "INSERT INTO media_assets VALUES (?, ?, ?, ?, ?, ?, ?)",
+        [
+            "asset-transcript",
+            "gs://test/video.mp4",
+            "video",
+            "video/mp4",
+            "org-1",
+            "site-2",
+            "stream-2",
+        ],
     )
     conn.execute(
-        "INSERT INTO media_assets VALUES (?, ?, ?, ?)",
-        ["asset-image", "gs://test/image.jpg", "image", "image/jpeg"],
+        "INSERT INTO media_assets VALUES (?, ?, ?, ?, ?, ?, ?)",
+        [
+            "asset-image",
+            "gs://test/image.jpg",
+            "image",
+            "image/jpeg",
+            "org-2",
+            "site-2",
+            "stream-3",
+        ],
     )
     conn.execute(
-        "INSERT INTO media_assets VALUES (?, ?, ?, ?)",
-        ["asset-audio", "gs://test/audio.wav", "audio", "audio/wav"],
+        "INSERT INTO media_assets VALUES (?, ?, ?, ?, ?, ?, ?)",
+        [
+            "asset-audio",
+            "gs://test/audio.wav",
+            "audio",
+            "audio/wav",
+            "org-1",
+            "site-3",
+            "stream-4",
+        ],
     )
     conn.execute(
         "INSERT INTO doc_chunks VALUES (?, ?, ?)",

@@ -414,6 +414,7 @@ def _publish_dlq(
         },
         cloudevent={
             "stream_id": stream_event.stream_id,
+            "org_id": stream_event.org_id,
             "device_id": stream_event.device_id,
             "site_id": stream_event.site_id,
         },
