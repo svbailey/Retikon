@@ -8,6 +8,7 @@ on:
 jobs:
   smoke:
     runs-on: ubuntu-latest
+    if: ${{ secrets.GCP_WIF_PROVIDER != '' && secrets.GCP_WIF_SERVICE_ACCOUNT != '' }}
     permissions:
       contents: read
       id-token: write

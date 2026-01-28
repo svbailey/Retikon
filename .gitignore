@@ -14,6 +14,7 @@ infrastructure/terraform/terraform.tfstate.backup
 # Python
 __pycache__/
 *.pyc
+*.duckdb
 
 # Virtual environments
 .venv/
@@ -21,3 +22,6 @@ venv/
 
 # OS files
 .DS_Store
+
+# Local data
+retikon_data/

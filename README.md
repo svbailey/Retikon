@@ -9,8 +9,8 @@ tracks the v2.5 build kit and the development plan.
 - Development plan: `Dev Docs/Retikon-GCP-Build-Kit-v2.5.md`
 - Core/Pro boundary rules: `Dev Docs/Core-Pro-Boundary.md`
 - Agent rules: `AGENTS.md`
-- Core repo map: `core/README.md`
-- Pro repo map: `pro/README.md`
+- Core repo map: `Dev Docs/Core-Repo-Map.md`
+- Pro repo map: `Dev Docs/Pro-Repo-Map.md`
 - GraphAr schemas: `retikon_core/schemas/graphar/README.md`
 - Local development: `Dev Docs/Local-Development.md`
 - Pro deployment: `Dev Docs/pro/Deployment.md`
