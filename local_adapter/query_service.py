@@ -5,7 +5,7 @@ import secrets
 import time
 import uuid
 from contextlib import asynccontextmanager
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from datetime import datetime, timezone
 from pathlib import Path
 from urllib.parse import urlparse
@@ -23,6 +23,11 @@ from retikon_core.embeddings import (
     get_text_embedder,
 )
 from retikon_core.logging import configure_logging, get_logger
+from retikon_core.privacy import (
+    PrivacyContext,
+    load_privacy_policies,
+    redact_text_for_context,
+)
 from retikon_core.query_engine import download_snapshot, get_secure_connection
 from retikon_core.query_engine.query_runner import (
     QueryResult,
@@ -205,6 +210,36 @@ def _default_healthcheck_uri() -> str | None:
             )
             return None
     return candidate
+
+
+def _apply_privacy_redaction(results: list[QueryResult]) -> list[QueryResult]:
+    try:
+        policies = load_privacy_policies(get_config().graph_root_uri())
+    except Exception as exc:
+        logger.warning(
+            "Failed to load privacy policies",
+            extra={"error_message": str(exc)},
+        )
+        return results
+    if not policies:
+        return results
+
+    context = PrivacyContext(action="query", scope=None, is_admin=False)
+    redacted: list[QueryResult] = []
+    for item in results:
+        if item.snippet is None:
+            redacted.append(item)
+            continue
+        snippet = redact_text_for_context(
+            item.snippet,
+            policies=policies,
+            context=context.with_modality(item.modality),
+        )
+        if snippet == item.snippet:
+            redacted.append(item)
+        else:
+            redacted.append(replace(item, snippet=snippet))
+    return redacted
 
 
 def _load_snapshot() -> None:
@@ -449,6 +484,7 @@ async def query(
 
     results.sort(key=lambda item: item.score, reverse=True)
     trimmed = results[: payload.top_k]
+    trimmed = _apply_privacy_redaction(trimmed)
     duration_ms = int((time.monotonic() - start_time) * 1000)
     if search_type == "metadata":
         modality = "metadata"

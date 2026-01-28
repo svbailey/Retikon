@@ -36,6 +36,20 @@ type AuditLogResponse = {
   rows: AuditLogItem[];
 };
 
+type PrivacyPolicy = {
+  id: string;
+  name: string;
+  org_id?: string | null;
+  site_id?: string | null;
+  stream_id?: string | null;
+  modalities?: string[] | null;
+  contexts?: string[] | null;
+  redaction_types?: string[] | null;
+  enabled: boolean;
+  created_at?: string | null;
+  updated_at?: string | null;
+};
+
 type UploadInfo = {
   uri: string;
   run_id: string;
@@ -229,6 +243,10 @@ export default function App() {
   const [auditDecision, setAuditDecision] = useState("");
   const [auditLimit, setAuditLimit] = useState(50);
   const [auditUrlOverride, setAuditUrlOverride] = useState("");
+  const [privacyPolicies, setPrivacyPolicies] = useState<PrivacyPolicy[]>([]);
+  const [privacyStatus, setPrivacyStatus] = useState<StepStatus>("idle");
+  const [privacyError, setPrivacyError] = useState<string | null>(null);
+  const [privacyUrlOverride, setPrivacyUrlOverride] = useState("");
 
   const queryUrl = useMemo(() => {
     return (
@@ -249,6 +267,10 @@ export default function App() {
   const auditUrl = useMemo(() => {
     return auditUrlOverride || import.meta.env.VITE_AUDIT_URL || "";
   }, [auditUrlOverride]);
+
+  const privacyUrl = useMemo(() => {
+    return privacyUrlOverride || import.meta.env.VITE_PRIVACY_URL || "";
+  }, [privacyUrlOverride]);
 
   const ingestUrl = useMemo(() => {
     return ingestUrlOverride || import.meta.env.VITE_INGEST_URL || "";
@@ -281,6 +303,9 @@ export default function App() {
   const objectUrl = devApiUrl ? `${devApiUrl}/dev/object` : "";
   const auditLogsUrl = auditUrl
     ? `${auditUrl.replace(/\/$/, "")}/audit/logs`
+    : "";
+  const privacyPoliciesUrl = privacyUrl
+    ? `${privacyUrl.replace(/\/$/, "")}/privacy/policies`
     : "";
 
   const rawBucket = import.meta.env.VITE_RAW_BUCKET || "";
@@ -318,6 +343,10 @@ export default function App() {
     const auditOverride = localStorage.getItem("retikon_audit_url");
     if (auditOverride) {
       setAuditUrlOverride(auditOverride);
+    }
+    const privacyOverride = localStorage.getItem("retikon_privacy_url");
+    if (privacyOverride) {
+      setPrivacyUrlOverride(privacyOverride);
     }
     const storedMode = localStorage.getItem("retikon_query_mode");
     if (storedMode === "text" || storedMode === "all") {
@@ -362,6 +391,14 @@ export default function App() {
       localStorage.removeItem("retikon_audit_url");
     }
   }, [auditUrlOverride]);
+
+  useEffect(() => {
+    if (privacyUrlOverride) {
+      localStorage.setItem("retikon_privacy_url", privacyUrlOverride);
+    } else {
+      localStorage.removeItem("retikon_privacy_url");
+    }
+  }, [privacyUrlOverride]);
 
   useEffect(() => {
     localStorage.setItem("retikon_query_mode", queryMode);
@@ -734,6 +771,32 @@ export default function App() {
       const message = (err as Error).message;
       setAuditError(message);
       setAuditStatus("error");
+      addActivity(message, "error");
+    }
+  };
+
+  const fetchPrivacyPolicies = async () => {
+    if (!privacyPoliciesUrl) {
+      setPrivacyError("Privacy API URL is not configured.");
+      setPrivacyStatus("error");
+      return;
+    }
+    setPrivacyError(null);
+    setPrivacyStatus("working");
+    try {
+      const resp = await fetch(privacyPoliciesUrl, { headers: devHeaders() });
+      if (!resp.ok) {
+        const detail = await resp.text();
+        throw new Error(detail || "Privacy policy fetch failed");
+      }
+      const data = (await resp.json()) as PrivacyPolicy[];
+      setPrivacyPolicies(data);
+      setPrivacyStatus("done");
+      addActivity("Privacy policies loaded.", "success");
+    } catch (err) {
+      const message = (err as Error).message;
+      setPrivacyError(message);
+      setPrivacyStatus("error");
       addActivity(message, "error");
     }
   };
@@ -1120,6 +1183,18 @@ export default function App() {
                 onChange={(event) => setAuditUrlOverride(event.target.value)}
               />
               <small>Default: {import.meta.env.VITE_AUDIT_URL || "none"}</small>
+            </label>
+            <label className="field">
+              <span>Privacy API URL</span>
+              <input
+                type="url"
+                placeholder="https://retikon-privacy-...run.app"
+                value={privacyUrlOverride}
+                onChange={(event) => setPrivacyUrlOverride(event.target.value)}
+              />
+              <small>
+                Default: {import.meta.env.VITE_PRIVACY_URL || "none"}
+              </small>
             </label>
           </div>
           <p className="panel-help">
@@ -1776,6 +1851,34 @@ export default function App() {
           <div className="preview-panel">
             <pre className="preview-json">
               {JSON.stringify(auditLogs, null, 2)}
+            </pre>
+          </div>
+        )}
+      </section>
+
+      <section className="panel">
+        <div className="panel-header">
+          <h2>Privacy Policies</h2>
+          <span className="counter">{privacyPolicies.length} policies</span>
+        </div>
+        <div className="actions">
+          <button
+            onClick={fetchPrivacyPolicies}
+            disabled={!privacyPoliciesUrl || privacyStatus === "working"}
+          >
+            {privacyStatus === "working" ? "Loading..." : "Load policies"}
+          </button>
+        </div>
+        {!privacyPoliciesUrl && (
+          <p className="hint">Privacy API URL is not configured yet.</p>
+        )}
+        {privacyError && <p className="error">{privacyError}</p>}
+        {privacyPolicies.length === 0 ? (
+          <p className="hint">No privacy policies loaded yet.</p>
+        ) : (
+          <div className="preview-panel">
+            <pre className="preview-json">
+              {JSON.stringify(privacyPolicies, null, 2)}
             </pre>
           </div>
         )}

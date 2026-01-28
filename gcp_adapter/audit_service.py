@@ -17,6 +17,12 @@ from fastapi.responses import StreamingResponse
 from retikon_core.auth import AuthContext, authorize_api_key
 from retikon_core.errors import AuthError
 from retikon_core.logging import configure_logging, get_logger
+from retikon_core.privacy import (
+    PrivacyContext,
+    PrivacyPolicy,
+    load_privacy_policies,
+    redact_text_for_context,
+)
 from retikon_core.query_engine.warm_start import get_secure_connection
 from retikon_core.storage.paths import graph_root, join_uri
 
@@ -192,6 +198,27 @@ def _serialize_value(value: object) -> object:
     return value
 
 
+def _redact_record(
+    record: dict[str, object],
+    *,
+    policies: list[PrivacyPolicy] | None,
+    context: PrivacyContext | None,
+) -> dict[str, object]:
+    if not policies or context is None:
+        return record
+    updated: dict[str, object] = {}
+    for key, value in record.items():
+        if isinstance(value, str):
+            updated[key] = redact_text_for_context(
+                value,
+                policies=policies,
+                context=context,
+            )
+        else:
+            updated[key] = value
+    return updated
+
+
 def _build_filters(
     *,
     org_id: str | None,
@@ -273,6 +300,8 @@ def _stream_query(
     where_clauses: list[str],
     values: list[object],
     format: str,
+    policies: list[PrivacyPolicy] | None = None,
+    privacy_context: PrivacyContext | None = None,
 ) -> Iterator[str]:
     local_paths, tmpdir = _resolve_parquet_files(uri_pattern)
     if not local_paths:
@@ -302,8 +331,16 @@ def _stream_query(
                     if not batch:
                         break
                     for row in batch:
-                        serialized = [_serialize_value(value) for value in row]
-                        yield _write_csv_row(serialized)
+                        record = {
+                            col: _serialize_value(value)
+                            for col, value in zip(columns, row, strict=False)
+                        }
+                        redacted = _redact_record(
+                            record,
+                            policies=policies,
+                            context=privacy_context,
+                        )
+                        yield _write_csv_row([redacted[col] for col in columns])
             else:
                 while True:
                     batch = cursor.fetchmany(500)
@@ -314,7 +351,12 @@ def _stream_query(
                             col: _serialize_value(value)
                             for col, value in zip(columns, row, strict=False)
                         }
-                        yield json.dumps(record) + "\n"
+                        redacted = _redact_record(
+                            record,
+                            policies=policies,
+                            context=privacy_context,
+                        )
+                        yield json.dumps(redacted) + "\n"
         finally:
             conn.close()
             if tmpdir is not None:
@@ -330,6 +372,27 @@ def _audit_pattern(base_uri: str) -> str:
 def _usage_pattern(base_uri: str) -> str:
     return join_uri(base_uri, "vertices", "UsageEvent", "core", "*.parquet")
 
+
+def _privacy_context(
+    auth_context: AuthContext | None,
+    action: str,
+) -> PrivacyContext:
+    return PrivacyContext(
+        action=action,
+        scope=auth_context.scope if auth_context else None,
+        is_admin=bool(auth_context and auth_context.is_admin),
+    )
+
+
+def _privacy_policies(base_uri: str) -> list[PrivacyPolicy]:
+    try:
+        return load_privacy_policies(base_uri)
+    except Exception as exc:
+        logger.warning(
+            "Failed to load privacy policies",
+            extra={"error_message": str(exc)},
+        )
+        return []
 
 @app.get("/health")
 async def health() -> dict[str, str]:
@@ -390,8 +453,10 @@ async def audit_export(
     until: str | None = None,
     format: str = "jsonl",
 ) -> StreamingResponse:
-    _authorize(request)
+    auth_context = _authorize(request)
     base_uri = _graph_uri()
+    privacy_policies = _privacy_policies(base_uri)
+    privacy_ctx = _privacy_context(auth_context, "export")
     since_ts = _parse_timestamp(since)
     until_ts = _parse_timestamp(until)
     where, values = _build_filters(
@@ -412,6 +477,8 @@ async def audit_export(
         where_clauses=where,
         values=values,
         format=fmt,
+        policies=privacy_policies,
+        privacy_context=privacy_ctx,
     )
     media_type = "application/json" if fmt == "jsonl" else "text/csv"
     return StreamingResponse(generator, media_type=media_type)
@@ -429,8 +496,10 @@ async def access_export(
     until: str | None = None,
     format: str = "jsonl",
 ) -> StreamingResponse:
-    _authorize(request)
+    auth_context = _authorize(request)
     base_uri = _graph_uri()
+    privacy_policies = _privacy_policies(base_uri)
+    privacy_ctx = _privacy_context(auth_context, "export")
     since_ts = _parse_timestamp(since)
     until_ts = _parse_timestamp(until)
     where, values = _build_filters(
@@ -454,6 +523,8 @@ async def access_export(
         where_clauses=where,
         values=values,
         format=fmt,
+        policies=privacy_policies,
+        privacy_context=privacy_ctx,
     )
     media_type = "application/json" if fmt == "jsonl" else "text/csv"
     return StreamingResponse(generator, media_type=media_type)
