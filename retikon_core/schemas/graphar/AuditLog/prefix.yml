@@ -1,0 +1,53 @@
+version: 1
+name: AuditLog
+entity: vertex
+path_prefix: vertices/AuditLog
+files:
+  core: vertices/AuditLog/core
+primary_key: id
+fields:
+  - name: id
+    type: string
+    nullable: false
+  - name: org_id
+    type: string
+    nullable: true
+  - name: site_id
+    type: string
+    nullable: true
+  - name: stream_id
+    type: string
+    nullable: true
+  - name: api_key_id
+    type: string
+    nullable: true
+  - name: actor_type
+    type: string
+    nullable: true
+  - name: actor_id
+    type: string
+    nullable: true
+  - name: action
+    type: string
+    nullable: false
+  - name: resource
+    type: string
+    nullable: true
+  - name: decision
+    type: string
+    nullable: false
+  - name: reason
+    type: string
+    nullable: true
+  - name: request_id
+    type: string
+    nullable: true
+  - name: created_at
+    type: timestamp
+    nullable: false
+  - name: pipeline_version
+    type: string
+    nullable: false
+  - name: schema_version
+    type: string
+    nullable: false

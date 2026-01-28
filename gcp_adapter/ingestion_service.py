@@ -11,7 +11,13 @@ from pydantic import BaseModel
 
 from gcp_adapter.dlq_pubsub import PubSubDlqPublisher
 from gcp_adapter.idempotency_firestore import FirestoreIdempotency
-from retikon_core.auth import AuthContext, authorize_api_key
+from retikon_core.auth import (
+    ACTION_INGEST,
+    AuthContext,
+    abac_allowed,
+    authorize_api_key,
+    is_action_allowed,
+)
 from retikon_core.config import Config, get_config
 from retikon_core.errors import (
     AuthError,
@@ -80,6 +86,28 @@ def _authorize_ingest(request: Request, config: Config) -> AuthContext | None:
         raise HTTPException(status_code=401, detail="Unauthorized") from exc
 
 
+def _rbac_enabled() -> bool:
+    return os.getenv("RBAC_ENFORCE", "0") == "1"
+
+
+def _abac_enabled() -> bool:
+    return os.getenv("ABAC_ENFORCE", "0") == "1"
+
+
+def _enforce_access(
+    action: str,
+    auth_context: AuthContext | None,
+    config: Config,
+) -> None:
+    base_uri = config.graph_root_uri()
+    if _rbac_enabled():
+        if not is_action_allowed(auth_context, action, base_uri):
+            raise HTTPException(status_code=403, detail="Forbidden")
+    if _abac_enabled():
+        if not abac_allowed(auth_context, action, base_uri):
+            raise HTTPException(status_code=403, detail="Forbidden")
+
+
 def _metering_enabled() -> bool:
     return os.getenv("METERING_ENABLED", "0") == "1"
 
@@ -130,6 +158,7 @@ async def ingest(
         raise HTTPException(status_code=500, detail=str(exc)) from exc
 
     auth_context = _authorize_ingest(request, config)
+    _enforce_access(ACTION_INGEST, auth_context, config)
 
     trace_id = x_request_id or str(uuid.uuid4())
     logger.info(

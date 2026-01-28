@@ -9,7 +9,13 @@ from fastapi.middleware.cors import CORSMiddleware
 from PIL import Image
 from pydantic import BaseModel, Field
 
-from retikon_core.auth import AuthContext, authorize_api_key
+from retikon_core.auth import (
+    ACTION_QUERY,
+    AuthContext,
+    abac_allowed,
+    authorize_api_key,
+    is_action_allowed,
+)
 from retikon_core.embeddings import (
     get_audio_text_embedder,
     get_image_embedder,
@@ -157,6 +163,24 @@ def _authorize(request: Request) -> AuthContext | None:
     except AuthError as exc:
         raise HTTPException(status_code=401, detail="Unauthorized") from exc
     return context
+
+
+def _rbac_enabled() -> bool:
+    return os.getenv("RBAC_ENFORCE", "0") == "1"
+
+
+def _abac_enabled() -> bool:
+    return os.getenv("ABAC_ENFORCE", "0") == "1"
+
+
+def _enforce_access(action: str, auth_context: AuthContext | None) -> None:
+    base_uri = _graph_root_uri()
+    if _rbac_enabled():
+        if not is_action_allowed(auth_context, action, base_uri):
+            raise HTTPException(status_code=403, detail="Forbidden")
+    if _abac_enabled():
+        if not abac_allowed(auth_context, action, base_uri):
+            raise HTTPException(status_code=403, detail="Forbidden")
 
 
 def _metering_enabled() -> bool:
@@ -344,6 +368,7 @@ async def query(
             raise HTTPException(status_code=413, detail="Request too large")
 
     auth_context = _authorize(request)
+    _enforce_access(ACTION_QUERY, auth_context)
     scope = auth_context.scope if auth_context else None
 
     search_type = _resolve_search_type(payload)
