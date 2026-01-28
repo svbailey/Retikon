@@ -59,7 +59,10 @@ def download_snapshot(snapshot_uri: str, dest_dir: str = "/tmp") -> SnapshotInfo
     parsed = urlparse(snapshot_uri)
     is_local = parsed.scheme in {"", "file"}
     if is_local:
-        snapshot_path = Path(parsed.path) if parsed.scheme == "file" else Path(snapshot_uri)
+        if parsed.scheme == "file":
+            snapshot_path = Path(parsed.path)
+        else:
+            snapshot_path = Path(snapshot_uri)
     else:
         snapshot_path = None
 

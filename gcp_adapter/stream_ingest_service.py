@@ -315,7 +315,7 @@ async def ingest_stream_push(request: Request) -> dict[str, Any]:
             continue
 
         try:
-        outcome = process_event(event=gcs_event, config=config)
+            outcome = process_event(event=gcs_event, config=config)
             idempotency.mark_completed(decision.doc_id)
             firestore_client.collection(config.firestore_collection).document(
                 decision.doc_id

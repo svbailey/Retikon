@@ -9,6 +9,8 @@ from fastapi import FastAPI, Header, HTTPException, Request
 from google.cloud import firestore
 from pydantic import BaseModel
 
+from gcp_adapter.dlq_pubsub import PubSubDlqPublisher
+from gcp_adapter.idempotency_firestore import FirestoreIdempotency
 from retikon_core.auth import AuthContext, authorize_api_key
 from retikon_core.config import Config, get_config
 from retikon_core.errors import (
@@ -17,8 +19,6 @@ from retikon_core.errors import (
     RecoverableError,
     ValidationError,
 )
-from gcp_adapter.dlq_pubsub import PubSubDlqPublisher
-from gcp_adapter.idempotency_firestore import FirestoreIdempotency
 from retikon_core.ingestion import parse_cloudevent, process_event
 from retikon_core.ingestion.router import pipeline_version
 from retikon_core.logging import configure_logging, get_logger

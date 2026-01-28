@@ -29,7 +29,9 @@ def _info_for_uri(fs: fsspec.AbstractFileSystem, path: str) -> dict[str, Any]:
         raise RecoverableError(f"Failed to stat {path}: {exc}") from exc
 
 
-def _extract_metadata(info: dict[str, Any]) -> tuple[str | None, str | None, str | None, dict[str, str] | None, int | None]:
+def _extract_metadata(
+    info: dict[str, Any],
+) -> tuple[str | None, str | None, str | None, dict[str, str] | None, int | None]:
     size = info.get("size") or info.get("Size")
     content_type = info.get("content_type") or info.get("ContentType") or info.get(
         "contentType"
@@ -41,7 +43,13 @@ def _extract_metadata(info: dict[str, Any]) -> tuple[str | None, str | None, str
         metadata = {str(k): str(v) for k, v in metadata.items()}
     else:
         metadata = None
-    return content_type, md5_hash, crc32c, metadata, size if size is not None else None
+    return (
+        content_type,
+        md5_hash,
+        crc32c,
+        metadata,
+        size if size is not None else None,
+    )
 
 
 def download_to_tmp(
@@ -72,9 +80,7 @@ def download_to_tmp(
     except PermanentError:
         raise
     except Exception as exc:
-        raise RecoverableError(
-            f"Failed downloading {uri}: {exc}"
-        ) from exc
+        raise RecoverableError(f"Failed downloading {uri}: {exc}") from exc
 
     return DownloadResult(
         path=tmp_path,

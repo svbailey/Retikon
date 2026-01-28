@@ -59,7 +59,8 @@ class SqliteIdempotency:
             with self._connect() as conn:
                 conn.execute("BEGIN IMMEDIATE")
                 row = conn.execute(
-                    "SELECT status, attempt_count, updated_at FROM idempotency WHERE doc_id = ?",
+                    "SELECT status, attempt_count, updated_at "
+                    "FROM idempotency WHERE doc_id = ?",
                     (doc_id,),
                 ).fetchone()
 
