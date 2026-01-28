@@ -203,15 +203,15 @@ Internal helpers are included because they are still part of the codebase, but t
 ### `local_adapter/query_service.py`
 - Functions
   - `lifespan`: Function that sets up startup and shutdown hooks, so local development workflows run.
-  - `_correlation_id`: Internal helper that correlation id, so local development workflows run.
+  - `_correlation_id`: Internal helper that correlation ID, so local development workflows run.
   - `_cors_origins`: Internal helper that cors origins, so local development workflows run.
-  - `add_correlation_id`: Function that add correlation id, so local development workflows run.
-  - `_api_key_required`: Internal helper that api key required, so local development workflows run.
-  - `_get_api_key`: Internal helper that gets api key, so local development workflows run.
+  - `add_correlation_id`: Function that add correlation ID, so local development workflows run.
+  - `_api_key_required`: Internal helper that aPI key required, so local development workflows run.
+  - `_get_api_key`: Internal helper that gets API key, so local development workflows run.
   - `_authorize`: Internal helper that authorizes it, so local development workflows run.
-  - `_is_local_uri`: Internal helper that checks whether local uri, so local development workflows run.
-  - `_default_snapshot_uri`: Internal helper that builds the default snapshot uri, so local development workflows run.
-  - `_default_healthcheck_uri`: Internal helper that builds the default healthcheck uri, so local development workflows run.
+  - `_is_local_uri`: Internal helper that checks whether local URI, so local development workflows run.
+  - `_default_snapshot_uri`: Internal helper that builds the default snapshot URI, so local development workflows run.
+  - `_default_healthcheck_uri`: Internal helper that builds the default healthcheck URI, so local development workflows run.
   - `_apply_privacy_redaction`: Internal helper that applies privacy redaction, so local development workflows run.
   - `_load_snapshot`: Internal helper that loads snapshot, so local development workflows run.
   - `_resolve_modalities`: Internal helper that resolves modalities, so local development workflows run.
@@ -229,10 +229,10 @@ Internal helpers are included because they are still part of the codebase, but t
 
 ### `retikon_cli/cli.py`
 - Functions
-  - `_resolve_ingest_url`: Internal helper that builds the resolve ingest url, so users can run services from the CLI.
-  - `_resolve_query_url`: Internal helper that builds the resolve query url, so users can run services from the CLI.
-  - `_request_json`: Internal helper that request json, so users can run services from the CLI.
-  - `_print_json`: Internal helper that print json, so users can run services from the CLI.
+  - `_resolve_ingest_url`: Internal helper that resolves ingest URL, so users can run services from the CLI.
+  - `_resolve_query_url`: Internal helper that resolves query URL, so users can run services from the CLI.
+  - `_request_json`: Internal helper that request JSON, so users can run services from the CLI.
+  - `_print_json`: Internal helper that print JSON, so users can run services from the CLI.
   - `_read_env_file`: Internal helper that reads env file, so users can run services from the CLI.
   - `_append_missing_env`: Internal helper that append missing env, so users can run services from the CLI.
   - `_apply_env`: Internal helper that applies env, so users can run services from the CLI.
@@ -244,26 +244,26 @@ Internal helpers are included because they are still part of the codebase, but t
   - `_build_local_snapshot`: Internal helper that builds local snapshot, so users can run services from the CLI.
   - `_uvicorn_cmd`: Internal helper that builds the uvicorn command, so users can run services from the CLI.
   - `_run_services`: Internal helper that run services, so users can run services from the CLI.
-  - `cmd_up`: Function that runs the cli command up, so users can run services from the CLI.
-  - `cmd_daemon`: Function that runs the cli command daemon, so users can run services from the CLI.
-  - `cmd_ingest`: Function that runs the cli command ingest, so users can run services from the CLI.
+  - `cmd_up`: Function that runs the CLI command up, so users can run services from the CLI.
+  - `cmd_daemon`: Function that runs the CLI command daemon, so users can run services from the CLI.
+  - `cmd_ingest`: Function that runs the CLI command ingest, so users can run services from the CLI.
   - `_parse_metadata`: Internal helper that parses metadata, so users can run services from the CLI.
-  - `cmd_query`: Function that runs the cli command query, so users can run services from the CLI.
-  - `cmd_status`: Function that runs the cli command status, so users can run services from the CLI.
-  - `cmd_init`: Function that runs the cli command init, so users can run services from the CLI.
-  - `cmd_doctor`: Function that runs the cli command doctor, so users can run services from the CLI.
+  - `cmd_query`: Function that runs the CLI command query, so users can run services from the CLI.
+  - `cmd_status`: Function that runs the CLI command status, so users can run services from the CLI.
+  - `cmd_init`: Function that runs the CLI command init, so users can run services from the CLI.
+  - `cmd_doctor`: Function that runs the CLI command doctor, so users can run services from the CLI.
   - `build_parser`: Function that builds parser, so users can run services from the CLI.
   - `main`: Entry point that runs the module, so users can run services from the CLI.
 
 ### `retikon_core/alerts/rules.py`
 - Functions
-  - `rule_matches`: Function that rule matches, so alerts can be triggered on events.
-  - `evaluate_rules`: Function that evaluate rules, so alerts can be triggered on events.
+  - `rule_matches`: Function that checks whether rule matches, so alerts can be triggered on events.
+  - `evaluate_rules`: Function that evaluates rules, so alerts can be triggered on events.
   - `_matches_type`: Internal helper that matches type, so alerts can be triggered on events.
 
 ### `retikon_core/alerts/store.py`
 - Functions
-  - `alert_registry_uri`: Function that builds the alert registry uri, so alerts can be triggered on events.
+  - `alert_registry_uri`: Function that builds the alert registry URI, so alerts can be triggered on events.
   - `load_alerts`: Function that loads alerts, so alerts can be triggered on events.
   - `save_alerts`: Function that saves alerts, so alerts can be triggered on events.
   - `register_alert`: Function that registers alert, so alerts can be triggered on events.
@@ -295,12 +295,12 @@ Internal helpers are included because they are still part of the codebase, but t
 
 ### `retikon_core/auth/abac.py`
 - Functions
-  - `_policies_uri`: Internal helper that builds the policies uri, so access is controlled and auditable.
+  - `_policies_uri`: Internal helper that builds the policies URI, so access is controlled and auditable.
   - `load_policies`: Function that loads policies, so access is controlled and auditable.
   - `build_attributes`: Function that builds attributes, so access is controlled and auditable.
   - `is_allowed`: Function that checks whether allowed, so access is controlled and auditable.
-  - `abac_allowed`: Function that abac allowed, so access is controlled and auditable.
-  - `evaluate_policies`: Function that evaluate policies, so access is controlled and auditable.
+  - `abac_allowed`: Function that checks whether ABAC is allowed, so access is controlled and auditable.
+  - `evaluate_policies`: Function that evaluates policies, so access is controlled and auditable.
   - `_matches`: Internal helper that matches, so access is controlled and auditable.
   - `_match_value`: Internal helper that match value, so access is controlled and auditable.
   - `_coerce_dict`: Internal helper that converts dict, so access is controlled and auditable.
@@ -309,11 +309,11 @@ Internal helpers are included because they are still part of the codebase, but t
 
 ### `retikon_core/auth/authorize.py`
 - Functions
-  - `authorize_api_key`: Function that authorizes api key, so access is controlled and auditable.
+  - `authorize_api_key`: Function that authorizes API key, so access is controlled and auditable.
 
 ### `retikon_core/auth/idp.py`
 - Functions
-  - `_idp_config_uri`: Internal helper that builds the idp config uri, so access is controlled and auditable.
+  - `_idp_config_uri`: Internal helper that builds the idp config URI, so access is controlled and auditable.
   - `load_idp_configs`: Function that loads idp configs, so access is controlled and auditable.
   - `_coerce_str`: Internal helper that converts str, so access is controlled and auditable.
   - `_coerce_dict`: Internal helper that converts dict, so access is controlled and auditable.
@@ -322,7 +322,7 @@ Internal helpers are included because they are still part of the codebase, but t
 
 ### `retikon_core/auth/rbac.py`
 - Functions
-  - `_bindings_uri`: Internal helper that builds the bindings uri, so access is controlled and auditable.
+  - `_bindings_uri`: Internal helper that builds the bindings URI, so access is controlled and auditable.
   - `load_role_bindings`: Function that loads role bindings, so access is controlled and auditable.
   - `_default_role`: Internal helper that default role, so access is controlled and auditable.
   - `_permissions_for_roles`: Internal helper that permissions for roles, so access is controlled and auditable.
@@ -332,14 +332,14 @@ Internal helpers are included because they are still part of the codebase, but t
 
 ### `retikon_core/auth/store.py`
 - Functions
-  - `api_key_registry_uri`: Function that builds the api key registry uri, so access is controlled and auditable.
+  - `api_key_registry_uri`: Function that builds the API key registry URI, so access is controlled and auditable.
   - `resolve_registry_base`: Function that resolves registry base, so access is controlled and auditable.
   - `hash_key`: Function that hashes key, so access is controlled and auditable.
-  - `load_api_keys`: Function that loads api keys, so access is controlled and auditable.
-  - `save_api_keys`: Function that saves api keys, so access is controlled and auditable.
-  - `register_api_key`: Function that registers api key, so access is controlled and auditable.
-  - `find_api_key`: Function that finds api key, so access is controlled and auditable.
-  - `_api_key_from_dict`: Internal helper that builds api key from a dict, so access is controlled and auditable.
+  - `load_api_keys`: Function that loads API keys, so access is controlled and auditable.
+  - `save_api_keys`: Function that saves API keys, so access is controlled and auditable.
+  - `register_api_key`: Function that registers API key, so access is controlled and auditable.
+  - `find_api_key`: Function that finds API key, so access is controlled and auditable.
+  - `_api_key_from_dict`: Internal helper that builds API key from a dict, so access is controlled and auditable.
   - `_coerce_str`: Internal helper that converts str, so access is controlled and auditable.
 
 ### `retikon_core/auth/types.py`
@@ -360,14 +360,14 @@ Internal helpers are included because they are still part of the codebase, but t
   - `_sha256_file`: Internal helper that sha256 file, so storage stays compact and efficient.
   - `_write_local`: Internal helper that writes local, so storage stays compact and efficient.
   - `_write_remote`: Internal helper that writes remote, so storage stays compact and efficient.
-  - `_open_uri`: Internal helper that builds the open uri, so storage stays compact and efficient.
+  - `_open_uri`: Internal helper that opens URI, so storage stays compact and efficient.
   - `_read_schema`: Internal helper that reads schema, so storage stays compact and efficient.
   - `_align_table`: Internal helper that align table, so storage stays compact and efficient.
   - `unify_schema`: Function that unify schema, so storage stays compact and efficient.
   - `iter_tables`: Function that iter tables, so storage stays compact and efficient.
   - `write_parquet_tables`: Function that writes parquet tables, so storage stays compact and efficient.
-  - `delete_uri`: Function that builds the delete uri, so storage stays compact and efficient.
-  - `uri_modified_at`: Function that uri modified at, so storage stays compact and efficient.
+  - `delete_uri`: Function that deletes URI, so storage stays compact and efficient.
+  - `uri_modified_at`: Function that uRI modified at, so storage stays compact and efficient.
 - Classes
   - `ParquetWriteResult`: Data structure or helper class for Parquet Write Result, so storage stays compact and efficient.
 
@@ -382,8 +382,8 @@ Internal helpers are included because they are still part of the codebase, but t
 - Functions
   - `_glob_files`: Internal helper that glob files, so storage stays compact and efficient.
   - `_read_manifest`: Internal helper that reads manifest, so storage stays compact and efficient.
-  - `_run_id_from_manifest_uri`: Internal helper that builds the run id from manifest uri, so storage stays compact and efficient.
-  - `_parse_graph_uri`: Internal helper that builds the parse graph uri, so storage stays compact and efficient.
+  - `_run_id_from_manifest_uri`: Internal helper that builds the run ID from manifest URI, so storage stays compact and efficient.
+  - `_parse_graph_uri`: Internal helper that parses graph URI, so storage stays compact and efficient.
   - `load_manifests`: Function that loads manifests, so storage stays compact and efficient.
   - `_group_manifests`: Internal helper that group manifests, so storage stays compact and efficient.
   - `_expected_kinds`: Internal helper that expected kinds, so storage stays compact and efficient.
@@ -418,7 +418,7 @@ Internal helpers are included because they are still part of the codebase, but t
 - Classes
   - `Config`: Data structure or helper class for Config, so settings are read consistently.
     - Methods
-      - `graph_root_uri`: Function that builds the graph root uri, so settings are read consistently.
+      - `graph_root_uri`: Function that builds the graph root URI, so settings are read consistently.
       - `from_env`: Function that builds from env, so settings are read consistently.
 
 ### `retikon_core/connectors/http.py`
@@ -428,8 +428,8 @@ Internal helpers are included because they are still part of the codebase, but t
 ### `retikon_core/edge/agent.py`
 - Functions
   - `guess_content_type`: Function that guesses content type, so edge ingestion is resilient.
-  - `_post_json`: Internal helper that post json, so edge ingestion is resilient.
-  - `ingest_path`: Function that builds the ingest path, so edge ingestion is resilient.
+  - `_post_json`: Internal helper that post JSON, so edge ingestion is resilient.
+  - `ingest_path`: Function that ingests path, so edge ingestion is resilient.
   - `_iter_files`: Internal helper that iter files, so edge ingestion is resilient.
   - `_allowed_exts_from_env`: Internal helper that loads allowed exts from env, so edge ingestion is resilient.
   - `scan_and_ingest`: Function that scan and ingest, so edge ingestion is resilient.
@@ -438,7 +438,7 @@ Internal helpers are included because they are still part of the codebase, but t
 ### `retikon_core/edge/buffer.py`
 - Functions
   - `_atomic_write_bytes`: Internal helper that atomic write bytes, so edge ingestion is resilient.
-  - `_atomic_write_json`: Internal helper that atomic write json, so edge ingestion is resilient.
+  - `_atomic_write_json`: Internal helper that atomic write JSON, so edge ingestion is resilient.
 - Classes
   - `BufferItem`: Data structure or helper class for Buffer Item, so edge ingestion is resilient.
     - Methods
@@ -546,14 +546,14 @@ Internal helpers are included because they are still part of the codebase, but t
 
 ### `retikon_core/fleet/security.py`
 - Functions
-  - `evaluate_hardening`: Function that evaluate hardening, so the system works as expected.
+  - `evaluate_hardening`: Function that evaluates hardening, so the system works as expected.
   - `device_hardening`: Function that device hardening, so the system works as expected.
 - Classes
   - `HardeningCheck`: Data structure or helper class for Hardening Check, so the system works as expected.
 
 ### `retikon_core/fleet/store.py`
 - Functions
-  - `device_registry_uri`: Function that builds the device registry uri, so the system works as expected.
+  - `device_registry_uri`: Function that builds the device registry URI, so the system works as expected.
   - `load_devices`: Function that loads devices, so the system works as expected.
   - `save_devices`: Function that saves devices, so the system works as expected.
   - `register_device`: Function that registers device, so the system works as expected.
@@ -581,7 +581,7 @@ Internal helpers are included because they are still part of the codebase, but t
 
 ### `retikon_core/ingestion/download.py`
 - Functions
-  - `_info_for_uri`: Internal helper that builds the info for uri, so content can be safely ingested and processed.
+  - `_info_for_uri`: Internal helper that builds the info for URI, so content can be safely ingested and processed.
   - `_extract_metadata`: Internal helper that extracts metadata, so content can be safely ingested and processed.
   - `download_to_tmp`: Function that downloads to tmp, so content can be safely ingested and processed.
   - `cleanup_tmp`: Function that cleanup tmp, so content can be safely ingested and processed.
@@ -599,7 +599,7 @@ Internal helpers are included because they are still part of the codebase, but t
 
 ### `retikon_core/ingestion/idempotency.py`
 - Functions
-  - `build_doc_id`: Function that builds doc id, so content can be safely ingested and processed.
+  - `build_doc_id`: Function that builds doc ID, so content can be safely ingested and processed.
 - Classes
   - `IdempotencyDecision`: Data structure or helper class for Idempotency Decision, so content can be safely ingested and processed.
   - `InMemoryIdempotency`: Data structure or helper class for In Memory Idempotency, so content can be safely ingested and processed.
@@ -608,7 +608,7 @@ Internal helpers are included because they are still part of the codebase, but t
       - `begin`: Function that begin, so content can be safely ingested and processed.
       - `mark_completed`: Function that marks completed, so content can be safely ingested and processed.
       - `mark_failed`: Function that marks failed, so content can be safely ingested and processed.
-      - `mark_dlq`: Function that marks dlq, so content can be safely ingested and processed.
+      - `mark_dlq`: Function that marks DLQ, so content can be safely ingested and processed.
 
 ### `retikon_core/ingestion/idempotency_sqlite.py`
 - Classes
@@ -620,7 +620,7 @@ Internal helpers are included because they are still part of the codebase, but t
       - `begin`: Function that begin, so content can be safely ingested and processed.
       - `mark_completed`: Function that marks completed, so content can be safely ingested and processed.
       - `mark_failed`: Function that marks failed, so content can be safely ingested and processed.
-      - `mark_dlq`: Function that marks dlq, so content can be safely ingested and processed.
+      - `mark_dlq`: Function that marks DLQ, so content can be safely ingested and processed.
 
 ### `retikon_core/ingestion/media.py`
 - Functions
@@ -643,8 +643,8 @@ Internal helpers are included because they are still part of the codebase, but t
 ### `retikon_core/ingestion/ocr.py`
 - Functions
   - `_load_pytesseract`: Internal helper that loads pytesseract, so content can be safely ingested and processed.
-  - `ocr_text_from_image`: Function that ocr text from image, so content can be safely ingested and processed.
-  - `ocr_text_from_pdf`: Function that ocr text from pdf, so content can be safely ingested and processed.
+  - `ocr_text_from_image`: Function that oCR text from image, so content can be safely ingested and processed.
+  - `ocr_text_from_pdf`: Function that oCR text from pdf, so content can be safely ingested and processed.
 
 ### `retikon_core/ingestion/pipelines/audio.py`
 - Functions
@@ -672,7 +672,7 @@ Internal helpers are included because they are still part of the codebase, but t
 ### `retikon_core/ingestion/pipelines/image.py`
 - Functions
   - `_pipeline_model`: Internal helper that pipeline model, so content can be safely ingested and processed.
-  - `_thumbnail_uri`: Internal helper that builds the thumbnail uri, so content can be safely ingested and processed.
+  - `_thumbnail_uri`: Internal helper that builds the thumbnail URI, so content can be safely ingested and processed.
   - `_write_thumbnail`: Internal helper that writes thumbnail, so content can be safely ingested and processed.
   - `ingest_image`: Function that ingests image, so content can be safely ingested and processed.
 
@@ -686,7 +686,7 @@ Internal helpers are included because they are still part of the codebase, but t
   - `_image_model`: Internal helper that image model, so content can be safely ingested and processed.
   - `_audio_model`: Internal helper that audio model, so content can be safely ingested and processed.
   - `_resolve_fps`: Internal helper that resolves fps, so content can be safely ingested and processed.
-  - `_thumbnail_uri`: Internal helper that builds the thumbnail uri, so content can be safely ingested and processed.
+  - `_thumbnail_uri`: Internal helper that builds the thumbnail URI, so content can be safely ingested and processed.
   - `_write_thumbnail`: Internal helper that writes thumbnail, so content can be safely ingested and processed.
   - `ingest_video`: Function that ingests video, so content can be safely ingested and processed.
 
@@ -704,7 +704,7 @@ Internal helpers are included because they are still part of the codebase, but t
   - `pipeline_version`: Function that pipeline version, so content can be safely ingested and processed.
   - `_schema_version`: Internal helper that schema version, so content can be safely ingested and processed.
   - `_modality_for_name`: Internal helper that modality for name, so content can be safely ingested and processed.
-  - `_ensure_allowed`: Internal helper that ensures allowed, so content can be safely ingested and processed.
+  - `_ensure_allowed`: Internal helper that checks whether ensure is allowed, so content can be safely ingested and processed.
   - `_normalize_content_type`: Internal helper that cleans up content type, so content can be safely ingested and processed.
   - `_extension_for_event`: Internal helper that extension for event, so content can be safely ingested and processed.
   - `_check_size`: Internal helper that check size, so content can be safely ingested and processed.
@@ -717,13 +717,13 @@ Internal helpers are included because they are still part of the codebase, but t
 ### `retikon_core/ingestion/streaming.py`
 - Functions
   - `stream_event_to_dict`: Function that streams event to dict, so content can be safely ingested and processed.
-  - `stream_event_from_dict`: Function that builds stream event from a dict, so content can be safely ingested and processed.
+  - `stream_event_from_dict`: Function that streams event from dict, so content can be safely ingested and processed.
   - `decode_stream_batch`: Function that decode stream batch, so content can be safely ingested and processed.
   - `_coerce_int`: Internal helper that converts int, so content can be safely ingested and processed.
 - Classes
   - `StreamEvent`: Data structure or helper class for Stream Event, so content can be safely ingested and processed.
     - Methods
-      - `to_gcs_event`: Function that converts to gcs event, so content can be safely ingested and processed.
+      - `to_gcs_event`: Function that converts to GCS event, so content can be safely ingested and processed.
   - `StreamDispatchResult`: Data structure or helper class for Stream Dispatch Result, so content can be safely ingested and processed.
   - `StreamBackpressureError`: Data structure or helper class for Stream Backpressure Error, so content can be safely ingested and processed.
   - `StreamBatcher`: Data structure or helper class for Stream Batcher, so content can be safely ingested and processed.
@@ -757,7 +757,7 @@ Internal helpers are included because they are still part of the codebase, but t
 - Classes
   - `IngestSource`: Data structure or helper class for Ingest Source, so content can be safely ingested and processed.
     - Methods
-      - `uri`: Function that uri, so content can be safely ingested and processed.
+      - `uri`: Function that uRI, so content can be safely ingested and processed.
       - `extension`: Function that extension, so content can be safely ingested and processed.
 
 ### `retikon_core/logging.py`
@@ -793,7 +793,7 @@ Internal helpers are included because they are still part of the codebase, but t
 
 ### `retikon_core/privacy/store.py`
 - Functions
-  - `privacy_policy_registry_uri`: Function that builds the privacy policy registry uri, so sensitive data is protected.
+  - `privacy_policy_registry_uri`: Function that builds the privacy policy registry URI, so sensitive data is protected.
   - `load_privacy_policies`: Function that loads privacy policies, so sensitive data is protected.
   - `save_privacy_policies`: Function that saves privacy policies, so sensitive data is protected.
   - `register_privacy_policy`: Function that registers privacy policy, so sensitive data is protected.
@@ -812,13 +812,13 @@ Internal helpers are included because they are still part of the codebase, but t
 
 ### `retikon_core/query_engine/index_builder.py`
 - Functions
-  - `_parse_uri`: Internal helper that builds the parse uri, so search is fast and accurate.
+  - `_parse_uri`: Internal helper that parses URI, so search is fast and accurate.
   - `_is_remote`: Internal helper that checks whether remote, so search is fast and accurate.
   - `_glob_files`: Internal helper that glob files, so search is fast and accurate.
-  - `_normalize_uri`: Internal helper that builds the normalize uri, so search is fast and accurate.
-  - `_vertex_kind_from_uri`: Internal helper that builds the vertex kind from uri, so search is fast and accurate.
+  - `_normalize_uri`: Internal helper that cleans up URI, so search is fast and accurate.
+  - `_vertex_kind_from_uri`: Internal helper that builds the vertex kind from URI, so search is fast and accurate.
   - `_read_manifest`: Internal helper that reads manifest, so search is fast and accurate.
-  - `_localize_manifest_uri`: Internal helper that builds the localize manifest uri, so search is fast and accurate.
+  - `_localize_manifest_uri`: Internal helper that builds the localize manifest URI, so search is fast and accurate.
   - `_load_manifest_groups`: Internal helper that loads manifest groups, so search is fast and accurate.
   - `_relative_object_path`: Internal helper that builds the relative object path, so search is fast and accurate.
   - `_copy_graph_to_local`: Internal helper that copies graph to local, so search is fast and accurate.
@@ -827,10 +827,10 @@ Internal helpers are included because they are still part of the codebase, but t
   - `_file_size_bytes`: Internal helper that file size bytes, so search is fast and accurate.
   - `_write_report`: Internal helper that writes report, so search is fast and accurate.
   - `_upload_file`: Internal helper that uploads file, so search is fast and accurate.
-  - `_sql_list`: Internal helper that sql list, so search is fast and accurate.
+  - `_sql_list`: Internal helper that sQL list, so search is fast and accurate.
   - `_table_has_column`: Internal helper that table has column, so search is fast and accurate.
-  - `_configure_gcs_secret`: Internal helper that configures gcs secret, so search is fast and accurate.
-  - `_is_gcs_uri`: Internal helper that checks whether gcs uri, so search is fast and accurate.
+  - `_configure_gcs_secret`: Internal helper that configures GCS secret, so search is fast and accurate.
+  - `_is_gcs_uri`: Internal helper that checks whether GCS URI, so search is fast and accurate.
   - `build_snapshot`: Function that builds snapshot, so search is fast and accurate.
   - `_config_from_env`: Internal helper that loads config from env, so search is fast and accurate.
   - `main`: Entry point that runs the module, so search is fast and accurate.
@@ -865,9 +865,9 @@ Internal helpers are included because they are still part of the codebase, but t
 
 ### `retikon_core/query_engine/snapshot.py`
 - Functions
-  - `_sidecar_uri`: Internal helper that builds the sidecar uri, so search is fast and accurate.
+  - `_sidecar_uri`: Internal helper that builds the sidecar URI, so search is fast and accurate.
   - `_download_remote`: Internal helper that downloads remote, so search is fast and accurate.
-  - `_read_local_json`: Internal helper that reads local json, so search is fast and accurate.
+  - `_read_local_json`: Internal helper that reads local JSON, so search is fast and accurate.
   - `download_snapshot`: Function that downloads snapshot, so search is fast and accurate.
 - Classes
   - `SnapshotInfo`: Data structure or helper class for Snapshot Info, so search is fast and accurate.
@@ -876,8 +876,8 @@ Internal helpers are included because they are still part of the codebase, but t
 - Functions
   - `_load_extension`: Internal helper that loads extension, so search is fast and accurate.
   - `load_extensions`: Function that loads extensions, so search is fast and accurate.
-  - `_configure_gcs_secret`: Internal helper that configures gcs secret, so search is fast and accurate.
-  - `_is_gcs_uri`: Internal helper that checks whether gcs uri, so search is fast and accurate.
+  - `_configure_gcs_secret`: Internal helper that configures GCS secret, so search is fast and accurate.
+  - `_is_gcs_uri`: Internal helper that checks whether GCS URI, so search is fast and accurate.
   - `get_secure_connection`: Function that gets secure connection, so search is fast and accurate.
 - Classes
   - `DuckDBAuthInfo`: Data structure or helper class for Duck D B Auth Info, so search is fast and accurate.
@@ -915,7 +915,7 @@ Internal helpers are included because they are still part of the codebase, but t
 - Classes
   - `ObjectStore`: Data structure or helper class for Object Store, so data is stored in the GraphAr layout.
     - Methods
-      - `from_base_uri`: Function that builds the from base uri, so data is stored in the GraphAr layout.
+      - `from_base_uri`: Function that builds the from base URI, so data is stored in the GraphAr layout.
       - `join`: Function that join, so data is stored in the GraphAr layout.
       - `open`: Function that opens it, so data is stored in the GraphAr layout.
       - `makedirs`: Function that makedirs, so data is stored in the GraphAr layout.
@@ -925,13 +925,13 @@ Internal helpers are included because they are still part of the codebase, but t
   - `_strip_slashes`: Internal helper that strip slashes, so data is stored in the GraphAr layout.
   - `_join_parts`: Internal helper that join parts, so data is stored in the GraphAr layout.
   - `graph_root`: Function that graph root, so data is stored in the GraphAr layout.
-  - `join_uri`: Function that builds the join uri, so data is stored in the GraphAr layout.
+  - `join_uri`: Function that builds the join URI, so data is stored in the GraphAr layout.
   - `vertex_dir`: Function that builds the vertex directory, so data is stored in the GraphAr layout.
   - `edge_dir`: Function that builds the edge directory, so data is stored in the GraphAr layout.
   - `part_filename`: Function that part filename, so data is stored in the GraphAr layout.
-  - `vertex_part_uri`: Function that builds the vertex part uri, so data is stored in the GraphAr layout.
-  - `edge_part_uri`: Function that builds the edge part uri, so data is stored in the GraphAr layout.
-  - `manifest_uri`: Function that builds the manifest uri, so data is stored in the GraphAr layout.
+  - `vertex_part_uri`: Function that builds the vertex part URI, so data is stored in the GraphAr layout.
+  - `edge_part_uri`: Function that builds the edge part URI, so data is stored in the GraphAr layout.
+  - `manifest_uri`: Function that builds the manifest URI, so data is stored in the GraphAr layout.
 - Classes
   - `GraphPaths`: Data structure or helper class for Graph Paths, so data is stored in the GraphAr layout.
     - Methods
@@ -1005,7 +1005,7 @@ Internal helpers are included because they are still part of the codebase, but t
 
 ### `retikon_core/webhooks/store.py`
 - Functions
-  - `webhook_registry_uri`: Function that builds the webhook registry uri, so events can be delivered to external systems.
+  - `webhook_registry_uri`: Function that builds the webhook registry URI, so events can be delivered to external systems.
   - `load_webhooks`: Function that loads webhooks, so events can be delivered to external systems.
   - `save_webhooks`: Function that saves webhooks, so events can be delivered to external systems.
   - `register_webhook`: Function that registers webhook, so events can be delivered to external systems.
@@ -1038,35 +1038,35 @@ Internal helpers are included because they are still part of the codebase, but t
 ### `frontend/dev-console/src/App.tsx`
 - Functions
   - `App`: Function that app, so the dev console UI can guide workflows.
-  - `resizeImage`: Function that resizeimage, so the dev console UI can guide workflows.
-  - `statusLabel`: Function that statuslabel, so the dev console UI can guide workflows.
-  - `toPercent`: Function that topercent, so the dev console UI can guide workflows.
-  - `addActivity`: Function that addactivity, so the dev console UI can guide workflows.
-  - `applyManualUri`: Function that applymanualuri, so the dev console UI can guide workflows.
-  - `copyCurl`: Function that copycurl, so the dev console UI can guide workflows.
-  - `copyIndexCommand`: Function that copyindexcommand, so the dev console UI can guide workflows.
-  - `copyUploadCommand`: Function that copyuploadcommand, so the dev console UI can guide workflows.
-  - `curlCommand`: Function that curlcommand, so the dev console UI can guide workflows.
-  - `devHeaders`: Function that devheaders, so the dev console UI can guide workflows.
-  - `fetchAuditLogs`: Function that fetchauditlogs, so the dev console UI can guide workflows.
-  - `fetchFleetDevices`: Function that fetchfleetdevices, so the dev console UI can guide workflows.
-  - `fetchFleetRollout`: Function that fetchfleetrollout, so the dev console UI can guide workflows.
-  - `fetchGraphObject`: Function that fetchgraphobject, so the dev console UI can guide workflows.
-  - `fetchIndexStatus`: Function that fetchindexstatus, so the dev console UI can guide workflows.
-  - `fetchIngestStatus`: Function that fetchingeststatus, so the dev console UI can guide workflows.
-  - `fetchKeyframes`: Function that fetchkeyframes, so the dev console UI can guide workflows.
-  - `fetchManifest`: Function that fetchmanifest, so the dev console UI can guide workflows.
-  - `fetchParquetPreview`: Function that fetchparquetpreview, so the dev console UI can guide workflows.
-  - `fetchPrivacyPolicies`: Function that fetchprivacypolicies, so the dev console UI can guide workflows.
-  - `fetchSnapshotStatus`: Function that fetchsnapshotstatus, so the dev console UI can guide workflows.
-  - `handleImageChange`: Function that handleimagechange, so the dev console UI can guide workflows.
-  - `handleLocalIngest`: Function that handlelocalingest, so the dev console UI can guide workflows.
-  - `handleSubmit`: Function that handlesubmit, so the dev console UI can guide workflows.
-  - `handleUpload`: Function that handleupload, so the dev console UI can guide workflows.
-  - `loadVideoPreview`: Function that loadvideopreview, so the dev console UI can guide workflows.
-  - `previewObject`: Function that previewobject, so the dev console UI can guide workflows.
-  - `reloadSnapshot`: Function that reloadsnapshot, so the dev console UI can guide workflows.
-  - `triggerIndex`: Function that triggerindex, so the dev console UI can guide workflows.
+  - `resizeImage`: Function that resizeImage, so the dev console UI can guide workflows.
+  - `statusLabel`: Function that statusLabel, so the dev console UI can guide workflows.
+  - `toPercent`: Function that toPercent, so the dev console UI can guide workflows.
+  - `addActivity`: Function that addActivity, so the dev console UI can guide workflows.
+  - `applyManualUri`: Function that applyManualUri, so the dev console UI can guide workflows.
+  - `copyCurl`: Function that copyCurl, so the dev console UI can guide workflows.
+  - `copyIndexCommand`: Function that copyIndexCommand, so the dev console UI can guide workflows.
+  - `copyUploadCommand`: Function that copyUploadCommand, so the dev console UI can guide workflows.
+  - `curlCommand`: Function that curlCommand, so the dev console UI can guide workflows.
+  - `devHeaders`: Function that devHeaders, so the dev console UI can guide workflows.
+  - `fetchAuditLogs`: Function that fetchAuditLogs, so the dev console UI can guide workflows.
+  - `fetchFleetDevices`: Function that fetchFleetDevices, so the dev console UI can guide workflows.
+  - `fetchFleetRollout`: Function that fetchFleetRollout, so the dev console UI can guide workflows.
+  - `fetchGraphObject`: Function that fetchGraphObject, so the dev console UI can guide workflows.
+  - `fetchIndexStatus`: Function that fetchIndexStatus, so the dev console UI can guide workflows.
+  - `fetchIngestStatus`: Function that fetchIngestStatus, so the dev console UI can guide workflows.
+  - `fetchKeyframes`: Function that fetchKeyframes, so the dev console UI can guide workflows.
+  - `fetchManifest`: Function that fetchManifest, so the dev console UI can guide workflows.
+  - `fetchParquetPreview`: Function that fetchParquetPreview, so the dev console UI can guide workflows.
+  - `fetchPrivacyPolicies`: Function that fetchPrivacyPolicies, so the dev console UI can guide workflows.
+  - `fetchSnapshotStatus`: Function that fetchSnapshotStatus, so the dev console UI can guide workflows.
+  - `handleImageChange`: Function that handleImageChange, so the dev console UI can guide workflows.
+  - `handleLocalIngest`: Function that handleLocalIngest, so the dev console UI can guide workflows.
+  - `handleSubmit`: Function that handleSubmit, so the dev console UI can guide workflows.
+  - `handleUpload`: Function that handleUpload, so the dev console UI can guide workflows.
+  - `loadVideoPreview`: Function that loadVideoPreview, so the dev console UI can guide workflows.
+  - `previewObject`: Function that previewObject, so the dev console UI can guide workflows.
+  - `reloadSnapshot`: Function that reloadSnapshot, so the dev console UI can guide workflows.
+  - `triggerIndex`: Function that triggerIndex, so the dev console UI can guide workflows.
 
 
 ### `sdk/js/index.js`
@@ -1078,7 +1078,7 @@ Internal helpers are included because they are still part of the codebase, but t
       - `ingest`: Accepts content to ingest and starts processing, so clients can call the APIs from JavaScript.
       - `query`: Runs a search request and returns results, so clients can call the APIs from JavaScript.
       - `health`: Reports service health, so clients can call the APIs from JavaScript.
-      - `reloadSnapshot`: Function that reloadsnapshot, so clients can call the APIs from JavaScript.
+      - `reloadSnapshot`: Function that reloadSnapshot, so clients can call the APIs from JavaScript.
 
 
 ## 6) Function Catalog (Pro)
@@ -1087,11 +1087,11 @@ Internal helpers are included because they are still part of the codebase, but t
 - Functions
   - `lifespan`: Function that sets up startup and shutdown hooks, so audit access and exports are available.
   - `_cors_origins`: Internal helper that cors origins, so audit access and exports are available.
-  - `_api_key_required`: Internal helper that api key required, so audit access and exports are available.
+  - `_api_key_required`: Internal helper that aPI key required, so audit access and exports are available.
   - `_require_admin`: Internal helper that require admin, so audit access and exports are available.
-  - `_audit_api_key`: Internal helper that audit api key, so audit access and exports are available.
-  - `_graph_uri`: Internal helper that builds the graph uri, so audit access and exports are available.
-  - `_healthcheck_uri`: Internal helper that builds the healthcheck uri, so audit access and exports are available.
+  - `_audit_api_key`: Internal helper that audit API key, so audit access and exports are available.
+  - `_graph_uri`: Internal helper that builds the graph URI, so audit access and exports are available.
+  - `_healthcheck_uri`: Internal helper that builds the healthcheck URI, so audit access and exports are available.
   - `_authorize`: Internal helper that authorizes it, so audit access and exports are available.
   - `_open_conn`: Internal helper that opens conn, so audit access and exports are available.
   - `_glob_exists`: Internal helper that glob exists, so audit access and exports are available.
@@ -1114,23 +1114,23 @@ Internal helpers are included because they are still part of the codebase, but t
 
 ### `gcp_adapter/compaction_service.py`
 - Functions
-  - `_graph_uri`: Internal helper that builds the graph uri, so compaction jobs run in the managed service.
+  - `_graph_uri`: Internal helper that builds the graph URI, so compaction jobs run in the managed service.
   - `main`: Entry point that runs the module, so compaction jobs run in the managed service.
 
 ### `gcp_adapter/dev_console_service.py`
 - Functions
   - `_cors_origins`: Internal helper that cors origins, so the dev console can upload and inspect data.
-  - `_require_api_key`: Internal helper that require api key, so the dev console can upload and inspect data.
-  - `_project_id`: Internal helper that project id, so the dev console can upload and inspect data.
+  - `_require_api_key`: Internal helper that require API key, so the dev console can upload and inspect data.
+  - `_project_id`: Internal helper that project ID, so the dev console can upload and inspect data.
   - `_graph_settings`: Internal helper that graph settings, so the dev console can upload and inspect data.
   - `_raw_bucket`: Internal helper that raw bucket, so the dev console can upload and inspect data.
   - `_raw_prefix`: Internal helper that raw prefix, so the dev console can upload and inspect data.
   - `_max_raw_bytes`: Internal helper that max raw bytes, so the dev console can upload and inspect data.
   - `_max_preview_bytes`: Internal helper that max preview bytes, so the dev console can upload and inspect data.
-  - `_query_service_url`: Internal helper that builds the query service url, so the dev console can upload and inspect data.
-  - `_parse_gs_uri`: Internal helper that builds the parse gs uri, so the dev console can upload and inspect data.
-  - `_ensure_graph_uri`: Internal helper that builds the ensure graph uri, so the dev console can upload and inspect data.
-  - `_ensure_raw_uri`: Internal helper that builds the ensure raw uri, so the dev console can upload and inspect data.
+  - `_query_service_url`: Internal helper that runs a search for service URL, so the dev console can upload and inspect data.
+  - `_parse_gs_uri`: Internal helper that parses gs URI, so the dev console can upload and inspect data.
+  - `_ensure_graph_uri`: Internal helper that ensures graph URI, so the dev console can upload and inspect data.
+  - `_ensure_raw_uri`: Internal helper that ensures raw URI, so the dev console can upload and inspect data.
   - `_format_value`: Internal helper that format value, so the dev console can upload and inspect data.
   - `_preview_parquet`: Internal helper that preview parquet, so the dev console can upload and inspect data.
   - `_firestore_collection`: Internal helper that firestore collection, so the dev console can upload and inspect data.
@@ -1165,7 +1165,7 @@ Internal helpers are included because they are still part of the codebase, but t
   - `_buffer_ttl_seconds`: Internal helper that buffer ttl seconds, so edge gateways can buffer and upload safely.
   - `_raw_prefix`: Internal helper that raw prefix, so edge gateways can buffer and upload safely.
   - `_raw_bucket`: Internal helper that raw bucket, so edge gateways can buffer and upload safely.
-  - `_raw_base_uri`: Internal helper that builds the raw base uri, so edge gateways can buffer and upload safely.
+  - `_raw_base_uri`: Internal helper that builds the raw base URI, so edge gateways can buffer and upload safely.
   - `_max_raw_bytes`: Internal helper that max raw bytes, so edge gateways can buffer and upload safely.
   - `_force_buffer`: Internal helper that force buffer, so edge gateways can buffer and upload safely.
   - `_init_state`: Internal helper that init state, so edge gateways can buffer and upload safely.
@@ -1191,9 +1191,9 @@ Internal helpers are included because they are still part of the codebase, but t
 ### `gcp_adapter/fleet_service.py`
 - Functions
   - `_cors_origins`: Internal helper that cors origins, so the system works as expected.
-  - `_api_key_required`: Internal helper that api key required, so the system works as expected.
+  - `_api_key_required`: Internal helper that aPI key required, so the system works as expected.
   - `_require_admin`: Internal helper that require admin, so the system works as expected.
-  - `_fleet_api_key`: Internal helper that fleet api key, so the system works as expected.
+  - `_fleet_api_key`: Internal helper that fleet API key, so the system works as expected.
   - `_authorize`: Internal helper that authorizes it, so the system works as expected.
   - `_get_config`: Internal helper that gets config, so the system works as expected.
   - `_device_response`: Internal helper that device response, so the system works as expected.
@@ -1224,27 +1224,27 @@ Internal helpers are included because they are still part of the codebase, but t
       - `begin`: Function that begin, so idempotency is enforced with Firestore.
       - `mark_completed`: Function that marks completed, so idempotency is enforced with Firestore.
       - `mark_failed`: Function that marks failed, so idempotency is enforced with Firestore.
-      - `mark_dlq`: Function that marks dlq, so idempotency is enforced with Firestore.
+      - `mark_dlq`: Function that marks DLQ, so idempotency is enforced with Firestore.
 
 ### `gcp_adapter/ingestion_service.py`
 - Functions
-  - `_correlation_id`: Internal helper that correlation id, so ingestion runs securely in the managed service.
+  - `_correlation_id`: Internal helper that correlation ID, so ingestion runs securely in the managed service.
   - `_require_ingest_auth`: Internal helper that require ingest auth, so ingestion runs securely in the managed service.
-  - `_ingest_api_key`: Internal helper that ingests api key, so ingestion runs securely in the managed service.
+  - `_ingest_api_key`: Internal helper that ingests API key, so ingestion runs securely in the managed service.
   - `_authorize_ingest`: Internal helper that authorizes ingest, so ingestion runs securely in the managed service.
-  - `_rbac_enabled`: Internal helper that checks whether rbac is enabled, so ingestion runs securely in the managed service.
-  - `_abac_enabled`: Internal helper that checks whether abac is enabled, so ingestion runs securely in the managed service.
+  - `_rbac_enabled`: Internal helper that checks whether RBAC is enabled, so ingestion runs securely in the managed service.
+  - `_abac_enabled`: Internal helper that checks whether ABAC is enabled, so ingestion runs securely in the managed service.
   - `_enforce_access`: Internal helper that enforces access, so ingestion runs securely in the managed service.
   - `_metering_enabled`: Internal helper that checks whether metering is enabled, so ingestion runs securely in the managed service.
   - `_audit_logging_enabled`: Internal helper that checks whether audit logging is enabled, so ingestion runs securely in the managed service.
   - `_schema_version`: Internal helper that schema version, so ingestion runs securely in the managed service.
   - `_default_scope`: Internal helper that default scope, so ingestion runs securely in the managed service.
-  - `add_correlation_id`: Function that add correlation id, so ingestion runs securely in the managed service.
+  - `add_correlation_id`: Function that add correlation ID, so ingestion runs securely in the managed service.
   - `health`: Reports service health, so ingestion runs securely in the managed service.
   - `ingest`: Accepts content to ingest and starts processing, so ingestion runs securely in the managed service.
   - `_coerce_cloudevent`: Internal helper that converts cloudevent, so ingestion runs securely in the managed service.
-  - `_get_dlq_publisher`: Internal helper that gets dlq publisher, so ingestion runs securely in the managed service.
-  - `_publish_dlq`: Internal helper that sends dlq, so ingestion runs securely in the managed service.
+  - `_get_dlq_publisher`: Internal helper that gets DLQ publisher, so ingestion runs securely in the managed service.
+  - `_publish_dlq`: Internal helper that sends DLQ, so ingestion runs securely in the managed service.
   - `_modality_from_name`: Internal helper that modality from name, so ingestion runs securely in the managed service.
 - Classes
   - `HealthResponse`: Data structure or helper class for Health Response, so ingestion runs securely in the managed service.
@@ -1253,9 +1253,9 @@ Internal helpers are included because they are still part of the codebase, but t
 ### `gcp_adapter/privacy_service.py`
 - Functions
   - `_cors_origins`: Internal helper that cors origins, so privacy policies can be managed.
-  - `_api_key_required`: Internal helper that api key required, so privacy policies can be managed.
+  - `_api_key_required`: Internal helper that aPI key required, so privacy policies can be managed.
   - `_require_admin`: Internal helper that require admin, so privacy policies can be managed.
-  - `_privacy_api_key`: Internal helper that privacy api key, so privacy policies can be managed.
+  - `_privacy_api_key`: Internal helper that privacy API key, so privacy policies can be managed.
   - `_authorize`: Internal helper that authorizes it, so privacy policies can be managed.
   - `_get_config`: Internal helper that gets config, so privacy policies can be managed.
   - `_policy_response`: Internal helper that policy response, so privacy policies can be managed.
@@ -1276,20 +1276,20 @@ Internal helpers are included because they are still part of the codebase, but t
     - Methods
       - `__init__`: Sets up the object, so events can be published to Pub/Sub.
       - `publish`: Function that sends it, so events can be published to Pub/Sub.
-      - `publish_json`: Function that sends json, so events can be published to Pub/Sub.
+      - `publish_json`: Function that sends JSON, so events can be published to Pub/Sub.
 
 ### `gcp_adapter/query_service.py`
 - Functions
   - `lifespan`: Function that sets up startup and shutdown hooks, so queries run securely in the managed service.
-  - `_correlation_id`: Internal helper that correlation id, so queries run securely in the managed service.
+  - `_correlation_id`: Internal helper that correlation ID, so queries run securely in the managed service.
   - `_cors_origins`: Internal helper that cors origins, so queries run securely in the managed service.
-  - `add_correlation_id`: Function that add correlation id, so queries run securely in the managed service.
-  - `_api_key_required`: Internal helper that api key required, so queries run securely in the managed service.
-  - `_get_api_key`: Internal helper that gets api key, so queries run securely in the managed service.
-  - `_graph_root_uri`: Internal helper that builds the graph root uri, so queries run securely in the managed service.
+  - `add_correlation_id`: Function that add correlation ID, so queries run securely in the managed service.
+  - `_api_key_required`: Internal helper that aPI key required, so queries run securely in the managed service.
+  - `_get_api_key`: Internal helper that gets API key, so queries run securely in the managed service.
+  - `_graph_root_uri`: Internal helper that builds the graph root URI, so queries run securely in the managed service.
   - `_authorize`: Internal helper that authorizes it, so queries run securely in the managed service.
-  - `_rbac_enabled`: Internal helper that checks whether rbac is enabled, so queries run securely in the managed service.
-  - `_abac_enabled`: Internal helper that checks whether abac is enabled, so queries run securely in the managed service.
+  - `_rbac_enabled`: Internal helper that checks whether RBAC is enabled, so queries run securely in the managed service.
+  - `_abac_enabled`: Internal helper that checks whether ABAC is enabled, so queries run securely in the managed service.
   - `_enforce_access`: Internal helper that enforces access, so queries run securely in the managed service.
   - `_metering_enabled`: Internal helper that checks whether metering is enabled, so queries run securely in the managed service.
   - `_audit_logging_enabled`: Internal helper that checks whether audit logging is enabled, so queries run securely in the managed service.
@@ -1312,19 +1312,19 @@ Internal helpers are included because they are still part of the codebase, but t
 
 ### `gcp_adapter/queue_pubsub.py`
 - Functions
-  - `parse_pubsub_push`: Function that parses pub/sub push, so Pub/Sub push messages are handled.
+  - `parse_pubsub_push`: Function that parses Pub/Sub push, so Pub/Sub push messages are handled.
 - Classes
   - `PubSubPushEnvelope`: Data structure or helper class for Pub Sub Push Envelope, so Pub/Sub push messages are handled.
   - `PubSubPublisher`: Data structure or helper class for Pub Sub Publisher, so Pub/Sub push messages are handled.
     - Methods
       - `__init__`: Sets up the object, so Pub/Sub push messages are handled.
       - `publish`: Function that sends it, so Pub/Sub push messages are handled.
-      - `publish_json`: Function that sends json, so Pub/Sub push messages are handled.
+      - `publish_json`: Function that sends JSON, so Pub/Sub push messages are handled.
 
 ### `gcp_adapter/stream_ingest_service.py`
 - Functions
-  - `_correlation_id`: Internal helper that correlation id, so streaming ingestion is reliable.
-  - `add_correlation_id`: Function that add correlation id, so streaming ingestion is reliable.
+  - `_correlation_id`: Internal helper that correlation ID, so streaming ingestion is reliable.
+  - `add_correlation_id`: Function that add correlation ID, so streaming ingestion is reliable.
   - `_stream_topic`: Internal helper that streams topic, so streaming ingestion is reliable.
   - `_batch_max`: Internal helper that batch max, so streaming ingestion is reliable.
   - `_batch_latency_ms`: Internal helper that batch latency ms, so streaming ingestion is reliable.
@@ -1339,8 +1339,8 @@ Internal helpers are included because they are still part of the codebase, but t
   - `ingest_stream`: Function that ingests stream, so streaming ingestion is reliable.
   - `ingest_stream_push`: Function that ingests stream push, so streaming ingestion is reliable.
   - `_parse_stream_events`: Internal helper that parses stream events, so streaming ingestion is reliable.
-  - `_get_dlq_publisher`: Internal helper that gets dlq publisher, so streaming ingestion is reliable.
-  - `_publish_dlq`: Internal helper that sends dlq, so streaming ingestion is reliable.
+  - `_get_dlq_publisher`: Internal helper that gets DLQ publisher, so streaming ingestion is reliable.
+  - `_publish_dlq`: Internal helper that sends DLQ, so streaming ingestion is reliable.
 - Classes
   - `HealthResponse`: Data structure or helper class for Health Response, so streaming ingestion is reliable.
   - `StreamIngestResponse`: Data structure or helper class for Stream Ingest Response, so streaming ingestion is reliable.
@@ -1348,8 +1348,8 @@ Internal helpers are included because they are still part of the codebase, but t
 
 ### `gcp_adapter/webhook_service.py`
 - Functions
-  - `_correlation_id`: Internal helper that correlation id, so webhooks and alerts are managed.
-  - `add_correlation_id`: Function that add correlation id, so webhooks and alerts are managed.
+  - `_correlation_id`: Internal helper that correlation ID, so webhooks and alerts are managed.
+  - `add_correlation_id`: Function that add correlation ID, so webhooks and alerts are managed.
   - `health`: Reports service health, so webhooks and alerts are managed.
   - `list_webhooks`: Function that lists webhooks, so webhooks and alerts are managed.
   - `create_webhook`: Function that creates webhook, so webhooks and alerts are managed.
@@ -1362,9 +1362,9 @@ Internal helpers are included because they are still part of the codebase, but t
   - `_webhook_response`: Internal helper that webhook response, so webhooks and alerts are managed.
   - `_alert_response`: Internal helper that alert response, so webhooks and alerts are managed.
   - `_resolve_webhooks`: Internal helper that resolves webhooks, so webhooks and alerts are managed.
-  - `_resolve_pubsub_topics`: Internal helper that resolves pub/sub topics, so webhooks and alerts are managed.
+  - `_resolve_pubsub_topics`: Internal helper that resolves Pub/Sub topics, so webhooks and alerts are managed.
   - `_accepts_event`: Internal helper that accepts event, so webhooks and alerts are managed.
-  - `_publish_pubsub`: Internal helper that sends pub/sub, so webhooks and alerts are managed.
+  - `_publish_pubsub`: Internal helper that sends Pub/Sub, so webhooks and alerts are managed.
 - Classes
   - `HealthResponse`: Data structure or helper class for Health Response, so webhooks and alerts are managed.
   - `WebhookCreateRequest`: Data structure or helper class for Webhook Create Request, so webhooks and alerts are managed.
@@ -1395,7 +1395,7 @@ Internal helpers are included because they are still part of the codebase, but t
 ### `scripts/gcp_smoke_test.py`
 - Functions
   - `_run`: Internal helper that run, so operational tooling can be run by engineers.
-  - `_run_json`: Internal helper that run json, so operational tooling can be run by engineers.
+  - `_run_json`: Internal helper that run JSON, so operational tooling can be run by engineers.
   - `_env`: Internal helper that env, so operational tooling can be run by engineers.
   - `_upload_sample`: Internal helper that uploads sample, so operational tooling can be run by engineers.
   - `_object_meta`: Internal helper that object meta, so operational tooling can be run by engineers.
@@ -1405,7 +1405,7 @@ Internal helpers are included because they are still part of the codebase, but t
   - `_read_manifest`: Internal helper that reads manifest, so operational tooling can be run by engineers.
   - `_delete_object`: Internal helper that deletes object, so operational tooling can be run by engineers.
   - `_delete_manifest_outputs`: Internal helper that deletes manifest outputs, so operational tooling can be run by engineers.
-  - `_publish_dlq`: Internal helper that sends dlq, so operational tooling can be run by engineers.
+  - `_publish_dlq`: Internal helper that sends DLQ, so operational tooling can be run by engineers.
   - `main`: Entry point that runs the module, so operational tooling can be run by engineers.
 - Classes
   - `SmokeContext`: Data structure or helper class for Smoke Context, so operational tooling can be run by engineers.
@@ -1415,7 +1415,7 @@ Internal helpers are included because they are still part of the codebase, but t
   - `_percentile`: Internal helper that percentile, so operational tooling can be run by engineers.
   - `_classify`: Internal helper that classify, so operational tooling can be run by engineers.
   - `_iter_files`: Internal helper that iter files, so operational tooling can be run by engineers.
-  - `_doc_id`: Internal helper that doc id, so operational tooling can be run by engineers.
+  - `_doc_id`: Internal helper that doc ID, so operational tooling can be run by engineers.
   - `_upload_object`: Internal helper that uploads object, so operational tooling can be run by engineers.
   - `_poll_firestore`: Internal helper that poll firestore, so operational tooling can be run by engineers.
   - `_repeat_files`: Internal helper that repeat files, so operational tooling can be run by engineers.
