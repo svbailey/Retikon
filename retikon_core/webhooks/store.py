@@ -91,7 +91,7 @@ def update_webhook(
     return webhook
 
 
-def _normalize_event_types(event_types: Iterable[str] | None) -> tuple[str, ...] | None:
+def _normalize_event_types(event_types: Iterable[object] | None) -> tuple[str, ...] | None:
     if not event_types:
         return None
     items = [str(item).strip() for item in event_types if str(item).strip()]
@@ -101,28 +101,49 @@ def _normalize_event_types(event_types: Iterable[str] | None) -> tuple[str, ...]
 
 
 def _webhook_from_dict(payload: dict[str, object]) -> WebhookRegistration:
+    raw_event_types = _coerce_iterable(payload.get("event_types"))
     return WebhookRegistration(
         id=str(payload.get("id")),
         name=str(payload.get("name", "")),
         url=str(payload.get("url", "")),
-        secret=payload.get("secret") if payload.get("secret") else None,
-        event_types=_normalize_event_types(payload.get("event_types")),
+        secret=_coerce_optional_str(payload.get("secret")),
+        event_types=_normalize_event_types(raw_event_types),
         enabled=bool(payload.get("enabled", True)),
         created_at=str(payload.get("created_at", "")),
         updated_at=str(payload.get("updated_at", "")),
-        headers=(
-            payload.get("headers")
-            if isinstance(payload.get("headers"), dict)
-            else None
-        ),
+        headers=_coerce_headers(payload.get("headers")),
         timeout_s=_coerce_float(payload.get("timeout_s")),
     )
+
+
+def _coerce_optional_str(value: object) -> str | None:
+    if value is None:
+        return None
+    text = str(value).strip()
+    return text or None
+
+
+def _coerce_iterable(value: object) -> Iterable[object] | None:
+    if isinstance(value, (list, tuple, set)):
+        return value
+    return None
+
+
+def _coerce_headers(value: object) -> dict[str, str] | None:
+    if not isinstance(value, dict):
+        return None
+    cleaned: dict[str, str] = {}
+    for key, item in value.items():
+        cleaned[str(key)] = str(item)
+    return cleaned or None
 
 
 def _coerce_float(value: object) -> float | None:
     if value is None:
         return None
-    try:
-        return float(value)
-    except (TypeError, ValueError):
-        return None
+    if isinstance(value, (int, float, str)):
+        try:
+            return float(value)
+        except (TypeError, ValueError):
+            return None
+    return None

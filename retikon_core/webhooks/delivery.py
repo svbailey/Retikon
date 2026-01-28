@@ -79,8 +79,15 @@ def deliver_webhook(
         try:
             request = Request(webhook.url, data=body, headers=headers, method="POST")
             with urlopen(request, timeout=options.timeout_s) as response:
-                status_code = getattr(response, "status", None) or response.getcode()
-                status = "success" if 200 <= status_code < 300 else "failed"
+                raw_status = getattr(response, "status", None)
+                if raw_status is None:
+                    raw_status = response.getcode()
+                if raw_status is None:
+                    status_code = None
+                    status = "failed"
+                else:
+                    status_code = int(raw_status)
+                    status = "success" if 200 <= status_code < 300 else "failed"
         except HTTPError as exc:
             status_code = exc.code
             status = "failed"

@@ -33,6 +33,5 @@ def authorize_api_key(
         site_id=match.site_id,
         stream_id=match.stream_id,
     )
-    if scope.is_empty():
-        scope = None
-    return AuthContext(api_key_id=match.id, scope=scope, is_admin=match.is_admin)
+    scope_value: TenantScope | None = None if scope.is_empty() else scope
+    return AuthContext(api_key_id=match.id, scope=scope_value, is_admin=match.is_admin)

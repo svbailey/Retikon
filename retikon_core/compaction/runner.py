@@ -59,7 +59,8 @@ def _glob_files(pattern: str) -> list[str]:
 def _read_manifest(uri: str) -> dict[str, object]:
     fs, path = fsspec.core.url_to_fs(uri)
     with fs.open(path, "rb") as handle:
-        return json.load(handle)
+        payload = json.load(handle)
+    return payload if isinstance(payload, dict) else {}
 
 
 def _run_id_from_manifest_uri(uri: str) -> str:
@@ -95,28 +96,37 @@ def load_manifests(base_uri: str) -> list[ManifestInfo]:
     for manifest_path in manifest_uris:
         data = _read_manifest(manifest_path)
         files: list[ManifestFile] = []
-        for item in data.get("files", []):
-            uri = item.get("uri")
-            if not uri:
-                continue
-            files.append(
-                ManifestFile(
-                    uri=str(uri),
-                    rows=int(item.get("rows", 0)),
-                    bytes_written=int(item.get("bytes_written", 0)),
-                    sha256=str(item.get("sha256", "")),
+        files_raw = data.get("files")
+        if isinstance(files_raw, list):
+            for item in files_raw:
+                if not isinstance(item, dict):
+                    continue
+                uri = item.get("uri")
+                if not uri:
+                    continue
+                files.append(
+                    ManifestFile(
+                        uri=str(uri),
+                        rows=int(item.get("rows", 0)),
+                        bytes_written=int(item.get("bytes_written", 0)),
+                        sha256=str(item.get("sha256", "")),
+                    )
                 )
-            )
+        counts_raw = data.get("counts")
+        counts: dict[str, int] = {}
+        if isinstance(counts_raw, dict):
+            for key, value in counts_raw.items():
+                try:
+                    counts[str(key)] = int(value)
+                except (TypeError, ValueError):
+                    continue
         manifests.append(
             ManifestInfo(
                 uri=manifest_path,
                 run_id=_run_id_from_manifest_uri(manifest_path),
-                pipeline_version=str(data.get("pipeline_version", "")),
-                schema_version=str(data.get("schema_version", "")),
-                counts={
-                    str(key): int(value)
-                    for key, value in data.get("counts", {}).items()
-                },
+                pipeline_version=str(data.get("pipeline_version") or ""),
+                schema_version=str(data.get("schema_version") or ""),
+                counts=counts,
                 files=files,
             )
         )
@@ -323,9 +333,10 @@ def run_compaction(
 ) -> CompactionReport:
     policy = policy or CompactionPolicy.from_env()
     retention_policy = retention_policy or RetentionPolicy.from_env()
-    pipeline_version = pipeline_version or os.getenv(
-        "COMPACTION_PIPELINE_VERSION", "compaction"
+    raw_pipeline = pipeline_version if pipeline_version is not None else os.getenv(
+        "COMPACTION_PIPELINE_VERSION"
     )
+    pipeline_version = raw_pipeline or "compaction"
 
     configure_logging(
         service=SERVICE_NAME,

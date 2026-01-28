@@ -87,7 +87,7 @@ def update_alert(*, base_uri: str, rule: AlertRule) -> AlertRule:
     return rule
 
 
-def _normalize_list(items: Iterable[str] | None) -> tuple[str, ...] | None:
+def _normalize_list(items: Iterable[object] | None) -> tuple[str, ...] | None:
     if not items:
         return None
     cleaned = [str(item).strip() for item in items if str(item).strip()]
@@ -97,15 +97,18 @@ def _normalize_list(items: Iterable[str] | None) -> tuple[str, ...] | None:
 
 
 def _rule_from_dict(payload: dict[str, object]) -> AlertRule:
+    event_types = _normalize_list(_coerce_iterable(payload.get("event_types")))
+    modalities = _normalize_list(_coerce_iterable(payload.get("modalities")))
+    tags = _normalize_list(_coerce_iterable(payload.get("tags")))
     destinations_raw = payload.get("destinations")
     destinations = _normalize_destinations(destinations_raw)
     return AlertRule(
         id=str(payload.get("id")),
         name=str(payload.get("name", "")),
-        event_types=_normalize_list(payload.get("event_types")),
-        modalities=_normalize_list(payload.get("modalities")),
+        event_types=event_types,
+        modalities=modalities,
         min_confidence=_coerce_float(payload.get("min_confidence")),
-        tags=_normalize_list(payload.get("tags")),
+        tags=tags,
         destinations=destinations,
         enabled=bool(payload.get("enabled", True)),
         created_at=str(payload.get("created_at", "")),
@@ -135,10 +138,18 @@ def _normalize_destinations(raw: object) -> tuple[AlertDestination, ...]:
     return tuple(destinations)
 
 
+def _coerce_iterable(value: object) -> Iterable[object] | None:
+    if isinstance(value, (list, tuple, set)):
+        return value
+    return None
+
+
 def _coerce_float(value: object) -> float | None:
     if value is None:
         return None
-    try:
-        return float(value)
-    except (TypeError, ValueError):
-        return None
+    if isinstance(value, (int, float, str)):
+        try:
+            return float(value)
+        except (TypeError, ValueError):
+            return None
+    return None

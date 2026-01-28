@@ -116,7 +116,8 @@ def _validate_capabilities(capabilities: Iterable[str]) -> tuple[str, ...]:
 
 
 def get_edition(value: str | None = None) -> str:
-    edition = (value or os.getenv("RETIKON_EDITION", EDITION_CORE)).strip().lower()
+    raw = value if value is not None else os.getenv("RETIKON_EDITION")
+    edition = (raw or EDITION_CORE).strip().lower()
     if edition not in {EDITION_CORE, EDITION_PRO}:
         raise ValueError(f"Unsupported RETIKON_EDITION: {edition}")
     return edition

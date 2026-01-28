@@ -10,7 +10,7 @@ from retikon_core.errors import PermanentError
 
 def _load_pytesseract():
     try:
-        import pytesseract
+        import pytesseract  # type: ignore[import-not-found]
     except ImportError as exc:
         raise PermanentError(
             "OCR enabled but pytesseract is not installed."
