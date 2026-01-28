@@ -1,0 +1,5 @@
+-r requirements-core.txt
+gcsfs==2024.6.1
+google-cloud-firestore==2.16.0
+google-cloud-storage==2.18.2
+google-cloud-pubsub==2.23.0
