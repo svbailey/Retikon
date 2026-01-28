@@ -60,6 +60,18 @@ This runbook covers routine checks and incident response for Retikon services.
 - Verify `MAX_RAW_BYTES` and `MAX_FRAMES_PER_VIDEO` remain enforced.
 - Graph bucket retention: no lifecycle delete; cleanup requires approval.
 
+## Chaos testing (safe defaults)
+
+- Chaos is disabled by default, even in dev. Enable explicitly with:
+  - `CHAOS_ENABLED=1`
+- Only safe steps are allowed by default:
+  - `delay`, `drop_percent`, `retry_jitter`, `rate_limit`
+- Guardrails:
+  - `CHAOS_MAX_PERCENT_IMPACT` (default 10)
+  - `CHAOS_MAX_DURATION_MINUTES` (default 30)
+- Admin gating:
+  - `CHAOS_REQUIRE_ADMIN=1` in prod (default behavior).
+
 ## Secret rotation (query API key)
 
 - Generate a new API key (example):

@@ -48,3 +48,5 @@ Add `--ack` to remove replayed messages from the DLQ subscription.
 
 - DLQ messages include the original CloudEvent payload and error metadata.
 - Replayed events are sent to `/ingest` as JSON CloudEvents.
+- If chaos testing is enabled, expect temporary spikes in recoverable errors.
+  Confirm `CHAOS_ENABLED` and active policies before treating spikes as incidents.
