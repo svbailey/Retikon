@@ -91,7 +91,9 @@ def update_webhook(
     return webhook
 
 
-def _normalize_event_types(event_types: Iterable[object] | None) -> tuple[str, ...] | None:
+def _normalize_event_types(
+    event_types: Iterable[object] | None,
+) -> tuple[str, ...] | None:
     if not event_types:
         return None
     items = [str(item).strip() for item in event_types if str(item).strip()]

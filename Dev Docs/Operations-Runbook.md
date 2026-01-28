@@ -24,6 +24,23 @@ This runbook covers routine checks and incident response for Retikon services.
 - Confirm `SNAPSHOT_URI` is reachable.
 - If needed, roll back snapshot or reload via `/admin/reload-snapshot`.
 
+## Snapshot refresh strategy
+
+- Cadence:
+  - Dev: rebuild snapshot every 2 hours.
+  - Prod: rebuild snapshot every 1 hour.
+- Trigger:
+  - Scheduled Cloud Run Job (index builder) via Cloud Scheduler.
+  - Manual on-demand trigger via Dev Console `/dev/index-build` or CLI.
+- Validation:
+  - After build, call `/admin/reload-snapshot` on the query service.
+  - Run one smoke query to confirm results and response time.
+- Rollback:
+  - Keep the previous snapshot file for 24 hours.
+  - If validation fails, revert `SNAPSHOT_URI` to the previous file and reload.
+- SLA:
+  - Target freshness: 1–2 hours (worst case).
+
 ## Ingestion incidents
 
 - Check ingestion logs for `PermanentError` vs `RecoverableError`.

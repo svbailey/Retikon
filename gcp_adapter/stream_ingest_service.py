@@ -375,7 +375,10 @@ def _parse_stream_events(body: Any) -> list[StreamEvent]:
             if "event" in body:
                 raw_event = body.get("event")
                 if not isinstance(raw_event, dict):
-                    raise HTTPException(status_code=400, detail="event must be an object")
+                    raise HTTPException(
+                        status_code=400,
+                        detail="event must be an object",
+                    )
                 return [stream_event_from_dict(raw_event)]
             return [stream_event_from_dict(body)]
         except (TypeError, ValueError) as exc:
