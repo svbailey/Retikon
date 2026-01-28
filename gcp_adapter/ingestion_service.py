@@ -6,7 +6,7 @@ from datetime import timedelta
 from typing import Any
 
 from fastapi import FastAPI, Header, HTTPException, Request
-from google.cloud import firestore, storage
+from google.cloud import firestore
 from pydantic import BaseModel
 
 from retikon_core.auth import AuthContext, authorize_api_key
@@ -17,8 +17,9 @@ from retikon_core.errors import (
     RecoverableError,
     ValidationError,
 )
-from retikon_core.ingestion import FirestoreIdempotency, parse_cloudevent, process_event
-from retikon_core.ingestion.dlq import DlqPublisher
+from gcp_adapter.dlq_pubsub import PubSubDlqPublisher
+from gcp_adapter.idempotency_firestore import FirestoreIdempotency
+from retikon_core.ingestion import parse_cloudevent, process_event
 from retikon_core.ingestion.router import pipeline_version
 from retikon_core.logging import configure_logging, get_logger
 from retikon_core.metering import record_usage
@@ -35,7 +36,7 @@ logger = get_logger(__name__)
 
 app = FastAPI()
 
-_dlq_publisher: DlqPublisher | None = None
+_dlq_publisher: PubSubDlqPublisher | None = None
 
 
 class HealthResponse(BaseModel):
@@ -154,7 +155,6 @@ async def ingest(
     except ValidationError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
-    storage_client = storage.Client()
     firestore_client = firestore.Client()
     idempotency = FirestoreIdempotency(
         firestore_client,
@@ -201,11 +201,7 @@ async def ingest(
         return IngestResponse(status="dlq", trace_id=trace_id)
 
     try:
-        outcome = process_event(
-            event=gcs_event,
-            config=config,
-            storage_client=storage_client,
-        )
+        outcome = process_event(event=gcs_event, config=config)
         idempotency.mark_completed(decision.doc_id)
         firestore_client.collection(config.firestore_collection).document(
             decision.doc_id
@@ -353,17 +349,17 @@ def _coerce_cloudevent(request: Request, body: Any) -> dict[str, Any]:
     }
 
 
-def _get_dlq_publisher(topic: str | None) -> DlqPublisher | None:
+def _get_dlq_publisher(topic: str | None) -> PubSubDlqPublisher | None:
     global _dlq_publisher
     if not topic:
         return None
     if _dlq_publisher is None:
-        _dlq_publisher = DlqPublisher(topic)
+        _dlq_publisher = PubSubDlqPublisher(topic)
     return _dlq_publisher
 
 
 def _publish_dlq(
-    publisher: DlqPublisher | None,
+    publisher: PubSubDlqPublisher | None,
     *,
     error_code: str,
     error_message: str,

@@ -63,6 +63,10 @@ def _configure_gcs_secret(
     return "credential_chain"
 
 
+def _is_gcs_uri(uri: str | None) -> bool:
+    return bool(uri and uri.startswith("gs://"))
+
+
 def get_secure_connection(
     *,
     healthcheck_uri: str | None,
@@ -73,7 +77,9 @@ def get_secure_connection(
 
     conn = duckdb.connect(database=":memory:")
     extensions_loaded = load_extensions(conn, ("httpfs", "vss"), allow_install)
-    auth_path = _configure_gcs_secret(conn, use_fallback, allow_install)
+    auth_path = "none"
+    if _is_gcs_uri(healthcheck_uri):
+        auth_path = _configure_gcs_secret(conn, use_fallback, allow_install)
 
     if healthcheck_uri and not skip_healthcheck:
         try:

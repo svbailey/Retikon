@@ -8,14 +8,15 @@ from datetime import timedelta
 from typing import Any
 
 from fastapi import FastAPI, Header, HTTPException, Request
-from google.cloud import firestore, storage
+from google.cloud import firestore
 from pydantic import BaseModel
 
+from gcp_adapter.dlq_pubsub import PubSubDlqPublisher
+from gcp_adapter.idempotency_firestore import FirestoreIdempotency
 from gcp_adapter.queue_pubsub import PubSubPublisher, parse_pubsub_push
 from retikon_core.config import get_config
 from retikon_core.errors import PermanentError, RecoverableError, ValidationError
-from retikon_core.ingestion import FirestoreIdempotency, process_event
-from retikon_core.ingestion.dlq import DlqPublisher
+from retikon_core.ingestion import process_event
 from retikon_core.ingestion.router import pipeline_version
 from retikon_core.ingestion.streaming import (
     StreamBackpressureError,
@@ -38,7 +39,7 @@ logger = get_logger(__name__)
 
 app = FastAPI()
 
-_dlq_publisher: DlqPublisher | None = None
+_dlq_publisher: PubSubDlqPublisher | None = None
 _flush_task: asyncio.Task | None = None
 
 
@@ -267,7 +268,6 @@ async def ingest_stream_push(request: Request) -> dict[str, Any]:
     if config.ingestion_dry_run:
         return {"status": "accepted", "processed": 0, "skipped": len(events)}
 
-    storage_client = storage.Client()
     firestore_client = firestore.Client()
     idempotency = FirestoreIdempotency(
         firestore_client,
@@ -315,11 +315,7 @@ async def ingest_stream_push(request: Request) -> dict[str, Any]:
             continue
 
         try:
-            outcome = process_event(
-                event=gcs_event,
-                config=config,
-                storage_client=storage_client,
-            )
+        outcome = process_event(event=gcs_event, config=config)
             idempotency.mark_completed(decision.doc_id)
             firestore_client.collection(config.firestore_collection).document(
                 decision.doc_id
@@ -386,17 +382,17 @@ def _parse_stream_events(body: Any) -> list[StreamEvent]:
     raise HTTPException(status_code=400, detail="Invalid stream payload")
 
 
-def _get_dlq_publisher(topic: str | None) -> DlqPublisher | None:
+def _get_dlq_publisher(topic: str | None) -> PubSubDlqPublisher | None:
     global _dlq_publisher
     if not topic:
         return None
     if _dlq_publisher is None:
-        _dlq_publisher = DlqPublisher(topic)
+        _dlq_publisher = PubSubDlqPublisher(topic)
     return _dlq_publisher
 
 
 def _publish_dlq(
-    publisher: DlqPublisher | None,
+    publisher: PubSubDlqPublisher | None,
     *,
     error_code: str,
     error_message: str,

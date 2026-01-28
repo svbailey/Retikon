@@ -3,18 +3,13 @@ from __future__ import annotations
 import json
 from typing import Any, Mapping
 
-try:
-    from google.cloud import pubsub_v1
-except ImportError:  # pragma: no cover - optional dependency
-    pubsub_v1 = None
+from google.cloud import pubsub_v1
 
 from retikon_core.webhooks.types import WebhookEvent, event_to_dict
 
 
 class PubSubEventPublisher:
     def __init__(self) -> None:
-        if pubsub_v1 is None:
-            raise RuntimeError("google-cloud-pubsub is required for Pub/Sub publishing")
         self.client = pubsub_v1.PublisherClient()
 
     def publish(

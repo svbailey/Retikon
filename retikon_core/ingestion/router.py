@@ -3,11 +3,6 @@ from __future__ import annotations
 import os
 from dataclasses import dataclass
 
-try:
-    from google.cloud import storage
-except ImportError:  # pragma: no cover - optional dependency
-    storage = None
-
 from retikon_core.config import Config
 from retikon_core.errors import PermanentError
 from retikon_core.ingestion.download import DownloadResult, cleanup_tmp, download_to_tmp
@@ -251,10 +246,7 @@ def process_event(
     *,
     event: GcsEvent,
     config: Config,
-    storage_client: "storage.Client",
 ) -> PipelineOutcome:
-    if storage is None:
-        raise PermanentError("google-cloud-storage is required for GCS ingestion")
     _check_size(event, config)
     modality = _modality_for_name(event.name)
     _ensure_allowed(event, config, modality)
@@ -264,12 +256,8 @@ def process_event(
     pipeline_version_value = pipeline_version()
     schema_version = _schema_version()
 
-    download = download_to_tmp(
-        storage_client,
-        event.bucket,
-        event.name,
-        config.max_raw_bytes,
-    )
+    object_uri = f"gs://{event.bucket}/{event.name}"
+    download = download_to_tmp(object_uri, config.max_raw_bytes)
     try:
         source = _make_source(event, download, config)
         outcome = _run_pipeline(

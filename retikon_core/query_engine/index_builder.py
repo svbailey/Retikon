@@ -350,6 +350,10 @@ def _configure_gcs_secret(
     return "credential_chain"
 
 
+def _is_gcs_uri(uri: str | None) -> bool:
+    return bool(uri and uri.startswith("gs://"))
+
+
 def build_snapshot(
     *,
     graph_uri: str,
@@ -379,7 +383,9 @@ def build_snapshot(
     ) -> tuple[IndexBuildReport, str]:
         conn = duckdb.connect(str(db_path))
         extensions = load_extensions(conn, ("httpfs", "vss"), allow_install)
-        auth_path = _configure_gcs_secret(conn, allow_install)
+        auth_path = "none"
+        if _is_gcs_uri(base_uri) or _is_gcs_uri(source_uri):
+            auth_path = _configure_gcs_secret(conn, allow_install)
         conn.execute("SET hnsw_enable_experimental_persistence=true")
 
         groups, media_files, has_manifests = _load_manifest_groups(

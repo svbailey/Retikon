@@ -3,11 +3,9 @@ from __future__ import annotations
 import os
 import tempfile
 from dataclasses import dataclass
+from typing import Any
 
-try:
-    from google.cloud import storage
-except ImportError:  # pragma: no cover - optional dependency
-    storage = None
+import fsspec
 
 from retikon_core.errors import PermanentError, RecoverableError
 
@@ -22,26 +20,39 @@ class DownloadResult:
     metadata: dict[str, str] | None = None
 
 
-def fetch_blob_metadata(
-    client: "storage.Client", bucket: str, name: str
-) -> "storage.Blob":
-    if storage is None:
-        raise PermanentError("google-cloud-storage is required for GCS downloads")
-    blob = client.bucket(bucket).get_blob(name)
-    if blob is None:
-        raise PermanentError(f"Object not found: gs://{bucket}/{name}")
-    return blob
+def _info_for_uri(fs: fsspec.AbstractFileSystem, path: str) -> dict[str, Any]:
+    try:
+        return fs.info(path)
+    except FileNotFoundError as exc:
+        raise PermanentError(f"Object not found: {path}") from exc
+    except Exception as exc:
+        raise RecoverableError(f"Failed to stat {path}: {exc}") from exc
+
+
+def _extract_metadata(info: dict[str, Any]) -> tuple[str | None, str | None, str | None, dict[str, str] | None, int | None]:
+    size = info.get("size") or info.get("Size")
+    content_type = info.get("content_type") or info.get("ContentType") or info.get(
+        "contentType"
+    )
+    md5_hash = info.get("md5") or info.get("md5Hash")
+    crc32c = info.get("crc32c")
+    metadata = info.get("metadata") or info.get("Metadata")
+    if isinstance(metadata, dict):
+        metadata = {str(k): str(v) for k, v in metadata.items()}
+    else:
+        metadata = None
+    return content_type, md5_hash, crc32c, metadata, size if size is not None else None
 
 
 def download_to_tmp(
-    client: storage.Client,
-    bucket: str,
-    name: str,
+    uri: str,
     max_bytes: int,
 ) -> DownloadResult:
-    blob = fetch_blob_metadata(client, bucket, name)
-    if blob.size is not None and blob.size > max_bytes:
-        raise PermanentError(f"Object too large: {blob.size} bytes")
+    fs, path = fsspec.core.url_to_fs(uri)
+    info = _info_for_uri(fs, path)
+    content_type, md5_hash, crc32c, metadata, size_hint = _extract_metadata(info)
+    if size_hint is not None and size_hint > max_bytes:
+        raise PermanentError(f"Object too large: {size_hint} bytes")
 
     tmp_handle = tempfile.NamedTemporaryFile(delete=False)
     tmp_path = tmp_handle.name
@@ -49,7 +60,7 @@ def download_to_tmp(
 
     try:
         size = 0
-        with blob.open("rb") as reader, open(tmp_path, "wb") as writer:
+        with fs.open(path, "rb") as reader, open(tmp_path, "wb") as writer:
             while True:
                 chunk = reader.read(8 * 1024 * 1024)
                 if not chunk:
@@ -62,16 +73,16 @@ def download_to_tmp(
         raise
     except Exception as exc:
         raise RecoverableError(
-            f"Failed downloading gs://{bucket}/{name}: {exc}"
+            f"Failed downloading {uri}: {exc}"
         ) from exc
 
     return DownloadResult(
         path=tmp_path,
         size_bytes=size,
-        content_type=blob.content_type,
-        md5_hash=blob.md5_hash,
-        crc32c=blob.crc32c,
-        metadata=blob.metadata or None,
+        content_type=content_type,
+        md5_hash=md5_hash,
+        crc32c=crc32c,
+        metadata=metadata,
     )
 
 

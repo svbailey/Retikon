@@ -17,7 +17,7 @@ from fastapi.responses import StreamingResponse
 from google.auth.transport.requests import AuthorizedSession
 from google.cloud import firestore, storage
 
-from retikon_core.ingestion.idempotency import FirestoreIdempotency
+from retikon_core.ingestion.idempotency import build_doc_id
 from retikon_core.logging import configure_logging, get_logger
 from retikon_core.storage.paths import graph_root, manifest_uri
 
@@ -243,7 +243,7 @@ async def ingest_status(
         raise HTTPException(status_code=404, detail="Object not found")
     blob.reload()
     generation = str(blob.generation or "")
-    doc_id = FirestoreIdempotency.build_doc_id(ref.bucket, ref.name, generation)
+    doc_id = build_doc_id(ref.bucket, ref.name, generation)
     doc = _firestore_client().collection(_firestore_collection()).document(doc_id).get()
     data = doc.to_dict() if doc.exists else None
     return {

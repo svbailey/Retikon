@@ -11,7 +11,7 @@ from pydantic import BaseModel, Field
 from retikon_core.alerts import evaluate_rules, load_alerts, register_alert
 from retikon_core.alerts.types import AlertDestination, AlertRule
 from retikon_core.config import get_config
-from retikon_core.connectors.pubsub import PubSubEventPublisher
+from gcp_adapter.pubsub_event_publisher import PubSubEventPublisher
 from retikon_core.logging import configure_logging, get_logger
 from retikon_core.webhooks.delivery import (
     DeliveryOptions,
