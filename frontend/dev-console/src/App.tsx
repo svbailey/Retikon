@@ -118,6 +118,40 @@ type DataFactoryModel = {
   updated_at?: string | null;
 };
 
+type WorkflowStep = {
+  id?: string | null;
+  name: string;
+  kind: string;
+  config?: Record<string, unknown> | null;
+  retries?: number | null;
+  timeout_seconds?: number | null;
+};
+
+type WorkflowSpec = {
+  id: string;
+  name: string;
+  description?: string | null;
+  org_id?: string | null;
+  site_id?: string | null;
+  stream_id?: string | null;
+  schedule?: string | null;
+  enabled: boolean;
+  steps: WorkflowStep[];
+  created_at?: string | null;
+  updated_at?: string | null;
+};
+
+type WorkflowRun = {
+  id: string;
+  workflow_id: string;
+  status: string;
+  started_at: string;
+  finished_at?: string | null;
+  error?: string | null;
+  output?: Record<string, unknown> | null;
+  triggered_by?: string | null;
+};
+
 type UploadInfo = {
   uri: string;
   run_id: string;
@@ -328,6 +362,11 @@ export default function App() {
   const [datasets, setDatasets] = useState<DataFactoryDataset[]>([]);
   const [annotations, setAnnotations] = useState<DataFactoryAnnotation[]>([]);
   const [models, setModels] = useState<DataFactoryModel[]>([]);
+  const [workflowUrlOverride, setWorkflowUrlOverride] = useState("");
+  const [workflowStatus, setWorkflowStatus] = useState<StepStatus>("idle");
+  const [workflowError, setWorkflowError] = useState<string | null>(null);
+  const [workflows, setWorkflows] = useState<WorkflowSpec[]>([]);
+  const [workflowRuns, setWorkflowRuns] = useState<WorkflowRun[]>([]);
 
   const queryUrl = useMemo(() => {
     return (
@@ -362,6 +401,10 @@ export default function App() {
       dataFactoryUrlOverride || import.meta.env.VITE_DATA_FACTORY_URL || ""
     );
   }, [dataFactoryUrlOverride]);
+
+  const workflowUrl = useMemo(() => {
+    return workflowUrlOverride || import.meta.env.VITE_WORKFLOW_URL || "";
+  }, [workflowUrlOverride]);
 
   const ingestUrl = useMemo(() => {
     return ingestUrlOverride || import.meta.env.VITE_INGEST_URL || "";
@@ -413,6 +456,12 @@ export default function App() {
   const dataFactoryModelsUrl = dataFactoryUrl
     ? `${dataFactoryUrl.replace(/\/$/, "")}/data-factory/models`
     : "";
+  const workflowsUrl = workflowUrl
+    ? `${workflowUrl.replace(/\/$/, "")}/workflows`
+    : "";
+  const workflowRunsUrl = workflowUrl
+    ? `${workflowUrl.replace(/\/$/, "")}/workflows/runs`
+    : "";
 
   const rawBucket = import.meta.env.VITE_RAW_BUCKET || "";
   const rawPrefix = import.meta.env.VITE_RAW_PREFIX || DEFAULT_RAW_PREFIX;
@@ -461,6 +510,10 @@ export default function App() {
     const dataFactoryOverride = localStorage.getItem("retikon_data_factory_url");
     if (dataFactoryOverride) {
       setDataFactoryUrlOverride(dataFactoryOverride);
+    }
+    const workflowOverride = localStorage.getItem("retikon_workflow_url");
+    if (workflowOverride) {
+      setWorkflowUrlOverride(workflowOverride);
     }
     const storedMode = localStorage.getItem("retikon_query_mode");
     if (storedMode === "text" || storedMode === "all") {
@@ -529,6 +582,14 @@ export default function App() {
       localStorage.removeItem("retikon_data_factory_url");
     }
   }, [dataFactoryUrlOverride]);
+
+  useEffect(() => {
+    if (workflowUrlOverride) {
+      localStorage.setItem("retikon_workflow_url", workflowUrlOverride);
+    } else {
+      localStorage.removeItem("retikon_workflow_url");
+    }
+  }, [workflowUrlOverride]);
 
   useEffect(() => {
     localStorage.setItem("retikon_query_mode", queryMode);
@@ -1029,6 +1090,39 @@ export default function App() {
     }
   };
 
+  const fetchWorkflows = async () => {
+    if (!workflowUrl) {
+      setWorkflowError("Workflow API URL is not configured.");
+      setWorkflowStatus("error");
+      return;
+    }
+    setWorkflowError(null);
+    setWorkflowStatus("working");
+    try {
+      const [workflowsResp, runsResp] = await Promise.all([
+        fetch(workflowsUrl, { headers: devHeaders() }),
+        fetch(workflowRunsUrl, { headers: devHeaders() }),
+      ]);
+      if (!workflowsResp.ok) {
+        throw new Error((await workflowsResp.text()) || "Workflows fetch failed");
+      }
+      if (!runsResp.ok) {
+        throw new Error((await runsResp.text()) || "Workflow runs fetch failed");
+      }
+      const workflowsData = (await workflowsResp.json()) as WorkflowSpec[];
+      const runsData = (await runsResp.json()) as WorkflowRun[];
+      setWorkflows(workflowsData);
+      setWorkflowRuns(runsData);
+      setWorkflowStatus("done");
+      addActivity("Workflows loaded.", "success");
+    } catch (err) {
+      const message = (err as Error).message;
+      setWorkflowError(message);
+      setWorkflowStatus("error");
+      addActivity(message, "error");
+    }
+  };
+
   const reloadSnapshot = async () => {
     if (!apiKey) {
       setReloadError("API key required to reload snapshot.");
@@ -1444,6 +1538,18 @@ export default function App() {
               />
               <small>
                 Default: {import.meta.env.VITE_DATA_FACTORY_URL || "none"}
+              </small>
+            </label>
+            <label className="field">
+              <span>Workflow API URL</span>
+              <input
+                type="url"
+                placeholder="https://retikon-workflows-...run.app"
+                value={workflowUrlOverride}
+                onChange={(event) => setWorkflowUrlOverride(event.target.value)}
+              />
+              <small>
+                Default: {import.meta.env.VITE_WORKFLOW_URL || "none"}
               </small>
             </label>
           </div>
@@ -2205,6 +2311,40 @@ export default function App() {
             <pre className="preview-json">
               {JSON.stringify(
                 { datasets, annotations, models },
+                null,
+                2,
+              )}
+            </pre>
+          </div>
+        )}
+      </section>
+
+      <section className="panel">
+        <div className="panel-header">
+          <h2>Workflows</h2>
+          <span className="counter">
+            {workflows.length} workflows · {workflowRuns.length} runs
+          </span>
+        </div>
+        <div className="actions">
+          <button
+            onClick={fetchWorkflows}
+            disabled={!workflowUrl || workflowStatus === "working"}
+          >
+            {workflowStatus === "working" ? "Loading..." : "Load workflows"}
+          </button>
+        </div>
+        {!workflowUrl && (
+          <p className="hint">Workflow API URL is not configured yet.</p>
+        )}
+        {workflowError && <p className="error">{workflowError}</p>}
+        {workflows.length === 0 && workflowRuns.length === 0 ? (
+          <p className="hint">No workflow data loaded yet.</p>
+        ) : (
+          <div className="preview-panel">
+            <pre className="preview-json">
+              {JSON.stringify(
+                { workflows, runs: workflowRuns },
                 null,
                 2,
               )}
