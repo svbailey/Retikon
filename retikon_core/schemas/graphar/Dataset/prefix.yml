@@ -1,0 +1,44 @@
+version: 1
+name: Dataset
+entity: vertex
+path_prefix: vertices/Dataset
+files:
+  core: vertices/Dataset/core
+primary_key: id
+fields:
+  - name: id
+    type: string
+    nullable: false
+  - name: name
+    type: string
+    nullable: false
+  - name: description
+    type: string
+    nullable: true
+  - name: org_id
+    type: string
+    nullable: true
+  - name: site_id
+    type: string
+    nullable: true
+  - name: stream_id
+    type: string
+    nullable: true
+  - name: tags
+    type: string
+    nullable: true
+  - name: size
+    type: int64
+    nullable: true
+  - name: created_at
+    type: timestamp
+    nullable: false
+  - name: updated_at
+    type: timestamp
+    nullable: false
+  - name: pipeline_version
+    type: string
+    nullable: false
+  - name: schema_version
+    type: string
+    nullable: false

@@ -4,9 +4,11 @@ APP_INGEST ?= local_adapter.ingestion_service:app
 APP_QUERY_PRO ?= gcp_adapter.query_service:app
 APP_INGEST_PRO ?= gcp_adapter.ingestion_service:app
 APP_AUDIT_PRO ?= gcp_adapter.audit_service:app
+APP_DATA_FACTORY_PRO ?= gcp_adapter.data_factory_service:app
+APP_PRIVACY_PRO ?= gcp_adapter.privacy_service:app
 DOCKERFILE_PRO ?= Dockerfile.pro
 
-.PHONY: lint fmt test run-ingest run-query build-ingest build-query run-gcp-ingest run-gcp-query run-gcp-audit build-audit
+.PHONY: lint fmt test run-ingest run-query build-ingest build-query run-gcp-ingest run-gcp-query run-gcp-audit build-audit build-data-factory build-privacy
 
 lint:
 	$(PYTHON) -m ruff check .
@@ -41,3 +43,9 @@ build-query:
 
 build-audit:
 	docker build -f $(DOCKERFILE_PRO) -t retikon-audit:dev --build-arg APP_MODULE=$(APP_AUDIT_PRO) .
+
+build-data-factory:
+	docker build -f $(DOCKERFILE_PRO) -t retikon-data-factory:dev --build-arg APP_MODULE=$(APP_DATA_FACTORY_PRO) .
+
+build-privacy:
+	docker build -f $(DOCKERFILE_PRO) -t retikon-privacy:dev --build-arg APP_MODULE=$(APP_PRIVACY_PRO) .

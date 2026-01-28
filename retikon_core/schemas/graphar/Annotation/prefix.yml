@@ -1,0 +1,53 @@
+version: 1
+name: Annotation
+entity: vertex
+path_prefix: vertices/Annotation
+files:
+  core: vertices/Annotation/core
+primary_key: id
+fields:
+  - name: id
+    type: string
+    nullable: false
+  - name: dataset_id
+    type: string
+    nullable: false
+  - name: media_asset_id
+    type: string
+    nullable: false
+  - name: label
+    type: string
+    nullable: false
+  - name: value
+    type: string
+    nullable: true
+  - name: annotator
+    type: string
+    nullable: true
+  - name: status
+    type: string
+    nullable: false
+  - name: qa_status
+    type: string
+    nullable: true
+  - name: org_id
+    type: string
+    nullable: true
+  - name: site_id
+    type: string
+    nullable: true
+  - name: stream_id
+    type: string
+    nullable: true
+  - name: created_at
+    type: timestamp
+    nullable: false
+  - name: updated_at
+    type: timestamp
+    nullable: false
+  - name: pipeline_version
+    type: string
+    nullable: false
+  - name: schema_version
+    type: string
+    nullable: false

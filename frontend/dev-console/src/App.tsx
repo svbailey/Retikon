@@ -77,6 +77,47 @@ type FleetRolloutResponse = {
   stages: FleetRolloutStage[];
 };
 
+type DataFactoryDataset = {
+  id: string;
+  name: string;
+  description?: string | null;
+  org_id?: string | null;
+  site_id?: string | null;
+  stream_id?: string | null;
+  tags?: string | null;
+  size?: number | null;
+  created_at?: string | null;
+  updated_at?: string | null;
+  pipeline_version?: string | null;
+  schema_version?: string | null;
+};
+
+type DataFactoryAnnotation = {
+  id: string;
+  dataset_id: string;
+  media_asset_id: string;
+  label: string;
+  value?: string | null;
+  annotator?: string | null;
+  status: string;
+  qa_status?: string | null;
+  created_at?: string | null;
+  updated_at?: string | null;
+};
+
+type DataFactoryModel = {
+  id: string;
+  name: string;
+  version: string;
+  description?: string | null;
+  task?: string | null;
+  framework?: string | null;
+  tags?: string[] | null;
+  metrics?: Record<string, unknown> | null;
+  created_at?: string | null;
+  updated_at?: string | null;
+};
+
 type UploadInfo = {
   uri: string;
   run_id: string;
@@ -281,6 +322,12 @@ export default function App() {
   const [fleetRollout, setFleetRollout] = useState<FleetRolloutResponse | null>(null);
   const [fleetRolloutStatus, setFleetRolloutStatus] = useState<StepStatus>("idle");
   const [fleetRolloutError, setFleetRolloutError] = useState<string | null>(null);
+  const [dataFactoryUrlOverride, setDataFactoryUrlOverride] = useState("");
+  const [dataFactoryStatus, setDataFactoryStatus] = useState<StepStatus>("idle");
+  const [dataFactoryError, setDataFactoryError] = useState<string | null>(null);
+  const [datasets, setDatasets] = useState<DataFactoryDataset[]>([]);
+  const [annotations, setAnnotations] = useState<DataFactoryAnnotation[]>([]);
+  const [models, setModels] = useState<DataFactoryModel[]>([]);
 
   const queryUrl = useMemo(() => {
     return (
@@ -309,6 +356,12 @@ export default function App() {
   const fleetUrl = useMemo(() => {
     return fleetUrlOverride || import.meta.env.VITE_FLEET_URL || "";
   }, [fleetUrlOverride]);
+
+  const dataFactoryUrl = useMemo(() => {
+    return (
+      dataFactoryUrlOverride || import.meta.env.VITE_DATA_FACTORY_URL || ""
+    );
+  }, [dataFactoryUrlOverride]);
 
   const ingestUrl = useMemo(() => {
     return ingestUrlOverride || import.meta.env.VITE_INGEST_URL || "";
@@ -350,6 +403,15 @@ export default function App() {
     : "";
   const fleetRolloutUrl = fleetUrl
     ? `${fleetUrl.replace(/\/$/, "")}/fleet/rollouts/plan`
+    : "";
+  const dataFactoryDatasetsUrl = dataFactoryUrl
+    ? `${dataFactoryUrl.replace(/\/$/, "")}/data-factory/datasets`
+    : "";
+  const dataFactoryAnnotationsUrl = dataFactoryUrl
+    ? `${dataFactoryUrl.replace(/\/$/, "")}/data-factory/annotations`
+    : "";
+  const dataFactoryModelsUrl = dataFactoryUrl
+    ? `${dataFactoryUrl.replace(/\/$/, "")}/data-factory/models`
     : "";
 
   const rawBucket = import.meta.env.VITE_RAW_BUCKET || "";
@@ -395,6 +457,10 @@ export default function App() {
     const fleetOverride = localStorage.getItem("retikon_fleet_url");
     if (fleetOverride) {
       setFleetUrlOverride(fleetOverride);
+    }
+    const dataFactoryOverride = localStorage.getItem("retikon_data_factory_url");
+    if (dataFactoryOverride) {
+      setDataFactoryUrlOverride(dataFactoryOverride);
     }
     const storedMode = localStorage.getItem("retikon_query_mode");
     if (storedMode === "text" || storedMode === "all") {
@@ -455,6 +521,14 @@ export default function App() {
       localStorage.removeItem("retikon_fleet_url");
     }
   }, [fleetUrlOverride]);
+
+  useEffect(() => {
+    if (dataFactoryUrlOverride) {
+      localStorage.setItem("retikon_data_factory_url", dataFactoryUrlOverride);
+    } else {
+      localStorage.removeItem("retikon_data_factory_url");
+    }
+  }, [dataFactoryUrlOverride]);
 
   useEffect(() => {
     localStorage.setItem("retikon_query_mode", queryMode);
@@ -913,6 +987,48 @@ export default function App() {
     }
   };
 
+  const fetchDataFactory = async () => {
+    if (!dataFactoryUrl) {
+      setDataFactoryError("Data Factory API URL is not configured.");
+      setDataFactoryStatus("error");
+      return;
+    }
+    setDataFactoryError(null);
+    setDataFactoryStatus("working");
+    try {
+      const [datasetsResp, annotationsResp, modelsResp] = await Promise.all([
+        fetch(dataFactoryDatasetsUrl, { headers: devHeaders() }),
+        fetch(dataFactoryAnnotationsUrl, { headers: devHeaders() }),
+        fetch(dataFactoryModelsUrl, { headers: devHeaders() }),
+      ]);
+      if (!datasetsResp.ok) {
+        throw new Error((await datasetsResp.text()) || "Datasets fetch failed");
+      }
+      if (!annotationsResp.ok) {
+        throw new Error(
+          (await annotationsResp.text()) || "Annotations fetch failed",
+        );
+      }
+      if (!modelsResp.ok) {
+        throw new Error((await modelsResp.text()) || "Models fetch failed");
+      }
+      const datasetsData = (await datasetsResp.json()) as DataFactoryDataset[];
+      const annotationsData =
+        (await annotationsResp.json()) as DataFactoryAnnotation[];
+      const modelsData = (await modelsResp.json()) as DataFactoryModel[];
+      setDatasets(datasetsData);
+      setAnnotations(annotationsData);
+      setModels(modelsData);
+      setDataFactoryStatus("done");
+      addActivity("Data Factory data loaded.", "success");
+    } catch (err) {
+      const message = (err as Error).message;
+      setDataFactoryError(message);
+      setDataFactoryStatus("error");
+      addActivity(message, "error");
+    }
+  };
+
   const reloadSnapshot = async () => {
     if (!apiKey) {
       setReloadError("API key required to reload snapshot.");
@@ -1317,6 +1433,18 @@ export default function App() {
                 onChange={(event) => setFleetUrlOverride(event.target.value)}
               />
               <small>Default: {import.meta.env.VITE_FLEET_URL || "none"}</small>
+            </label>
+            <label className="field">
+              <span>Data Factory API URL</span>
+              <input
+                type="url"
+                placeholder="https://retikon-data-factory-...run.app"
+                value={dataFactoryUrlOverride}
+                onChange={(event) => setDataFactoryUrlOverride(event.target.value)}
+              />
+              <small>
+                Default: {import.meta.env.VITE_DATA_FACTORY_URL || "none"}
+              </small>
             </label>
           </div>
           <p className="panel-help">
@@ -2046,6 +2174,40 @@ export default function App() {
           <div className="preview-panel">
             <pre className="preview-json">
               {JSON.stringify(fleetRollout, null, 2)}
+            </pre>
+          </div>
+        )}
+      </section>
+
+      <section className="panel">
+        <div className="panel-header">
+          <h2>Data Factory</h2>
+          <span className="counter">
+            {datasets.length} datasets · {annotations.length} annotations
+          </span>
+        </div>
+        <div className="actions">
+          <button
+            onClick={fetchDataFactory}
+            disabled={!dataFactoryUrl || dataFactoryStatus === "working"}
+          >
+            {dataFactoryStatus === "working" ? "Loading..." : "Load data"}
+          </button>
+        </div>
+        {!dataFactoryUrl && (
+          <p className="hint">Data Factory API URL is not configured yet.</p>
+        )}
+        {dataFactoryError && <p className="error">{dataFactoryError}</p>}
+        {datasets.length === 0 && annotations.length === 0 && models.length === 0 ? (
+          <p className="hint">No Data Factory data loaded yet.</p>
+        ) : (
+          <div className="preview-panel">
+            <pre className="preview-json">
+              {JSON.stringify(
+                { datasets, annotations, models },
+                null,
+                2,
+              )}
             </pre>
           </div>
         )}

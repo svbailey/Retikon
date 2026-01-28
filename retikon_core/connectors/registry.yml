@@ -66,6 +66,19 @@ connectors:
     status: target
     notes: Baseline storage connector for Core and Pro.
 
+  - id: http_webhook
+    name: Generic HTTP/Webhook
+    category: http
+    tier: tier0
+    edition: core
+    direction: [destination]
+    auth_methods: [header, bearer, none]
+    incremental: true
+    streaming: false
+    modalities: [document, image, audio, video]
+    status: target
+    notes: Core-only generic HTTP connector interface.
+
   - id: bigquery
     name: BigQuery
     category: warehouse
