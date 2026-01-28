@@ -74,7 +74,11 @@ class _SimpleTokenizer:
 
 
 def _use_simple_tokenizer() -> bool:
-    return os.getenv("RETIKON_TOKENIZER", "").lower() in {"stub", "simple", "whitespace"}
+    return os.getenv("RETIKON_TOKENIZER", "").lower() in {
+        "stub",
+        "simple",
+        "whitespace",
+    }
 
 
 @lru_cache(maxsize=1)
