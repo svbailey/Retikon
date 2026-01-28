@@ -4,6 +4,8 @@ Pro only. This runbook applies to Retikon Pro (GCP).
 
 This assumes Terraform-managed infrastructure and Cloud Run services.
 
+For BYOC (Kubernetes) deployments, see `Dev Docs/BYOC-Guide.md`.
+
 ## Ingress policy (ingestion)
 
 - Prod: keep ingestion service ingress as `internal-and-cloud-load-balancing`.
