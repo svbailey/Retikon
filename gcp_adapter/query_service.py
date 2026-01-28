@@ -54,7 +54,7 @@ logger = get_logger(__name__)
 
 
 @asynccontextmanager
-async def lifespan(_: FastAPI):
+async def lifespan(app: FastAPI):
     healthcheck_uri = os.getenv("DUCKDB_HEALTHCHECK_URI")
     if not healthcheck_uri:
         graph_bucket, graph_prefix = _graph_settings()
@@ -63,7 +63,7 @@ async def lifespan(_: FastAPI):
     conn = None
     healthcheck_start = time.monotonic()
     try:
-        conn, _ = get_secure_connection(healthcheck_uri=healthcheck_uri)
+        conn, _auth = get_secure_connection(healthcheck_uri=healthcheck_uri)
     finally:
         if conn is not None:
             conn.close()

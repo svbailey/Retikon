@@ -6,7 +6,7 @@ import tempfile
 import time
 from contextlib import asynccontextmanager
 from datetime import datetime, timezone
-from typing import Iterable, Iterator
+from typing import AsyncIterator, Iterable, Iterator
 
 import duckdb
 import fsspec
@@ -37,7 +37,7 @@ logger = get_logger(__name__)
 
 
 @asynccontextmanager
-async def lifespan(_: FastAPI) -> Iterator[None]:
+async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     base_uri = _graph_uri()
     healthcheck_uri = _healthcheck_uri(base_uri)
     if healthcheck_uri:
@@ -281,7 +281,8 @@ def _query_rows(
             query += " LIMIT ?"
             params.append(limit)
         cursor = conn.execute(query, params)
-        columns = [col[0] for col in cursor.description]
+        description = cursor.description or []
+        columns = [col[0] for col in description]
         rows = cursor.fetchall()
     finally:
         conn.close()
@@ -314,7 +315,8 @@ def _stream_query(
         params.extend(values)
     query += " ORDER BY created_at DESC"
     cursor = conn.execute(query, params)
-    columns = [col[0] for col in cursor.description]
+    description = cursor.description or []
+    columns = [col[0] for col in description]
 
     def _write_csv_row(row: Iterable[object]) -> str:
         output = io.StringIO()

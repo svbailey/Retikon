@@ -192,7 +192,7 @@ Internal helpers are included because they are still part of the codebase, but t
 ### `local_adapter/ingestion_service.py`
 - Functions
   - `_infer_modality`: Internal helper that figures out modality, so local development workflows run.
-  - `_prefix_for_modality`: Internal helper that builds a prefix for for modality, so local development workflows run.
+  - `_prefix_for_modality`: Internal helper that builds a prefix for modality, so local development workflows run.
   - `health`: Reports service health, so local development workflows run.
   - `ingest`: Accepts content to ingest and starts processing, so local development workflows run.
 - Classes
@@ -231,19 +231,19 @@ Internal helpers are included because they are still part of the codebase, but t
 - Functions
   - `_resolve_ingest_url`: Internal helper that resolves ingest URL, so users can run services from the CLI.
   - `_resolve_query_url`: Internal helper that resolves query URL, so users can run services from the CLI.
-  - `_request_json`: Internal helper that request JSON, so users can run services from the CLI.
-  - `_print_json`: Internal helper that print JSON, so users can run services from the CLI.
+  - `_request_json`: Internal helper that requests JSON, so users can run services from the CLI.
+  - `_print_json`: Internal helper that prints JSON, so users can run services from the CLI.
   - `_read_env_file`: Internal helper that reads env file, so users can run services from the CLI.
-  - `_append_missing_env`: Internal helper that append missing env, so users can run services from the CLI.
+  - `_append_missing_env`: Internal helper that appends missing env, so users can run services from the CLI.
   - `_apply_env`: Internal helper that applies env, so users can run services from the CLI.
   - `_update_env_file`: Internal helper that updates env file, so users can run services from the CLI.
   - `_ensure_env_file`: Internal helper that ensures env file, so users can run services from the CLI.
   - `_infer_modality`: Internal helper that figures out modality, so users can run services from the CLI.
-  - `_prefix_for_modality`: Internal helper that builds a prefix for for modality, so users can run services from the CLI.
+  - `_prefix_for_modality`: Internal helper that builds a prefix for modality, so users can run services from the CLI.
   - `_seed_local_graph`: Internal helper that seeds local graph, so users can run services from the CLI.
   - `_build_local_snapshot`: Internal helper that builds local snapshot, so users can run services from the CLI.
   - `_uvicorn_cmd`: Internal helper that builds the uvicorn command, so users can run services from the CLI.
-  - `_run_services`: Internal helper that run services, so users can run services from the CLI.
+  - `_run_services`: Internal helper that runs services, so users can run services from the CLI.
   - `cmd_up`: Function that runs the CLI command up, so users can run services from the CLI.
   - `cmd_daemon`: Function that runs the CLI command daemon, so users can run services from the CLI.
   - `cmd_ingest`: Function that runs the CLI command ingest, so users can run services from the CLI.
@@ -302,7 +302,7 @@ Internal helpers are included because they are still part of the codebase, but t
   - `abac_allowed`: Function that checks whether ABAC is allowed, so access is controlled and auditable.
   - `evaluate_policies`: Function that evaluates policies, so access is controlled and auditable.
   - `_matches`: Internal helper that matches, so access is controlled and auditable.
-  - `_match_value`: Internal helper that match value, so access is controlled and auditable.
+  - `_match_value`: Internal helper that matches value, so access is controlled and auditable.
   - `_coerce_dict`: Internal helper that converts dict, so access is controlled and auditable.
 - Classes
   - `Policy`: Data structure or helper class for Policy, so access is controlled and auditable.
@@ -313,8 +313,8 @@ Internal helpers are included because they are still part of the codebase, but t
 
 ### `retikon_core/auth/idp.py`
 - Functions
-  - `_idp_config_uri`: Internal helper that builds the idp config URI, so access is controlled and auditable.
-  - `load_idp_configs`: Function that loads idp configs, so access is controlled and auditable.
+  - `_idp_config_uri`: Internal helper that builds the IDP config URI, so access is controlled and auditable.
+  - `load_idp_configs`: Function that loads IDP configs, so access is controlled and auditable.
   - `_coerce_str`: Internal helper that converts str, so access is controlled and auditable.
   - `_coerce_dict`: Internal helper that converts dict, so access is controlled and auditable.
 - Classes
@@ -382,14 +382,14 @@ Internal helpers are included because they are still part of the codebase, but t
 - Functions
   - `_glob_files`: Internal helper that glob files, so storage stays compact and efficient.
   - `_read_manifest`: Internal helper that reads manifest, so storage stays compact and efficient.
-  - `_run_id_from_manifest_uri`: Internal helper that builds the run ID from manifest URI, so storage stays compact and efficient.
+  - `_run_id_from_manifest_uri`: Internal helper that runs ID from manifest URI, so storage stays compact and efficient.
   - `_parse_graph_uri`: Internal helper that parses graph URI, so storage stays compact and efficient.
   - `load_manifests`: Function that loads manifests, so storage stays compact and efficient.
   - `_group_manifests`: Internal helper that group manifests, so storage stays compact and efficient.
   - `_expected_kinds`: Internal helper that expected kinds, so storage stays compact and efficient.
   - `_compact_batch`: Internal helper that compact batch, so storage stays compact and efficient.
   - `_schema_version_for`: Internal helper that schema version for, so storage stays compact and efficient.
-  - `run_compaction`: Function that run compaction, so storage stays compact and efficient.
+  - `run_compaction`: Function that runs compaction, so storage stays compact and efficient.
   - `main`: Entry point that runs the module, so storage stays compact and efficient.
 - Classes
   - `CompactionResult`: Data structure or helper class for Compaction Result, so storage stays compact and efficient.
@@ -433,7 +433,7 @@ Internal helpers are included because they are still part of the codebase, but t
   - `_iter_files`: Internal helper that iter files, so edge ingestion is resilient.
   - `_allowed_exts_from_env`: Internal helper that loads allowed exts from env, so edge ingestion is resilient.
   - `scan_and_ingest`: Function that scan and ingest, so edge ingestion is resilient.
-  - `run_agent`: Function that run agent, so edge ingestion is resilient.
+  - `run_agent`: Function that runs agent, so edge ingestion is resilient.
 
 ### `retikon_core/edge/buffer.py`
 - Functions
@@ -709,7 +709,7 @@ Internal helpers are included because they are still part of the codebase, but t
   - `_extension_for_event`: Internal helper that extension for event, so content can be safely ingested and processed.
   - `_check_size`: Internal helper that check size, so content can be safely ingested and processed.
   - `_make_source`: Internal helper that make source, so content can be safely ingested and processed.
-  - `_run_pipeline`: Internal helper that run pipeline, so content can be safely ingested and processed.
+  - `_run_pipeline`: Internal helper that runs pipeline, so content can be safely ingested and processed.
   - `process_event`: Function that process event, so content can be safely ingested and processed.
 - Classes
   - `PipelineOutcome`: Data structure or helper class for Pipeline Outcome, so content can be safely ingested and processed.
@@ -1029,7 +1029,7 @@ Internal helpers are included because they are still part of the codebase, but t
   - `RetikonClient`: Data structure or helper class for Retikon Client, so clients can call the APIs safely.
     - Methods
       - `_headers`: Internal helper that headers, so clients can call the APIs safely.
-      - `_request`: Internal helper that request, so clients can call the APIs safely.
+      - `_request`: Internal helper that requests it, so clients can call the APIs safely.
       - `ingest`: Accepts content to ingest and starts processing, so clients can call the APIs safely.
       - `query`: Runs a search request and returns results, so clients can call the APIs safely.
       - `health`: Reports service health, so clients can call the APIs safely.
@@ -1394,8 +1394,8 @@ Internal helpers are included because they are still part of the codebase, but t
 
 ### `scripts/gcp_smoke_test.py`
 - Functions
-  - `_run`: Internal helper that run, so operational tooling can be run by engineers.
-  - `_run_json`: Internal helper that run JSON, so operational tooling can be run by engineers.
+  - `_run`: Internal helper that runs it, so operational tooling can be run by engineers.
+  - `_run_json`: Internal helper that runs JSON, so operational tooling can be run by engineers.
   - `_env`: Internal helper that env, so operational tooling can be run by engineers.
   - `_upload_sample`: Internal helper that uploads sample, so operational tooling can be run by engineers.
   - `_object_meta`: Internal helper that object meta, so operational tooling can be run by engineers.
@@ -1427,7 +1427,7 @@ Internal helpers are included because they are still part of the codebase, but t
   - `_load_image_base64`: Internal helper that loads image base64, so operational tooling can be run by engineers.
   - `_build_payload`: Internal helper that builds payload, so operational tooling can be run by engineers.
   - `_worker`: Internal helper that worker, so operational tooling can be run by engineers.
-  - `run_load_test`: Function that run load test, so operational tooling can be run by engineers.
+  - `run_load_test`: Function that runs load test, so operational tooling can be run by engineers.
   - `main`: Entry point that runs the module, so operational tooling can be run by engineers.
 
 ### `scripts/upload_demo_dataset.py`
