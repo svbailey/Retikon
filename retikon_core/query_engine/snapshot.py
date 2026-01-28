@@ -59,19 +59,14 @@ def download_snapshot(snapshot_uri: str, dest_dir: str = "/tmp") -> SnapshotInfo
     parsed = urlparse(snapshot_uri)
     is_local = parsed.scheme in {"", "file"}
     if is_local:
-        if parsed.scheme == "file":
-            snapshot_path = Path(parsed.path)
-        else:
-            snapshot_path = Path(snapshot_uri)
-    else:
-        snapshot_path = None
-
-    if is_local:
-        if not snapshot_path.exists():  # type: ignore[union-attr]
+        snapshot_path = (
+            Path(parsed.path) if parsed.scheme == "file" else Path(snapshot_uri)
+        )
+        if not snapshot_path.exists():
             raise RecoverableError(f"Snapshot file not found: {snapshot_path}")
 
-        local_path = dest_dir_path / snapshot_path.name  # type: ignore[union-attr]
-        if snapshot_path.resolve() != local_path.resolve():  # type: ignore[union-attr]
+        local_path = dest_dir_path / snapshot_path.name
+        if snapshot_path.resolve() != local_path.resolve():
             shutil.copy2(snapshot_path, local_path)
 
         sidecar_path = Path(f"{snapshot_path}.json")
