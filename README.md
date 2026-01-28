@@ -9,6 +9,8 @@ tracks the v2.5 build kit and the development plan.
 - Development plan: `Dev Docs/Retikon-GCP-Build-Kit-v2.5.md`
 - Core/Pro boundary rules: `Dev Docs/Core-Pro-Boundary.md`
 - Agent rules: `AGENTS.md`
+- Core repo map: `core/README.md`
+- Pro repo map: `pro/README.md`
 - GraphAr schemas: `retikon_core/schemas/graphar/README.md`
 - Local development: `Dev Docs/Local-Development.md`
 - Pro deployment: `Dev Docs/pro/Deployment.md`
@@ -94,7 +96,7 @@ least-privilege GCS access as defined in the build kit doc.
 - Python 3.10+
 - Node.js 18+ (Dev Console)
 - ffmpeg + ffprobe
-- poppler-utils
+- poppler-utils (pdftoppm for PDF image extraction; optional but recommended)
 
 ## Environment variables
 
@@ -130,6 +132,8 @@ Pro (GCP) variables:
 - Unit and integration tests use `pytest`.
 - Firestore tests should use the emulator when possible.
 - Keep fixtures under `tests/fixtures/` and small enough for CI.
+- Use `-m core` or `-m pro` to run the focused suites.
+- Tier-3 GCP smoke: `python scripts/gcp_smoke_test.py` (Pro only).
 
 ## Contributing
 

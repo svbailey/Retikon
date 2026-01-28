@@ -16,6 +16,12 @@ warn_unused_ignores = true
 warn_return_any = false
 warn_unreachable = true
 
+[tool.pytest.ini_options]
+markers = [
+  "core: Core tests (no GCP deps)",
+  "pro: Pro tests (with GCP deps)",
+]
+
 [[tool.mypy.overrides]]
 module = [
   "fsspec",

@@ -3,18 +3,15 @@
 ## Prerequisites
 
 - Python 3.10+
-- Docker
-- Terraform 1.5+
-- gcloud CLI
 - ffmpeg + ffprobe
-- poppler-utils
+- poppler-utils (pdftoppm; optional but recommended for PDF image extraction)
 
 ## Setup
 
 ```bash
 python -m venv .venv
 source .venv/bin/activate
-pip install -r requirements.txt -r requirements-dev.txt
+pip install -r requirements-core.txt -r requirements-dev.txt
 ```
 
 Create `.env` with the required variables (see `README.md`).
@@ -46,6 +43,12 @@ pip install -r requirements-ocr.txt
 
 - `ENABLE_OCR=1`
 - `OCR_MAX_PAGES=5` (optional)
+
+### PDF image extraction (optional)
+
+If you want PDF page images (thumbnails) extracted during ingest, install
+`pdftoppm` from `poppler-utils`. If missing, `retikon doctor` will warn and the
+pipeline will continue without PDF image extraction.
 
 ## Run services locally
 

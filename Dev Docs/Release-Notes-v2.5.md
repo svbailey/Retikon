@@ -79,8 +79,18 @@ Recorded in `Dev Docs/pro/Load-Testing.md` (2026‑01‑27):
 
 - OCR is optional; Core does not perform OCR unless explicitly enabled.
 - Legacy `.doc` / `.ppt` inputs are not supported in Core.
+- FastAPI `on_event` deprecation warnings are present; plan to migrate to lifespan.
+- NumPy/Torch warnings may appear in local tests; pin NumPy < 2 for stability.
 
 ## Checklist Status
 
 All 2.5 compliance items are complete and tests are green. 2.5 is ready
 for production use.
+
+## Baseline Record
+
+Core/Pro boundary baseline recorded on 2026-01-28.
+- Commit: a9dbfe8
+- Core tests: `python -m pytest tests/core -m core`
+- Pro tests: `python -m pytest tests/pro -m pro`
+- CI jobs: lint, test-core, test-pro

@@ -4,6 +4,11 @@ Pro only. This runbook applies to Retikon Pro (GCP).
 
 This assumes Terraform-managed infrastructure and Cloud Run services.
 
+## Ingress policy (ingestion)
+
+- Prod: keep ingestion service ingress as `internal-and-cloud-load-balancing`.
+- Staging: allow ingress `all` for Tier-3 HTTP tests only.
+
 ## Build images
 
 ```bash

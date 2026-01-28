@@ -4,6 +4,11 @@ Pro only. This runbook applies to Retikon Pro (GCP).
 
 This runbook covers routine checks and incident response for Retikon services.
 
+## Nightly GCP smoke
+
+- Run `python scripts/gcp_smoke_test.py` from CI or a trusted workstation.
+- Keep artifacts by setting `KEEP_SMOKE_ARTIFACTS=1` when debugging.
+
 ## Daily checks
 
 - Cloud Run health:
