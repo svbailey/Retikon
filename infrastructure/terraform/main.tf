@@ -585,6 +585,193 @@ resource "google_cloud_run_service" "query" {
           }
         }
         env {
+          name = "HF_TOKEN"
+          value_from {
+            secret_key_ref {
+              name = "retikon-hf-token"
+              key  = "latest"
+            }
+          }
+        }
+        env {
+          name  = "MAX_QUERY_BYTES"
+          value = tostring(var.max_query_bytes)
+        }
+        env {
+          name  = "MAX_IMAGE_BASE64_BYTES"
+          value = tostring(var.max_image_base64_bytes)
+        }
+        env {
+          name  = "SLOW_QUERY_MS"
+          value = tostring(var.query_slow_ms)
+        }
+        env {
+          name  = "LOG_QUERY_TIMINGS"
+          value = var.query_log_timings ? "1" : "0"
+        }
+        env {
+          name  = "QUERY_WARMUP"
+          value = var.query_warmup ? "1" : "0"
+        }
+        env {
+          name  = "QUERY_WARMUP_TEXT"
+          value = var.query_warmup_text
+        }
+        env {
+          name  = "DUCKDB_THREADS"
+          value = var.duckdb_threads != null ? tostring(var.duckdb_threads) : ""
+        }
+        env {
+          name  = "DUCKDB_MEMORY_LIMIT"
+          value = var.duckdb_memory_limit
+        }
+        env {
+          name  = "DUCKDB_TEMP_DIRECTORY"
+          value = var.duckdb_temp_directory
+        }
+        env {
+          name  = "DUCKDB_ALLOW_INSTALL"
+          value = var.duckdb_allow_install ? "1" : "0"
+        }
+        env {
+          name  = "DUCKDB_GCS_FALLBACK"
+          value = var.duckdb_gcs_fallback ? "1" : "0"
+        }
+        env {
+          name  = "DUCKDB_SKIP_HEALTHCHECK"
+          value = var.duckdb_skip_healthcheck ? "1" : "0"
+        }
+      }
+    }
+  }
+
+  autogenerate_revision_name = true
+}
+
+resource "google_cloud_run_service" "query_gpu" {
+  count    = var.query_gpu_enabled ? 1 : 0
+  name     = "${var.query_gpu_service_name}-${var.env}"
+  location = var.region
+
+  metadata {
+    annotations = {
+      "run.googleapis.com/ingress"                        = "all"
+      "run.googleapis.com/accelerator"                    = var.query_gpu_accelerator_type
+    }
+  }
+
+  template {
+    metadata {
+      annotations = {
+        "autoscaling.knative.dev/maxScale" = tostring(var.query_gpu_max_scale)
+        "autoscaling.knative.dev/minScale" = tostring(var.query_gpu_min_scale)
+        "run.googleapis.com/gpu-zonal-redundancy-disabled" = "true"
+      }
+    }
+
+    spec {
+      service_account_name = google_service_account.query.email
+      container_concurrency = var.query_gpu_concurrency
+      timeout_seconds      = var.query_gpu_timeout_seconds
+
+      containers {
+        image = var.query_gpu_image != "" ? var.query_gpu_image : var.query_image
+
+        resources {
+          limits = {
+            cpu              = var.query_gpu_cpu
+            memory           = var.query_gpu_memory
+            "nvidia.com/gpu" = tostring(var.query_gpu_accelerator_count)
+          }
+        }
+
+        env {
+          name  = "ENV"
+          value = var.env
+        }
+        env {
+          name  = "LOG_LEVEL"
+          value = var.log_level
+        }
+        env {
+          name  = "USE_REAL_MODELS"
+          value = var.use_real_models ? "1" : "0"
+        }
+        env {
+          name  = "MODEL_DIR"
+          value = var.model_dir
+        }
+        env {
+          name  = "TEXT_MODEL_NAME"
+          value = var.text_model_name
+        }
+        env {
+          name  = "IMAGE_MODEL_NAME"
+          value = var.image_model_name
+        }
+        env {
+          name  = "AUDIO_MODEL_NAME"
+          value = var.audio_model_name
+        }
+        env {
+          name  = "GRAPH_BUCKET"
+          value = google_storage_bucket.graph.name
+        }
+        env {
+          name  = "GRAPH_PREFIX"
+          value = var.graph_prefix
+        }
+        env {
+          name  = "SNAPSHOT_URI"
+          value = var.snapshot_uri
+        }
+        env {
+          name  = "MAX_RAW_BYTES"
+          value = tostring(var.max_raw_bytes)
+        }
+        env {
+          name  = "MAX_VIDEO_SECONDS"
+          value = tostring(var.max_video_seconds)
+        }
+        env {
+          name  = "MAX_AUDIO_SECONDS"
+          value = tostring(var.max_audio_seconds)
+        }
+        env {
+          name  = "CHUNK_TARGET_TOKENS"
+          value = tostring(var.chunk_target_tokens)
+        }
+        env {
+          name  = "CHUNK_OVERLAP_TOKENS"
+          value = tostring(var.chunk_overlap_tokens)
+        }
+        env {
+          name  = "QUERY_TIER_OVERRIDE"
+          value = "gpu"
+        }
+        env {
+          name  = "EMBEDDING_DEVICE"
+          value = "cuda"
+        }
+        env {
+          name = "QUERY_API_KEY"
+          value_from {
+            secret_key_ref {
+              name = google_secret_manager_secret.query_api_key.secret_id
+              key  = "latest"
+            }
+          }
+        }
+        env {
+          name = "HF_TOKEN"
+          value_from {
+            secret_key_ref {
+              name = "retikon-hf-token"
+              key  = "latest"
+            }
+          }
+        }
+        env {
           name  = "MAX_QUERY_BYTES"
           value = tostring(var.max_query_bytes)
         }
@@ -1114,6 +1301,14 @@ resource "google_cloud_run_service" "stream_ingest" {
 resource "google_cloud_run_service_iam_member" "query_invoker" {
   location = google_cloud_run_service.query.location
   service  = google_cloud_run_service.query.name
+  role     = "roles/run.invoker"
+  member   = "allUsers"
+}
+
+resource "google_cloud_run_service_iam_member" "query_gpu_invoker" {
+  count    = var.query_gpu_enabled ? 1 : 0
+  location = google_cloud_run_service.query_gpu[0].location
+  service  = google_cloud_run_service.query_gpu[0].name
   role     = "roles/run.invoker"
   member   = "allUsers"
 }

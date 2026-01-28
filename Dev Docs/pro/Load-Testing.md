@@ -41,6 +41,16 @@ python scripts/load_test_query.py \
 
 Capture output JSON and record the latencies below.
 
+### SLO split: text-only vs multimodal
+
+Run two baselines and record each separately:
+
+- Text-only: send `mode=text` and confirm only text embeddings run.
+- Multimodal: default mode (text + image-text + audio-text).
+
+If you run a GPU tier, repeat the same two baselines against the GPU query URL
+and record the deltas (p50/p95/p99). This is the release SLO for Sprint 9.
+
 ## Ingestion throughput test
 
 Command (example):

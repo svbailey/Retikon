@@ -18,6 +18,10 @@ output "query_service_name" {
   value = google_cloud_run_service.query.name
 }
 
+output "query_gpu_service_name" {
+  value = var.query_gpu_enabled ? google_cloud_run_service.query_gpu[0].name : null
+}
+
 output "audit_service_name" {
   value = google_cloud_run_service.audit.name
 }
@@ -28,6 +32,10 @@ output "ingestion_service_url" {
 
 output "query_service_url" {
   value = google_cloud_run_service.query.status[0].url
+}
+
+output "query_gpu_service_url" {
+  value = var.query_gpu_enabled ? google_cloud_run_service.query_gpu[0].status[0].url : null
 }
 
 output "audit_service_url" {

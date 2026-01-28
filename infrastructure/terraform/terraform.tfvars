@@ -62,6 +62,16 @@ whisper_model_name = "small"
 
 ingestion_image = "us-central1-docker.pkg.dev/simitor/retikon-repo/retikon-ingest:dev-20260126-161145"
 query_image = "us-central1-docker.pkg.dev/simitor/retikon-repo/retikon-query:dev-20260128-132535"
+query_gpu_enabled = false
+query_gpu_image = "us-central1-docker.pkg.dev/simitor/retikon-repo/retikon-query-gpu:dev-20260128-183930"
+query_gpu_cpu = "4000m"
+query_gpu_memory = "16Gi"
+query_gpu_concurrency = 4
+query_gpu_timeout_seconds = 300
+query_gpu_max_scale = 5
+query_gpu_min_scale = 0
+query_gpu_accelerator_count = 1
+query_gpu_accelerator_type = "nvidia-l4"
 audit_image = "us-central1-docker.pkg.dev/simitor/retikon-repo/retikon-audit:dev-20260128-140107"
 index_image = "us-central1-docker.pkg.dev/simitor/retikon-repo/retikon-query:dev-20260126-161145"
 dev_console_image = "us-central1-docker.pkg.dev/simitor/retikon-repo/retikon-dev-console:dev-20260126-184417"

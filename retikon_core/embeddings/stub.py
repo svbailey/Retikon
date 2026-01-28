@@ -21,8 +21,27 @@ class AudioEmbedder(Protocol):
     def encode(self, clips: Iterable[bytes]) -> list[list[float]]: ...
 
 
+BACKEND_STUB = "stub"
+BACKEND_HF = "hf"
+BACKEND_ONNX = "onnx"
+BACKEND_QUANTIZED = "quantized"
+BACKEND_AUTO = "auto"
+
+
 def _use_real_models() -> bool:
     return os.getenv("USE_REAL_MODELS") == "1"
+
+
+def _embedding_backend() -> str:
+    raw = os.getenv("EMBEDDING_BACKEND") or os.getenv("RETIKON_EMBEDDING_BACKEND")
+    backend = (raw or BACKEND_AUTO).strip().lower()
+    if backend in {"", BACKEND_AUTO}:
+        return BACKEND_HF if _use_real_models() else BACKEND_STUB
+    if backend in {"transformers", "real"}:
+        return BACKEND_HF
+    if backend in {BACKEND_STUB, BACKEND_HF, BACKEND_ONNX, BACKEND_QUANTIZED}:
+        return backend
+    raise ValueError(f"Unsupported embedding backend: {backend}")
 
 
 def _model_dir() -> str:
@@ -227,6 +246,81 @@ class RealClapTextEmbedder:
         return features.cpu().numpy().tolist()
 
 
+def _require_onnxruntime() -> None:
+    try:
+        import onnxruntime  # type: ignore[import-untyped]
+        _ = onnxruntime
+    except ImportError as exc:  # pragma: no cover - depends on optional deps
+        raise RuntimeError(
+            "onnxruntime is required for ONNX/quantized embedding backends"
+        ) from exc
+
+
+class OnnxTextEmbedder:
+    def __init__(self) -> None:
+        _require_onnxruntime()
+        self._fallback = RealTextEmbedder()
+
+    def encode(self, texts: Iterable[str]) -> list[list[float]]:
+        return self._fallback.encode(texts)
+
+
+class OnnxClipImageEmbedder:
+    def __init__(self) -> None:
+        _require_onnxruntime()
+        self._fallback = RealClipImageEmbedder()
+
+    def encode(self, images: Iterable[Image.Image]) -> list[list[float]]:
+        return self._fallback.encode(images)
+
+
+class OnnxClipTextEmbedder:
+    def __init__(self) -> None:
+        _require_onnxruntime()
+        self._fallback = RealClipTextEmbedder()
+
+    def encode(self, texts: Iterable[str]) -> list[list[float]]:
+        return self._fallback.encode(texts)
+
+
+class OnnxClapAudioEmbedder:
+    def __init__(self) -> None:
+        _require_onnxruntime()
+        self._fallback = RealClapAudioEmbedder()
+
+    def encode(self, clips: Iterable[bytes]) -> list[list[float]]:
+        return self._fallback.encode(clips)
+
+
+class OnnxClapTextEmbedder:
+    def __init__(self) -> None:
+        _require_onnxruntime()
+        self._fallback = RealClapTextEmbedder()
+
+    def encode(self, texts: Iterable[str]) -> list[list[float]]:
+        return self._fallback.encode(texts)
+
+
+class QuantizedTextEmbedder(OnnxTextEmbedder):
+    pass
+
+
+class QuantizedClipImageEmbedder(OnnxClipImageEmbedder):
+    pass
+
+
+class QuantizedClipTextEmbedder(OnnxClipTextEmbedder):
+    pass
+
+
+class QuantizedClapAudioEmbedder(OnnxClapAudioEmbedder):
+    pass
+
+
+class QuantizedClapTextEmbedder(OnnxClapTextEmbedder):
+    pass
+
+
 _TEXT_CACHE: dict[int, StubTextEmbedder] = {}
 _IMAGE_CACHE: dict[int, StubImageEmbedder] = {}
 _AUDIO_CACHE: dict[int, StubAudioEmbedder] = {}
@@ -236,6 +330,18 @@ _REAL_IMAGE: RealClipImageEmbedder | None = None
 _REAL_IMAGE_TEXT: RealClipTextEmbedder | None = None
 _REAL_AUDIO: RealClapAudioEmbedder | None = None
 _REAL_AUDIO_TEXT: RealClapTextEmbedder | None = None
+
+_ONNX_TEXT: "OnnxTextEmbedder | None" = None
+_ONNX_IMAGE: "OnnxClipImageEmbedder | None" = None
+_ONNX_IMAGE_TEXT: "OnnxClipTextEmbedder | None" = None
+_ONNX_AUDIO: "OnnxClapAudioEmbedder | None" = None
+_ONNX_AUDIO_TEXT: "OnnxClapTextEmbedder | None" = None
+
+_QUANT_TEXT: "QuantizedTextEmbedder | None" = None
+_QUANT_IMAGE: "QuantizedClipImageEmbedder | None" = None
+_QUANT_IMAGE_TEXT: "QuantizedClipTextEmbedder | None" = None
+_QUANT_AUDIO: "QuantizedClapAudioEmbedder | None" = None
+_QUANT_AUDIO_TEXT: "QuantizedClapTextEmbedder | None" = None
 
 EmbedderT = TypeVar("EmbedderT")
 
@@ -288,30 +394,123 @@ def _get_real_audio_text_embedder() -> TextEmbedder:
 
 
 def get_text_embedder(dim: int) -> TextEmbedder:
-    if _use_real_models():
+    backend = _embedding_backend()
+    if backend == BACKEND_STUB or not _use_real_models():
+        return _get_cached_embedder(_TEXT_CACHE, StubTextEmbedder, dim)
+    if backend == BACKEND_HF:
         return _get_real_text_embedder()
-    return _get_cached_embedder(_TEXT_CACHE, StubTextEmbedder, dim)
+    if backend == BACKEND_ONNX:
+        global _ONNX_TEXT
+        if _ONNX_TEXT is None:
+            _ONNX_TEXT = OnnxTextEmbedder()
+        return _ONNX_TEXT
+    if backend == BACKEND_QUANTIZED:
+        global _QUANT_TEXT
+        if _QUANT_TEXT is None:
+            _QUANT_TEXT = QuantizedTextEmbedder()
+        return _QUANT_TEXT
+    return _get_real_text_embedder()
 
 
 def get_image_embedder(dim: int) -> ImageEmbedder:
-    if _use_real_models():
+    backend = _embedding_backend()
+    if backend == BACKEND_STUB or not _use_real_models():
+        return _get_cached_embedder(_IMAGE_CACHE, StubImageEmbedder, dim)
+    if backend == BACKEND_HF:
         return _get_real_image_embedder()
-    return _get_cached_embedder(_IMAGE_CACHE, StubImageEmbedder, dim)
+    if backend == BACKEND_ONNX:
+        global _ONNX_IMAGE
+        if _ONNX_IMAGE is None:
+            _ONNX_IMAGE = OnnxClipImageEmbedder()
+        return _ONNX_IMAGE
+    if backend == BACKEND_QUANTIZED:
+        global _QUANT_IMAGE
+        if _QUANT_IMAGE is None:
+            _QUANT_IMAGE = QuantizedClipImageEmbedder()
+        return _QUANT_IMAGE
+    return _get_real_image_embedder()
 
 
 def get_image_text_embedder(dim: int) -> TextEmbedder:
-    if _use_real_models():
+    backend = _embedding_backend()
+    if backend == BACKEND_STUB or not _use_real_models():
+        return _get_cached_embedder(_TEXT_CACHE, StubTextEmbedder, dim)
+    if backend == BACKEND_HF:
         return _get_real_image_text_embedder()
-    return _get_cached_embedder(_TEXT_CACHE, StubTextEmbedder, dim)
+    if backend == BACKEND_ONNX:
+        global _ONNX_IMAGE_TEXT
+        if _ONNX_IMAGE_TEXT is None:
+            _ONNX_IMAGE_TEXT = OnnxClipTextEmbedder()
+        return _ONNX_IMAGE_TEXT
+    if backend == BACKEND_QUANTIZED:
+        global _QUANT_IMAGE_TEXT
+        if _QUANT_IMAGE_TEXT is None:
+            _QUANT_IMAGE_TEXT = QuantizedClipTextEmbedder()
+        return _QUANT_IMAGE_TEXT
+    return _get_real_image_text_embedder()
 
 
 def get_audio_embedder(dim: int) -> AudioEmbedder:
-    if _use_real_models():
+    backend = _embedding_backend()
+    if backend == BACKEND_STUB or not _use_real_models():
+        return _get_cached_embedder(_AUDIO_CACHE, StubAudioEmbedder, dim)
+    if backend == BACKEND_HF:
         return _get_real_audio_embedder()
-    return _get_cached_embedder(_AUDIO_CACHE, StubAudioEmbedder, dim)
+    if backend == BACKEND_ONNX:
+        global _ONNX_AUDIO
+        if _ONNX_AUDIO is None:
+            _ONNX_AUDIO = OnnxClapAudioEmbedder()
+        return _ONNX_AUDIO
+    if backend == BACKEND_QUANTIZED:
+        global _QUANT_AUDIO
+        if _QUANT_AUDIO is None:
+            _QUANT_AUDIO = QuantizedClapAudioEmbedder()
+        return _QUANT_AUDIO
+    return _get_real_audio_embedder()
 
 
 def get_audio_text_embedder(dim: int) -> TextEmbedder:
-    if _use_real_models():
+    backend = _embedding_backend()
+    if backend == BACKEND_STUB or not _use_real_models():
+        return _get_cached_embedder(_TEXT_CACHE, StubTextEmbedder, dim)
+    if backend == BACKEND_HF:
         return _get_real_audio_text_embedder()
-    return _get_cached_embedder(_TEXT_CACHE, StubTextEmbedder, dim)
+    if backend == BACKEND_ONNX:
+        global _ONNX_AUDIO_TEXT
+        if _ONNX_AUDIO_TEXT is None:
+            _ONNX_AUDIO_TEXT = OnnxClapTextEmbedder()
+        return _ONNX_AUDIO_TEXT
+    if backend == BACKEND_QUANTIZED:
+        global _QUANT_AUDIO_TEXT
+        if _QUANT_AUDIO_TEXT is None:
+            _QUANT_AUDIO_TEXT = QuantizedClapTextEmbedder()
+        return _QUANT_AUDIO_TEXT
+    return _get_real_audio_text_embedder()
+
+
+def get_embedding_backend() -> str:
+    return _embedding_backend()
+
+
+def reset_embedding_cache() -> None:
+    _TEXT_CACHE.clear()
+    _IMAGE_CACHE.clear()
+    _AUDIO_CACHE.clear()
+    global _REAL_TEXT, _REAL_IMAGE, _REAL_IMAGE_TEXT, _REAL_AUDIO, _REAL_AUDIO_TEXT
+    global _ONNX_TEXT, _ONNX_IMAGE, _ONNX_IMAGE_TEXT, _ONNX_AUDIO, _ONNX_AUDIO_TEXT
+    global _QUANT_TEXT, _QUANT_IMAGE, _QUANT_IMAGE_TEXT, _QUANT_AUDIO, _QUANT_AUDIO_TEXT
+    _REAL_TEXT = None
+    _REAL_IMAGE = None
+    _REAL_IMAGE_TEXT = None
+    _REAL_AUDIO = None
+    _REAL_AUDIO_TEXT = None
+    _ONNX_TEXT = None
+    _ONNX_IMAGE = None
+    _ONNX_IMAGE_TEXT = None
+    _ONNX_AUDIO = None
+    _ONNX_AUDIO_TEXT = None
+    _QUANT_TEXT = None
+    _QUANT_IMAGE = None
+    _QUANT_IMAGE_TEXT = None
+    _QUANT_AUDIO = None
+    _QUANT_AUDIO_TEXT = None

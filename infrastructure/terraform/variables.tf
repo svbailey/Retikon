@@ -34,6 +34,11 @@ variable "query_service_name" {
   default = "retikon-query"
 }
 
+variable "query_gpu_service_name" {
+  type    = string
+  default = "retikon-query-gpu"
+}
+
 variable "audit_service_name" {
   type    = string
   default = "retikon-audit"
@@ -87,6 +92,16 @@ variable "ingestion_image" {
 variable "query_image" {
   type    = string
   default = "us-docker.pkg.dev/cloudrun/container/hello"
+}
+
+variable "query_gpu_enabled" {
+  type    = bool
+  default = false
+}
+
+variable "query_gpu_image" {
+  type    = string
+  default = ""
 }
 
 variable "audit_image" {
@@ -149,12 +164,27 @@ variable "query_cpu" {
   default = "1000m"
 }
 
+variable "query_gpu_cpu" {
+  type    = string
+  default = "4000m"
+}
+
 variable "query_concurrency" {
   type    = number
   default = 10
 }
 
+variable "query_gpu_concurrency" {
+  type    = number
+  default = 4
+}
+
 variable "query_timeout_seconds" {
+  type    = number
+  default = 300
+}
+
+variable "query_gpu_timeout_seconds" {
   type    = number
   default = 300
 }
@@ -212,6 +242,31 @@ variable "query_max_scale" {
 variable "query_min_scale" {
   type    = number
   default = 0
+}
+
+variable "query_gpu_max_scale" {
+  type    = number
+  default = 5
+}
+
+variable "query_gpu_min_scale" {
+  type    = number
+  default = 0
+}
+
+variable "query_gpu_memory" {
+  type    = string
+  default = "16Gi"
+}
+
+variable "query_gpu_accelerator_count" {
+  type    = number
+  default = 1
+}
+
+variable "query_gpu_accelerator_type" {
+  type    = string
+  default = "nvidia-l4"
 }
 
 variable "audit_max_scale" {
