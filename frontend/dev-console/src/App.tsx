@@ -50,6 +50,33 @@ type PrivacyPolicy = {
   updated_at?: string | null;
 };
 
+type FleetDevice = {
+  id: string;
+  name: string;
+  org_id?: string | null;
+  site_id?: string | null;
+  stream_id?: string | null;
+  tags?: string[] | null;
+  status: string;
+  firmware_version?: string | null;
+  last_seen_at?: string | null;
+  metadata?: Record<string, unknown> | null;
+  created_at?: string | null;
+  updated_at?: string | null;
+};
+
+type FleetRolloutStage = {
+  stage: number;
+  percent: number;
+  target_count: number;
+  device_ids: string[];
+};
+
+type FleetRolloutResponse = {
+  total_devices: number;
+  stages: FleetRolloutStage[];
+};
+
 type UploadInfo = {
   uri: string;
   run_id: string;
@@ -247,6 +274,13 @@ export default function App() {
   const [privacyStatus, setPrivacyStatus] = useState<StepStatus>("idle");
   const [privacyError, setPrivacyError] = useState<string | null>(null);
   const [privacyUrlOverride, setPrivacyUrlOverride] = useState("");
+  const [fleetDevices, setFleetDevices] = useState<FleetDevice[]>([]);
+  const [fleetStatus, setFleetStatus] = useState<StepStatus>("idle");
+  const [fleetError, setFleetError] = useState<string | null>(null);
+  const [fleetUrlOverride, setFleetUrlOverride] = useState("");
+  const [fleetRollout, setFleetRollout] = useState<FleetRolloutResponse | null>(null);
+  const [fleetRolloutStatus, setFleetRolloutStatus] = useState<StepStatus>("idle");
+  const [fleetRolloutError, setFleetRolloutError] = useState<string | null>(null);
 
   const queryUrl = useMemo(() => {
     return (
@@ -271,6 +305,10 @@ export default function App() {
   const privacyUrl = useMemo(() => {
     return privacyUrlOverride || import.meta.env.VITE_PRIVACY_URL || "";
   }, [privacyUrlOverride]);
+
+  const fleetUrl = useMemo(() => {
+    return fleetUrlOverride || import.meta.env.VITE_FLEET_URL || "";
+  }, [fleetUrlOverride]);
 
   const ingestUrl = useMemo(() => {
     return ingestUrlOverride || import.meta.env.VITE_INGEST_URL || "";
@@ -306,6 +344,12 @@ export default function App() {
     : "";
   const privacyPoliciesUrl = privacyUrl
     ? `${privacyUrl.replace(/\/$/, "")}/privacy/policies`
+    : "";
+  const fleetDevicesUrl = fleetUrl
+    ? `${fleetUrl.replace(/\/$/, "")}/fleet/devices`
+    : "";
+  const fleetRolloutUrl = fleetUrl
+    ? `${fleetUrl.replace(/\/$/, "")}/fleet/rollouts/plan`
     : "";
 
   const rawBucket = import.meta.env.VITE_RAW_BUCKET || "";
@@ -347,6 +391,10 @@ export default function App() {
     const privacyOverride = localStorage.getItem("retikon_privacy_url");
     if (privacyOverride) {
       setPrivacyUrlOverride(privacyOverride);
+    }
+    const fleetOverride = localStorage.getItem("retikon_fleet_url");
+    if (fleetOverride) {
+      setFleetUrlOverride(fleetOverride);
     }
     const storedMode = localStorage.getItem("retikon_query_mode");
     if (storedMode === "text" || storedMode === "all") {
@@ -399,6 +447,14 @@ export default function App() {
       localStorage.removeItem("retikon_privacy_url");
     }
   }, [privacyUrlOverride]);
+
+  useEffect(() => {
+    if (fleetUrlOverride) {
+      localStorage.setItem("retikon_fleet_url", fleetUrlOverride);
+    } else {
+      localStorage.removeItem("retikon_fleet_url");
+    }
+  }, [fleetUrlOverride]);
 
   useEffect(() => {
     localStorage.setItem("retikon_query_mode", queryMode);
@@ -801,6 +857,62 @@ export default function App() {
     }
   };
 
+  const fetchFleetDevices = async () => {
+    if (!fleetDevicesUrl) {
+      setFleetError("Fleet API URL is not configured.");
+      setFleetStatus("error");
+      return;
+    }
+    setFleetError(null);
+    setFleetStatus("working");
+    try {
+      const resp = await fetch(fleetDevicesUrl, { headers: devHeaders() });
+      if (!resp.ok) {
+        const detail = await resp.text();
+        throw new Error(detail || "Fleet devices fetch failed");
+      }
+      const data = (await resp.json()) as FleetDevice[];
+      setFleetDevices(data);
+      setFleetStatus("done");
+      addActivity("Fleet devices loaded.", "success");
+    } catch (err) {
+      const message = (err as Error).message;
+      setFleetError(message);
+      setFleetStatus("error");
+      addActivity(message, "error");
+    }
+  };
+
+  const fetchFleetRollout = async () => {
+    if (!fleetRolloutUrl) {
+      setFleetRolloutError("Fleet API URL is not configured.");
+      setFleetRolloutStatus("error");
+      return;
+    }
+    setFleetRolloutError(null);
+    setFleetRolloutStatus("working");
+    try {
+      const resp = await fetch(fleetRolloutUrl, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", ...devHeaders() },
+        body: JSON.stringify({ stage_percentages: [10, 50, 100] }),
+      });
+      if (!resp.ok) {
+        const detail = await resp.text();
+        throw new Error(detail || "Fleet rollout plan failed");
+      }
+      const data = (await resp.json()) as FleetRolloutResponse;
+      setFleetRollout(data);
+      setFleetRolloutStatus("done");
+      addActivity("Fleet rollout plan generated.", "success");
+    } catch (err) {
+      const message = (err as Error).message;
+      setFleetRolloutError(message);
+      setFleetRolloutStatus("error");
+      addActivity(message, "error");
+    }
+  };
+
   const reloadSnapshot = async () => {
     if (!apiKey) {
       setReloadError("API key required to reload snapshot.");
@@ -1195,6 +1307,16 @@ export default function App() {
               <small>
                 Default: {import.meta.env.VITE_PRIVACY_URL || "none"}
               </small>
+            </label>
+            <label className="field">
+              <span>Fleet API URL</span>
+              <input
+                type="url"
+                placeholder="https://retikon-fleet-...run.app"
+                value={fleetUrlOverride}
+                onChange={(event) => setFleetUrlOverride(event.target.value)}
+              />
+              <small>Default: {import.meta.env.VITE_FLEET_URL || "none"}</small>
             </label>
           </div>
           <p className="panel-help">
@@ -1879,6 +2001,51 @@ export default function App() {
           <div className="preview-panel">
             <pre className="preview-json">
               {JSON.stringify(privacyPolicies, null, 2)}
+            </pre>
+          </div>
+        )}
+      </section>
+
+      <section className="panel">
+        <div className="panel-header">
+          <h2>Fleet</h2>
+          <span className="counter">{fleetDevices.length} devices</span>
+        </div>
+        <div className="actions">
+          <button
+            onClick={fetchFleetDevices}
+            disabled={!fleetDevicesUrl || fleetStatus === "working"}
+          >
+            {fleetStatus === "working" ? "Loading..." : "Load devices"}
+          </button>
+          <button
+            className="ghost"
+            onClick={fetchFleetRollout}
+            disabled={!fleetRolloutUrl || fleetRolloutStatus === "working"}
+          >
+            {fleetRolloutStatus === "working"
+              ? "Planning..."
+              : "Plan rollout"}
+          </button>
+        </div>
+        {!fleetDevicesUrl && (
+          <p className="hint">Fleet API URL is not configured yet.</p>
+        )}
+        {fleetError && <p className="error">{fleetError}</p>}
+        {fleetDevices.length === 0 ? (
+          <p className="hint">No devices loaded yet.</p>
+        ) : (
+          <div className="preview-panel">
+            <pre className="preview-json">
+              {JSON.stringify(fleetDevices, null, 2)}
+            </pre>
+          </div>
+        )}
+        {fleetRolloutError && <p className="error">{fleetRolloutError}</p>}
+        {fleetRollout && (
+          <div className="preview-panel">
+            <pre className="preview-json">
+              {JSON.stringify(fleetRollout, null, 2)}
             </pre>
           </div>
         )}

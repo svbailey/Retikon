@@ -13,7 +13,12 @@ from retikon_core.fleet.store import (
     update_device,
     update_device_status,
 )
-from retikon_core.fleet.types import DeviceRecord, HardeningResult, RolloutPlan, RolloutStage
+from retikon_core.fleet.types import (
+    DeviceRecord,
+    HardeningResult,
+    RolloutPlan,
+    RolloutStage,
+)
 
 __all__ = [
     "DEFAULT_CHECKS",
