@@ -325,6 +325,18 @@ def _sql_list(items: Iterable[str]) -> str:
     return "[" + ", ".join(f"'{item}'" for item in escaped) + "]"
 
 
+def _table_has_column(
+    conn: duckdb.DuckDBPyConnection,
+    table: str,
+    column: str,
+) -> bool:
+    try:
+        rows = conn.execute(f"PRAGMA table_info('{table}')").fetchall()
+    except duckdb.Error:
+        return False
+    return any(row[1] == column for row in rows)
+
+
 def _configure_gcs_secret(
     conn: duckdb.DuckDBPyConnection,
     allow_install: bool,
@@ -633,16 +645,28 @@ def build_snapshot(
             ]
             conn.execute(
                 f"""
+                CREATE TEMP TABLE image_asset_core_raw AS
+                SELECT *
+                FROM read_parquet({_sql_list(core_files)},
+                                  filename=true,
+                                  file_row_number=true,
+                                  union_by_name=true) AS c
+                """
+            )
+            thumbnail_expr = (
+                "c.thumbnail_uri"
+                if _table_has_column(conn, "image_asset_core_raw", "thumbnail_uri")
+                else "NULL AS thumbnail_uri"
+            )
+            conn.execute(
+                f"""
                 CREATE TEMP VIEW image_asset_core AS
                 SELECT m.group_id,
                        c.file_row_number AS row_number,
                        c.media_asset_id,
                        c.timestamp_ms,
-                       c.thumbnail_uri
-                FROM read_parquet({_sql_list(core_files)},
-                                  filename=true,
-                                  file_row_number=true,
-                                  union_by_name=true) AS c
+                       {thumbnail_expr}
+                FROM image_asset_core_raw AS c
                 JOIN image_asset_map m ON c.filename = m.core
                 """
             )
