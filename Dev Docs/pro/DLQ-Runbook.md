@@ -1,5 +1,7 @@
 # Retikon DLQ Runbook
 
+Pro only. This runbook applies to Retikon Pro (GCP).
+
 ## Overview
 
 The ingestion service publishes failed events to the DLQ Pub/Sub topic. Use the

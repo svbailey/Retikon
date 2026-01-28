@@ -57,7 +57,7 @@ Query service:
 
 ## Load‑Testing Baselines
 
-Recorded in `Dev Docs/Load-Testing.md` (2026‑01‑27):
+Recorded in `Dev Docs/pro/Load-Testing.md` (2026‑01‑27):
 - Text‑only (`mode=text`) baseline.
 - Default multimodal baseline.
 
@@ -66,7 +66,7 @@ Recorded in `Dev Docs/Load-Testing.md` (2026‑01‑27):
 - `Dev Docs/Retikon-GCP-Build-Kit-v2.5.md`
   - Optional OCR and query warmup details.
   - Index builder alignment behavior documented.
-- `Dev Docs/Load-Testing.md`
+- `Dev Docs/pro/Load-Testing.md`
   - Updated query baselines (text‑only vs multimodal).
 
 ## Backwards Compatibility

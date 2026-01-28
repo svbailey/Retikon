@@ -19,7 +19,7 @@ Pro (Commercial):
 - gcp_adapter/
 - infrastructure/terraform/
 - tests/pro/
-- Dev Docs/* GCP deployment/runbooks
+- Dev Docs/pro/ (GCP deployment/runbooks)
 
 ## Dependency rules
 
@@ -36,7 +36,7 @@ Pro:
 
 - Core tests live in tests/core and run with requirements-core.txt only.
 - Pro tests live in tests/pro and run with requirements-pro.txt.
-- A boundary check test exists to prevent GCP imports in Core once enabled.
+- CI enforces a boundary check to prevent GCP imports in Core.
 
 ## Release intent
 

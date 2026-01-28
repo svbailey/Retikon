@@ -1402,18 +1402,18 @@ E8 plus cross-cutting work
   - ingest throughput target
   - capture p95 latency and cost signals
   - scripts: `scripts/load_test_query.py`, `scripts/load_test_ingest.py`
-  - results record: `Dev Docs/Load-Testing.md`
+  - results record: `Dev Docs/pro/Load-Testing.md`
 - Cold-start optimization:
   - lazy model load, warm-path caching, reuse model instances
   - cache stub embedders to avoid per-request instantiation
 - Snapshot refresh strategy:
   - define cadence, backfill behavior, and rollback steps
-  - documented in `Dev Docs/Snapshot-Refresh-Strategy.md`
+  - documented in `Dev Docs/pro/Snapshot-Refresh-Strategy.md`
 - Documentation pack:
   - local dev, deployment, ops runbook, schema reference
   - `Dev Docs/Local-Development.md`
-  - `Dev Docs/Deployment.md`
-  - `Dev Docs/Operations-Runbook.md`
+  - `Dev Docs/pro/Deployment.md`
+  - `Dev Docs/pro/Operations-Runbook.md`
   - `Dev Docs/Schema-Reference.md`
 - Golden demo dataset and scripted demo steps.
   - `scripts/upload_demo_dataset.py`

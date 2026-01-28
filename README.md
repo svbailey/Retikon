@@ -7,13 +7,14 @@ tracks the v2.5 build kit and the development plan.
 ## Start here
 
 - Development plan: `Dev Docs/Retikon-GCP-Build-Kit-v2.5.md`
+- Core/Pro boundary rules: `Dev Docs/Core-Pro-Boundary.md`
 - Agent rules: `AGENTS.md`
 - GraphAr schemas: `retikon_core/schemas/graphar/README.md`
 - Local development: `Dev Docs/Local-Development.md`
-- Deployment: `Dev Docs/Deployment.md`
-- Operations: `Dev Docs/Operations-Runbook.md`
-- Load testing: `Dev Docs/Load-Testing.md`
-- Snapshot refresh: `Dev Docs/Snapshot-Refresh-Strategy.md`
+- Pro deployment: `Dev Docs/pro/Deployment.md`
+- Pro operations: `Dev Docs/pro/Operations-Runbook.md`
+- Pro load testing: `Dev Docs/pro/Load-Testing.md`
+- Pro snapshot refresh: `Dev Docs/pro/Snapshot-Refresh-Strategy.md`
 - Schema reference: `Dev Docs/Schema-Reference.md`
 - Golden demo: `Dev Docs/Golden-Demo.md`
 - Security checklist: `Dev Docs/Security-Checklist.md`
@@ -39,8 +40,14 @@ Retikon is an open-core platform:
 ## Quickstart
 
 - Core local run: `Dev Docs/Local-Development.md` (start with `retikon init`)
-- Deployment (GCP): `Dev Docs/Deployment.md`
+- Pro deployment (GCP): `Dev Docs/pro/Deployment.md`
 - Console usage: `Dev Docs/Developer-Console-UI-Guide.md`
+
+## Monorepo boundary rules
+
+- Core must remain cloud-agnostic (no GCP SDK imports).
+- Pro owns GCP-specific adapters, infra, and runbooks.
+- See: `Dev Docs/Core-Pro-Boundary.md` for the enforced rules.
 
 ## Repository layout (expected)
 
@@ -71,7 +78,7 @@ Retikon is an open-core platform:
 - IDs: UUIDv4 strings for all vertices and edges.
 - Schema evolution: additive-only, query with `union_by_name=true`.
 
-## GCP prerequisites
+## Pro (GCP) prerequisites
 
 You need a GCP project with billing enabled and these APIs:
 
@@ -82,12 +89,9 @@ You need a GCP project with billing enabled and these APIs:
 Service accounts must be created for ingestion, query, and index building, with
 least-privilege GCS access as defined in the build kit doc.
 
-## Local development prerequisites
+## Core local development prerequisites
 
 - Python 3.10+
-- Docker
-- Terraform 1.5+
-- gcloud CLI
 - Node.js 18+ (Dev Console)
 - ffmpeg + ffprobe
 - poppler-utils
@@ -96,16 +100,23 @@ least-privilege GCS access as defined in the build kit doc.
 
 Use the local `.env` file for dev. Do not commit secrets.
 
-Key variables:
+Core (local) variables:
+
+- `STORAGE_BACKEND=local`
+- `LOCAL_GRAPH_ROOT`
+- `SNAPSHOT_URI`
+- `MAX_RAW_BYTES`, `MAX_VIDEO_SECONDS`, `MAX_AUDIO_SECONDS`
+- `CHUNK_TARGET_TOKENS`, `CHUNK_OVERLAP_TOKENS`
+- `USE_REAL_MODELS`, `MODEL_DIR`, `EMBEDDING_DEVICE`
+- `TEXT_MODEL_NAME`, `IMAGE_MODEL_NAME`, `AUDIO_MODEL_NAME`, `WHISPER_MODEL_NAME`
+
+Pro (GCP) variables:
 
 - `GOOGLE_CLOUD_PROJECT`, `GOOGLE_CLOUD_REGION`
 - `RAW_BUCKET`, `GRAPH_BUCKET`, `GRAPH_PREFIX`
 - `SNAPSHOT_URI`
-- `MAX_RAW_BYTES`, `MAX_VIDEO_SECONDS`, `MAX_AUDIO_SECONDS`
-- `CHUNK_TARGET_TOKENS`, `CHUNK_OVERLAP_TOKENS`
 - `QUERY_API_KEY` (dev only; prod uses Secret Manager)
-- `USE_REAL_MODELS`, `MODEL_DIR`, `EMBEDDING_DEVICE`
-- `TEXT_MODEL_NAME`, `IMAGE_MODEL_NAME`, `AUDIO_MODEL_NAME`, `WHISPER_MODEL_NAME`
+- `INGEST_API_KEY` (optional for ingestion auth)
 
 ## Development workflow (high level)
 

@@ -1,5 +1,7 @@
 # Deployment
 
+Pro only. This runbook applies to Retikon Pro (GCP).
+
 This assumes Terraform-managed infrastructure and Cloud Run services.
 
 ## Build images

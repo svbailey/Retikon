@@ -4,7 +4,7 @@
 
 - [x] All sprint exit criteria satisfied (Sprints 1-10).
 - [x] `python -m ruff check .` and `python -m pytest -q` pass in CI.
-- [x] Load testing results recorded in `Dev Docs/Load-Testing.md` (query + ingest + streaming + compaction).
+- [x] Load testing results recorded in `Dev Docs/pro/Load-Testing.md` (query + ingest + streaming + compaction).
 - [x] Multi-tenant API key registry created and validated.
 - [x] Metering events recorded to `UsageEvent` GraphAr vertex.
 - [x] Snapshot refresh strategy approved.
@@ -17,7 +17,7 @@
 
 - [x] All sprint exit criteria satisfied (Sprints 1-8).
 - [x] `make lint` and `make test` pass in CI.
-- [x] Load testing results recorded in `Dev Docs/Load-Testing.md`.
+- [x] Load testing results recorded in `Dev Docs/pro/Load-Testing.md`.
 - [x] Release notes published in `Dev Docs/Release-Notes-v2.5.md`.
 - [x] Snapshot refresh strategy approved.
 - [x] Ops runbook reviewed.

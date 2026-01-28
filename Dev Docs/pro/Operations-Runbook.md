@@ -1,5 +1,7 @@
 # Operations Runbook
 
+Pro only. This runbook applies to Retikon Pro (GCP).
+
 This runbook covers routine checks and incident response for Retikon services.
 
 ## Daily checks
@@ -16,7 +18,7 @@ This runbook covers routine checks and incident response for Retikon services.
 ## DLQ handling
 
 - Use `scripts/dlq_tool.py` to list, inspect, and replay messages.
-- Follow the detailed steps in `Dev Docs/DLQ-Runbook.md`.
+- Follow the detailed steps in `Dev Docs/pro/DLQ-Runbook.md`.
 
 ## Query incidents
 

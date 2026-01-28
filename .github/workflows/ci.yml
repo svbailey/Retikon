@@ -22,6 +22,12 @@ jobs:
         run: |
           python -m ruff check .
           python -m mypy retikon_core gcp_adapter
+      - name: Core boundary check (no GCP imports)
+        run: |
+          if rg -n "google\\.cloud|googleapiclient|google\\.auth|from google|import google" retikon_core; then
+            echo "GCP imports found in retikon_core. Move them to gcp_adapter."
+            exit 1
+          fi
 
   test-core:
     runs-on: ubuntu-latest

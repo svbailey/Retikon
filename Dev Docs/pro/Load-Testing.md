@@ -1,5 +1,7 @@
 # Load Testing
 
+Pro only. This runbook applies to Retikon Pro (GCP).
+
 This doc captures the minimal load test procedure for the query and ingestion
 services, plus the results record to fill before release.
 

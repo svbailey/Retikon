@@ -185,13 +185,13 @@ Tasks:
 - Add metering `retikon_core/metering/` and GraphAr schema additions.
 - Update GCP services to enforce scopes in `gcp_adapter/ingestion_service.py`, `gcp_adapter/query_service.py`.
 - Add autoscaling configuration in Terraform (`infrastructure/terraform/`).
-- Update `Dev Docs/Load-Testing.md` with streaming/compaction benchmarks.
+- Update `Dev Docs/pro/Load-Testing.md` with streaming/compaction benchmarks.
 - Update `Dev Docs/Release-Checklist.md` for v3.0.
 - Add load test baselines for text-only vs multimodal queries.
 
 Tests:
 - `tests/test_query_auth.py`, `tests/test_metering.py`.
-- Run load tests per `Dev Docs/Load-Testing.md`.
+- Run load tests per `Dev Docs/pro/Load-Testing.md`.
 
 Deliverables:
 - Pro MVP feature set complete.

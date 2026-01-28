@@ -236,7 +236,7 @@ Pro:
 - Core provides CLI + SDKs + minimal console.
 - Pro services provide streaming ingestion, queue dispatch, compaction, event lifecycle state, webhooks, and basic multi-tenancy/metering.
 - Audit logs and usage reporting available in Pro.
-- Load test baselines documented in `Dev Docs/Load-Testing.md`.
+- Load test baselines documented in `Dev Docs/pro/Load-Testing.md`.
 - Developer consumption patterns documented in `Dev Docs/Developer-Integration-Guide.md`.
 - Advanced UI behavior documented in `Dev Docs/Developer-Console-UI-Guide.md`.
 - Query modes/modality filters documented and available in Core UI/CLI/SDK.

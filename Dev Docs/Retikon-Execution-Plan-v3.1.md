@@ -106,7 +106,7 @@ Goal: portable Pro control plane.
 Tasks:
 - Define provider interfaces in `retikon_core/providers/` (object store, queue, secrets, state store).
 - Implement Kubernetes adapter in `k8s_adapter/` (new).
-- Add BYOC deployment docs: `Dev Docs/Deployment.md` and new `Dev Docs/BYOC-Guide.md`.
+- Add BYOC deployment docs: `Dev Docs/pro/Deployment.md` and new `Dev Docs/BYOC-Guide.md`.
 
 Tests:
 - `tests/test_providers.py` for interface compliance.
@@ -120,7 +120,7 @@ Goal: enterprise-grade reliability and resilience testing.
 Tasks:
 - Add chaos policy manager in `retikon_core/chaos/`.
 - Add chaos scheduling endpoints in `gcp_adapter/chaos_service.py`.
-- Extend monitoring dashboards and runbooks in `Dev Docs/Operations-Runbook.md` and `Dev Docs/DLQ-Runbook.md`.
+- Extend monitoring dashboards and runbooks in `Dev Docs/pro/Operations-Runbook.md` and `Dev Docs/pro/DLQ-Runbook.md`.
 
 Tests:
 - `tests/test_chaos_policies.py`.
@@ -136,7 +136,7 @@ Tasks:
 - Add ONNX/quantized embedding backends in `retikon_core/embeddings/`.
 - Add GPU query service profile/entrypoint in `gcp_adapter/` and deploy via Terraform.
 - Add query routing by modality/SLA tier in `retikon_core/query_engine/` and adapters.
-- Add SLO load tests for text-only vs multimodal queries in `Dev Docs/Load-Testing.md`.
+- Add SLO load tests for text-only vs multimodal queries in `Dev Docs/pro/Load-Testing.md`.
 
 Tests:
 - `tests/test_embedding_backends.py`

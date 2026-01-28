@@ -1,5 +1,7 @@
 # Snapshot Refresh Strategy
 
+Pro only. This runbook applies to Retikon Pro (GCP).
+
 This strategy keeps the query service fast and safe while updating HNSW
 snapshots.
 
