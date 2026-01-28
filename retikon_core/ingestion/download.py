@@ -4,7 +4,10 @@ import os
 import tempfile
 from dataclasses import dataclass
 
-from google.cloud import storage
+try:
+    from google.cloud import storage
+except ImportError:  # pragma: no cover - optional dependency
+    storage = None
 
 from retikon_core.errors import PermanentError, RecoverableError
 
@@ -19,7 +22,11 @@ class DownloadResult:
     metadata: dict[str, str] | None = None
 
 
-def fetch_blob_metadata(client: storage.Client, bucket: str, name: str) -> storage.Blob:
+def fetch_blob_metadata(
+    client: "storage.Client", bucket: str, name: str
+) -> "storage.Blob":
+    if storage is None:
+        raise PermanentError("google-cloud-storage is required for GCS downloads")
     blob = client.bucket(bucket).get_blob(name)
     if blob is None:
         raise PermanentError(f"Object not found: gs://{bucket}/{name}")

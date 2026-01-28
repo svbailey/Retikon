@@ -7,7 +7,10 @@ from pathlib import Path
 from typing import Any
 from urllib.parse import urlparse
 
-from google.cloud import storage
+try:
+    from google.cloud import storage
+except ImportError:  # pragma: no cover - optional dependency
+    storage = None
 
 from retikon_core.errors import RecoverableError
 from retikon_core.logging import get_logger
@@ -39,6 +42,8 @@ def _sidecar_uri(snapshot_uri: str) -> str:
 
 
 def _download_gcs_blob(bucket: str, object_name: str, dest: Path) -> None:
+    if storage is None:
+        raise RecoverableError("google-cloud-storage is required for GCS snapshots")
     client = storage.Client()
     blob = client.bucket(bucket).blob(object_name)
     if not blob.exists():

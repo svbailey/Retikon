@@ -5,7 +5,10 @@ from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 from typing import Any
 
-from google.cloud import firestore
+try:
+    from google.cloud import firestore
+except ImportError:  # pragma: no cover - optional dependency
+    firestore = None
 
 from retikon_core.errors import RecoverableError
 
@@ -21,10 +24,14 @@ class IdempotencyDecision:
 class FirestoreIdempotency:
     def __init__(
         self,
-        client: firestore.Client,
+        client: "firestore.Client",
         collection: str,
         processing_ttl: timedelta,
     ) -> None:
+        if firestore is None:
+            raise RuntimeError(
+                "google-cloud-firestore is required for FirestoreIdempotency"
+            )
         self.client = client
         self.collection = collection
         self.processing_ttl = processing_ttl
