@@ -2,12 +2,12 @@
 
 ## v3.0 (Draft)
 
-- [ ] All sprint exit criteria satisfied (Sprints 1-10).
-- [ ] `python -m ruff check .` and `python -m pytest -q` pass in CI.
+- [x] All sprint exit criteria satisfied (Sprints 1-10).
+- [x] `python -m ruff check .` and `python -m pytest -q` pass in CI.
 - [x] Load testing results recorded in `Dev Docs/Load-Testing.md` (query + ingest + streaming + compaction).
 - [x] Multi-tenant API key registry created and validated.
 - [x] Metering events recorded to `UsageEvent` GraphAr vertex.
-- [ ] Snapshot refresh strategy approved.
+- [x] Snapshot refresh strategy approved.
 - [x] Ops runbook reviewed.
 - [x] Security checklist completed.
 - [x] Dev Console validated end-to-end.
@@ -31,7 +31,8 @@
 - Local `python -m ruff check .` and `python -m pytest -q` run on 2026-01-27 (CI pending).
 - CI run `main` workflow_dispatch passed (run `21362050792`, 2026-01-26).
 - CI run `ci` workflow_dispatch queued (run `21408326726`, 2026-01-27).
-- CI run `ci` workflow_dispatch triggered (run `21429102900`, 2026-01-28, status: in_progress).
+- CI run `ci` workflow_dispatch triggered (run `21429102900`, 2026-01-28, failed).
+- CI run `ci` workflow_dispatch passed (run `21429671659`, 2026-01-28).
 - Dev Console deployed to `gs://retikon-dev-console-simitor-dev` with cache headers (2026-01-26).
 - Release tags: `retikon-query:v2.5.0-rc1` (retagged to `realmodels-20260126-142604`), `retikon-ingest:v2.5.0-rc1`.
 - Dev Console E2E validation (2026-01-27): `/health` 200, `/dev/snapshot-status` 200, `/dev/index-status` 200, `/dev/manifest` 200 (manifest `fd90e922-7113-409f-ac7d-c0ba38854a2c`), `/dev/parquet-preview` 200 (UsageEvent `part-2accc6c0-1e59-4703-a27e-a7891b5391f6`).
