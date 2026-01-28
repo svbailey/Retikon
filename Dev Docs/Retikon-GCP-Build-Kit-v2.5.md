@@ -43,7 +43,8 @@ retikon-project/
   engine. It owns the data model, pipeline logic, embeddings, and query
   execution.
 - `gcp_adapter/` contains minimal Flask or FastAPI entry points for Cloud Run.
-  It parses HTTP requests and delegates to `retikon_core` functions.
+  It parses HTTP requests, owns GCP integrations (Firestore idempotency, Pub/Sub
+  DLQ, Pub/Sub webhook publisher), and delegates to `retikon_core` functions.
 - `infrastructure/terraform/` defines all GCP resources used by the deployment.
 
 This structure replaces the old monolithic `backend/` layout and provides a

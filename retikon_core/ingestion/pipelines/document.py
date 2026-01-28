@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import os
+import re
 import uuid
 from dataclasses import dataclass
 from datetime import datetime, timezone
@@ -52,8 +53,35 @@ def _tokenizer_cache_dir() -> str | None:
     return os.getenv("MODEL_DIR")
 
 
+class _SimpleTokenizer:
+    def __call__(
+        self,
+        text: str,
+        *,
+        return_offsets_mapping: bool = True,
+        add_special_tokens: bool = False,
+    ) -> dict[str, list]:
+        offsets: list[tuple[int, int]] = []
+        input_ids: list[int] = []
+        if text:
+            for idx, match in enumerate(re.finditer(r"\S+", text)):
+                offsets.append((match.start(), match.end()))
+                input_ids.append(idx)
+        return {
+            "input_ids": input_ids,
+            "offset_mapping": offsets if return_offsets_mapping else [],
+        }
+
+
+def _use_simple_tokenizer() -> bool:
+    return os.getenv("RETIKON_TOKENIZER", "").lower() in {"stub", "simple", "whitespace"}
+
+
 @lru_cache(maxsize=1)
 def _load_tokenizer():
+    if _use_simple_tokenizer():
+        return _SimpleTokenizer()
+
     from transformers import AutoTokenizer
 
     cache_dir = _tokenizer_cache_dir()

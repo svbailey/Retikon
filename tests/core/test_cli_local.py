@@ -6,7 +6,7 @@ from retikon_cli import cli
 
 
 def test_cli_status(monkeypatch, capsys):
-    def fake_request(method, url, payload=None, timeout=30):
+    def fake_request(method, url, payload=None, timeout=30, **_kwargs):
         return {"status": "ok", "service": url}
 
     monkeypatch.setattr(cli, "_request_json", fake_request)
@@ -28,7 +28,7 @@ def test_cli_status(monkeypatch, capsys):
 def test_cli_ingest(monkeypatch, capsys):
     captured = {}
 
-    def fake_request(method, url, payload=None, timeout=30):
+    def fake_request(method, url, payload=None, timeout=30, **_kwargs):
         captured["method"] = method
         captured["url"] = url
         captured["payload"] = payload
@@ -57,7 +57,7 @@ def test_cli_ingest(monkeypatch, capsys):
 def test_cli_query_metadata(monkeypatch, capsys):
     captured = {}
 
-    def fake_request(method, url, payload=None, timeout=30):
+    def fake_request(method, url, payload=None, timeout=30, **_kwargs):
         captured["method"] = method
         captured["url"] = url
         captured["payload"] = payload

@@ -48,15 +48,31 @@ def _request_json(
     url: str,
     payload: dict[str, Any] | None = None,
     timeout: int = 30,
+    api_key_envs: tuple[str, ...] | None = None,
 ) -> dict[str, Any]:
     data = None
     if payload is not None:
         data = json.dumps(payload).encode("utf-8")
+    headers = {"Content-Type": "application/json"}
+    if api_key_envs:
+        for name in api_key_envs:
+            value = os.getenv(name)
+            if value:
+                headers["x-api-key"] = value
+                break
+        if "x-api-key" not in headers:
+            env_path = Path(os.getenv("RETIKON_ENV_FILE", DEFAULT_ENV_FILE))
+            env_file = _read_env_file(env_path)
+            for name in api_key_envs:
+                value = env_file.get(name)
+                if value:
+                    headers["x-api-key"] = value
+                    break
     req = urllib.request.Request(
         url,
         data=data,
         method=method,
-        headers={"Content-Type": "application/json"},
+        headers=headers,
     )
     try:
         with urllib.request.urlopen(req, timeout=timeout) as resp:
@@ -185,6 +201,8 @@ def _seed_local_graph(sample_path: Path) -> None:
         pipeline_version,
     )
     from retikon_core.ingestion.types import IngestSource
+
+    os.environ.setdefault("RETIKON_TOKENIZER", "stub")
 
     config = get_config()
     extension = sample_path.suffix.lower()
@@ -332,7 +350,12 @@ def cmd_ingest(args: argparse.Namespace) -> int:
     payload: dict[str, Any] = {"path": args.path}
     if args.content_type:
         payload["content_type"] = args.content_type
-    response = _request_json("POST", f"{ingest_url}/ingest", payload=payload)
+    response = _request_json(
+        "POST",
+        f"{ingest_url}/ingest",
+        payload=payload,
+        api_key_envs=("INGEST_API_KEY", "QUERY_API_KEY"),
+    )
     _print_json(response)
     return 0
 
@@ -367,7 +390,12 @@ def cmd_query(args: argparse.Namespace) -> int:
     metadata_filters = _parse_metadata(args)
     if metadata_filters:
         payload["metadata_filters"] = metadata_filters
-    response = _request_json("POST", f"{query_url}/query", payload=payload)
+    response = _request_json(
+        "POST",
+        f"{query_url}/query",
+        payload=payload,
+        api_key_envs=("QUERY_API_KEY",),
+    )
     _print_json(response)
     return 0
 
