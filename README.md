@@ -38,7 +38,7 @@ Retikon is an open-core platform:
 
 ## Quickstart
 
-- Core local run: `Dev Docs/Local-Development.md`
+- Core local run: `Dev Docs/Local-Development.md` (start with `retikon init`)
 - Deployment (GCP): `Dev Docs/Deployment.md`
 - Console usage: `Dev Docs/Developer-Console-UI-Guide.md`
 

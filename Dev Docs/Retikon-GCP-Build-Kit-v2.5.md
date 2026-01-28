@@ -33,7 +33,7 @@ retikon-project/
       variables.tf
       outputs.tf
     README.md
-  Dockerfile
+  Dockerfile.pro
   requirements.txt
 ```
 
@@ -243,7 +243,7 @@ resource "google_eventarc_trigger" "gcs_ingest_trigger" {
 }
 ```
 
-## Dockerfile: Container with Preloaded Models
+## Dockerfile.pro: Container with Preloaded Models
 
 The container includes dependencies and preloaded model weights to minimize
 cold-start time.

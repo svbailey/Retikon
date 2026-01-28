@@ -12,6 +12,6 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Build ingest image
-        run: docker build -t retikon-ingest:ci --build-arg APP_MODULE=gcp_adapter.ingestion_service:app .
+        run: docker build -f Dockerfile.pro -t retikon-ingest:ci --build-arg APP_MODULE=gcp_adapter.ingestion_service:app .
       - name: Build query image
-        run: docker build -t retikon-query:ci --build-arg APP_MODULE=gcp_adapter.query_service:app .
+        run: docker build -f Dockerfile.pro -t retikon-query:ci --build-arg APP_MODULE=gcp_adapter.query_service:app .

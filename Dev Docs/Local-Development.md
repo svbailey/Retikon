@@ -49,15 +49,28 @@ pip install -r requirements-ocr.txt
 
 ## Run services locally
 
+Bootstrap local config and snapshot:
+
+```bash
+retikon init
+retikon doctor
+```
+
+Then run services:
+
 ```bash
 make run-ingest
 make run-query
 ```
 
+`scripts/local_up.sh` auto-loads `.env` (and `.env.local` if present). If `.env`
+doesn't exist, it will copy from `.env.example` and apply safe local defaults.
+If a local snapshot is missing, it will bootstrap one automatically.
+
 ## Docker build (skip model downloads)
 
 ```bash
-docker build -t retikon-dev --build-arg PRELOAD_MODELS=0 .
+docker build -f Dockerfile.pro -t retikon-dev --build-arg PRELOAD_MODELS=0 .
 ```
 
 ## Tests

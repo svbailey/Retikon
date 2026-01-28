@@ -2,16 +2,37 @@ from __future__ import annotations
 
 import argparse
 import json
+import mimetypes
 import os
+import shutil
 import subprocess
 import sys
 import time
 import urllib.error
 import urllib.request
+from pathlib import Path
 from typing import Any
 
 DEFAULT_INGEST_URL = "http://localhost:8081"
 DEFAULT_QUERY_URL = "http://localhost:8082"
+DEFAULT_ENV_FILE = ".env"
+DEFAULT_ENV_EXAMPLE = ".env.example"
+
+LOCAL_ENV_DEFAULTS: dict[str, str] = {
+    "STORAGE_BACKEND": "local",
+    "LOCAL_GRAPH_ROOT": "./retikon_data/graph",
+    "SNAPSHOT_URI": "./retikon_data/graph/snapshots/retikon.duckdb",
+    "ENV": "dev",
+    "LOG_LEVEL": "INFO",
+    "MAX_RAW_BYTES": "500000000",
+    "MAX_VIDEO_SECONDS": "300",
+    "MAX_AUDIO_SECONDS": "1200",
+    "MAX_FRAMES_PER_VIDEO": "900",
+    "CHUNK_TARGET_TOKENS": "512",
+    "CHUNK_OVERLAP_TOKENS": "50",
+    "GRAPH_PREFIX": "retikon_v2",
+    "USE_REAL_MODELS": "0",
+}
 
 
 def _resolve_ingest_url(value: str | None) -> str:
@@ -55,6 +76,171 @@ def _request_json(
 
 def _print_json(payload: dict[str, Any]) -> None:
     print(json.dumps(payload, indent=2, sort_keys=True))
+
+
+def _read_env_file(path: Path) -> dict[str, str]:
+    env: dict[str, str] = {}
+    if not path.exists():
+        return env
+    for raw in path.read_text(encoding="utf-8").splitlines():
+        line = raw.strip()
+        if not line or line.startswith("#") or "=" not in line:
+            continue
+        key, value = line.split("=", 1)
+        env[key.strip()] = value.strip()
+    return env
+
+
+def _append_missing_env(path: Path, missing: dict[str, str]) -> None:
+    if not missing:
+        return
+    with path.open("a", encoding="utf-8") as handle:
+        handle.write("\n# Added by retikon init\n")
+        for key, value in missing.items():
+            handle.write(f"{key}={value}\n")
+
+
+def _apply_env(env: dict[str, str], *, override: bool = False) -> None:
+    for key, value in env.items():
+        if value == "":
+            continue
+        if not override and key in os.environ:
+            continue
+        os.environ[key] = value
+
+
+def _update_env_file(path: Path, updates: dict[str, str]) -> None:
+    if not updates:
+        return
+    lines = path.read_text(encoding="utf-8").splitlines()
+    updated_lines: list[str] = []
+    seen: set[str] = set()
+    for raw in lines:
+        line = raw.strip()
+        if not line or line.startswith("#") or "=" not in line:
+            updated_lines.append(raw)
+            continue
+        key, _value = raw.split("=", 1)
+        key = key.strip()
+        if key in updates:
+            updated_lines.append(f"{key}={updates[key]}")
+            seen.add(key)
+        else:
+            updated_lines.append(raw)
+    for key, value in updates.items():
+        if key not in seen:
+            updated_lines.append(f"{key}={value}")
+    path.write_text("\n".join(updated_lines) + "\n", encoding="utf-8")
+
+
+def _ensure_env_file(env_path: Path, example_path: Path) -> dict[str, str]:
+    if not env_path.exists():
+        if example_path.exists():
+            shutil.copy2(example_path, env_path)
+            print(f"Created {env_path} from {example_path}")
+        else:
+            env_path.write_text("", encoding="utf-8")
+            print(f"Created empty {env_path}")
+    env = _read_env_file(env_path)
+    missing = {
+        key: value for key, value in LOCAL_ENV_DEFAULTS.items() if key not in env
+    }
+    _append_missing_env(env_path, missing)
+    env.update(missing)
+    return env
+
+
+def _infer_modality(extension: str, config) -> str:
+    if extension in config.allowed_doc_ext:
+        return "document"
+    if extension in config.allowed_image_ext:
+        return "image"
+    if extension in config.allowed_audio_ext:
+        return "audio"
+    if extension in config.allowed_video_ext:
+        return "video"
+    raise RuntimeError(f"Unsupported extension: {extension}")
+
+
+def _prefix_for_modality(modality: str) -> str:
+    if modality == "document":
+        return "docs"
+    if modality == "image":
+        return "images"
+    if modality == "audio":
+        return "audio"
+    if modality == "video":
+        return "videos"
+    raise RuntimeError(f"Unsupported modality: {modality}")
+
+
+def _seed_local_graph(sample_path: Path) -> None:
+    from retikon_core.config import get_config
+    from retikon_core.ingestion.eventarc import GcsEvent
+    from retikon_core.ingestion.router import (
+        _check_size,
+        _ensure_allowed,
+        _run_pipeline,
+        _schema_version,
+        pipeline_version,
+    )
+    from retikon_core.ingestion.types import IngestSource
+
+    config = get_config()
+    extension = sample_path.suffix.lower()
+    if not extension:
+        raise RuntimeError("Sample file has no extension")
+    content_type = mimetypes.guess_type(sample_path.as_posix())[0]
+    modality = _infer_modality(extension, config)
+    object_name = f"raw/{_prefix_for_modality(modality)}/{sample_path.name}"
+
+    event = GcsEvent(
+        bucket=config.raw_bucket or "local",
+        name=object_name,
+        generation="local",
+        content_type=content_type,
+        size=sample_path.stat().st_size,
+        md5_hash=None,
+        crc32c=None,
+    )
+
+    _check_size(event, config)
+    _ensure_allowed(event, config, modality)
+
+    source = IngestSource(
+        bucket=event.bucket,
+        name=event.name,
+        generation=event.generation,
+        content_type=event.content_type,
+        size_bytes=event.size,
+        md5_hash=None,
+        crc32c=None,
+        local_path=str(sample_path),
+    )
+
+    _run_pipeline(
+        modality=modality,
+        source=source,
+        config=config,
+        output_uri=config.graph_root_uri(),
+        pipeline_version_value=pipeline_version(),
+        schema_version=_schema_version(),
+    )
+
+
+def _build_local_snapshot(snapshot_uri: str, work_dir: Path) -> None:
+    from retikon_core.config import get_config
+    from retikon_core.query_engine.index_builder import build_snapshot
+
+    config = get_config()
+    build_snapshot(
+        graph_uri=config.graph_root_uri(),
+        snapshot_uri=snapshot_uri,
+        work_dir=str(work_dir),
+        copy_local=False,
+        fallback_local=False,
+        allow_install=False,
+    )
 
 
 def _uvicorn_cmd(target: str, host: str, port: int, log_level: str) -> list[str]:
@@ -195,6 +381,108 @@ def cmd_status(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_init(args: argparse.Namespace) -> int:
+    env_path = Path(args.env_file)
+    example_path = Path(args.example_file)
+    env = _ensure_env_file(env_path, example_path)
+    _apply_env(env, override=False)
+
+    storage_backend = os.getenv("STORAGE_BACKEND", "local")
+    if storage_backend != "local":
+        print("STORAGE_BACKEND is not local; skipping local bootstrap.")
+        return 0
+
+    local_graph_root = os.getenv(
+        "LOCAL_GRAPH_ROOT", LOCAL_ENV_DEFAULTS["LOCAL_GRAPH_ROOT"]
+    )
+    snapshot_uri = os.getenv("SNAPSHOT_URI", LOCAL_ENV_DEFAULTS["SNAPSHOT_URI"])
+    overrides: dict[str, str] = {}
+    if not local_graph_root:
+        local_graph_root = LOCAL_ENV_DEFAULTS["LOCAL_GRAPH_ROOT"]
+        overrides["LOCAL_GRAPH_ROOT"] = local_graph_root
+    if not snapshot_uri or snapshot_uri.startswith("gs://"):
+        snapshot_uri = f"{local_graph_root}/snapshots/retikon.duckdb"
+        overrides["SNAPSHOT_URI"] = snapshot_uri
+    if overrides:
+        _update_env_file(env_path, overrides)
+        env.update(overrides)
+        _apply_env(overrides, override=True)
+    os.environ["LOCAL_GRAPH_ROOT"] = local_graph_root
+    os.environ["SNAPSHOT_URI"] = snapshot_uri
+
+    graph_root_path = Path(local_graph_root)
+    snapshot_path = Path(snapshot_uri)
+    graph_root_path.mkdir(parents=True, exist_ok=True)
+    snapshot_path.parent.mkdir(parents=True, exist_ok=True)
+
+    if args.seed:
+        sample_path = Path(args.seed_file)
+        if not sample_path.exists():
+            raise RuntimeError(f"Seed file not found: {sample_path}")
+        from retikon_core.config import get_config
+
+        get_config.cache_clear()
+        _seed_local_graph(sample_path)
+
+    if not snapshot_path.exists() or args.force_snapshot:
+        from retikon_core.config import get_config
+
+        get_config.cache_clear()
+        work_dir = graph_root_path / ".retikon_tmp"
+        work_dir.mkdir(parents=True, exist_ok=True)
+        _build_local_snapshot(str(snapshot_path), work_dir)
+
+    print("Local bootstrap complete.")
+    print(f"- ENV file: {env_path}")
+    print(f"- Graph root: {graph_root_path}")
+    print(f"- Snapshot: {snapshot_path}")
+    return 0
+
+
+def cmd_doctor(args: argparse.Namespace) -> int:
+    env_path = Path(args.env_file)
+    env = _read_env_file(env_path)
+    if env:
+        _apply_env(env)
+
+    checks: list[tuple[str, bool, str]] = []
+
+    def check_bin(name: str) -> None:
+        available = shutil.which(name) is not None
+        msg = "ok" if available else "missing"
+        checks.append((name, available, msg))
+
+    check_bin("ffmpeg")
+    check_bin("ffprobe")
+    check_bin("pdftoppm")
+
+    storage_backend = os.getenv("STORAGE_BACKEND", "local")
+    checks.append(("STORAGE_BACKEND", storage_backend == "local", storage_backend))
+
+    local_graph_root = os.getenv("LOCAL_GRAPH_ROOT")
+    if local_graph_root:
+        exists = Path(local_graph_root).exists()
+        checks.append(("LOCAL_GRAPH_ROOT", exists, local_graph_root))
+    else:
+        checks.append(("LOCAL_GRAPH_ROOT", False, "unset"))
+
+    snapshot_uri = os.getenv("SNAPSHOT_URI")
+    if snapshot_uri:
+        exists = Path(snapshot_uri).exists()
+        checks.append(("SNAPSHOT_URI", exists, snapshot_uri))
+    else:
+        checks.append(("SNAPSHOT_URI", False, "unset"))
+
+    ok = True
+    for name, passed, info in checks:
+        status = "ok" if passed else "missing"
+        if not passed:
+            ok = False
+        print(f"{name}: {status} ({info})")
+
+    return 0 if ok else 1
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="retikon")
     subparsers = parser.add_subparsers(dest="command")
@@ -243,6 +531,22 @@ def build_parser() -> argparse.ArgumentParser:
     status_parser.add_argument("--ingest-url")
     status_parser.add_argument("--query-url")
     status_parser.set_defaults(func=cmd_status)
+
+    init_parser = subparsers.add_parser("init", help="Bootstrap local Core setup")
+    init_parser.add_argument("--env-file", default=DEFAULT_ENV_FILE)
+    init_parser.add_argument("--example-file", default=DEFAULT_ENV_EXAMPLE)
+    init_parser.add_argument(
+        "--seed",
+        action=argparse.BooleanOptionalAction,
+        default=True,
+    )
+    init_parser.add_argument("--seed-file", default="tests/fixtures/sample.csv")
+    init_parser.add_argument("--force-snapshot", action="store_true")
+    init_parser.set_defaults(func=cmd_init)
+
+    doctor_parser = subparsers.add_parser("doctor", help="Check local prerequisites")
+    doctor_parser.add_argument("--env-file", default=DEFAULT_ENV_FILE)
+    doctor_parser.set_defaults(func=cmd_doctor)
 
     return parser
 
