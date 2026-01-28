@@ -34,6 +34,11 @@ variable "query_service_name" {
   default = "retikon-query"
 }
 
+variable "audit_service_name" {
+  type    = string
+  default = "retikon-audit"
+}
+
 variable "index_job_name" {
   type    = string
   default = "retikon-index-builder"
@@ -80,6 +85,11 @@ variable "ingestion_image" {
 }
 
 variable "query_image" {
+  type    = string
+  default = "us-docker.pkg.dev/cloudrun/container/hello"
+}
+
+variable "audit_image" {
   type    = string
   default = "us-docker.pkg.dev/cloudrun/container/hello"
 }
@@ -149,6 +159,11 @@ variable "query_timeout_seconds" {
   default = 300
 }
 
+variable "audit_timeout_seconds" {
+  type    = number
+  default = 300
+}
+
 variable "query_slow_ms" {
   type    = number
   default = 2000
@@ -157,6 +172,11 @@ variable "query_slow_ms" {
 variable "query_log_timings" {
   type    = bool
   default = false
+}
+
+variable "audit_require_admin" {
+  type    = bool
+  default = true
 }
 
 variable "query_warmup" {
@@ -192,6 +212,31 @@ variable "query_max_scale" {
 variable "query_min_scale" {
   type    = number
   default = 0
+}
+
+variable "audit_max_scale" {
+  type    = number
+  default = 10
+}
+
+variable "audit_min_scale" {
+  type    = number
+  default = 0
+}
+
+variable "audit_memory" {
+  type    = string
+  default = "1Gi"
+}
+
+variable "audit_cpu" {
+  type    = string
+  default = "1000m"
+}
+
+variable "audit_concurrency" {
+  type    = number
+  default = 10
 }
 
 variable "dev_console_memory" {
@@ -632,6 +677,11 @@ variable "ingestion_service_account_name" {
 variable "query_service_account_name" {
   type    = string
   default = "retikon-query-sa"
+}
+
+variable "audit_service_account_name" {
+  type    = string
+  default = "retikon-audit-sa"
 }
 
 variable "dev_console_service_account_name" {

@@ -118,6 +118,8 @@ Pro (GCP) variables:
 - `RAW_BUCKET`, `GRAPH_BUCKET`, `GRAPH_PREFIX`
 - `SNAPSHOT_URI`
 - `QUERY_API_KEY` (dev only; prod uses Secret Manager)
+- `AUDIT_API_KEY` (defaults to `QUERY_API_KEY` in Pro)
+- `AUDIT_REQUIRE_ADMIN` (set `1` to require admin API keys)
 - `INGEST_API_KEY` (optional for ingestion auth)
 
 ## Development workflow (high level)

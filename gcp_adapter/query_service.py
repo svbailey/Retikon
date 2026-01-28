@@ -1,6 +1,7 @@
 import os
 import time
 import uuid
+from contextlib import asynccontextmanager
 from dataclasses import dataclass
 from datetime import datetime, timezone
 
@@ -9,6 +10,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from PIL import Image
 from pydantic import BaseModel, Field
 
+from retikon_core.audit import record_audit_log
 from retikon_core.auth import (
     ACTION_QUERY,
     AuthContext,
@@ -44,7 +46,34 @@ configure_logging(
 )
 logger = get_logger(__name__)
 
-app = FastAPI()
+
+@asynccontextmanager
+async def lifespan(_: FastAPI):
+    healthcheck_uri = os.getenv("DUCKDB_HEALTHCHECK_URI")
+    if not healthcheck_uri:
+        graph_bucket, graph_prefix = _graph_settings()
+        healthcheck_uri = f"gs://{graph_bucket}/{graph_prefix}/healthcheck.parquet"
+
+    conn = None
+    healthcheck_start = time.monotonic()
+    try:
+        conn, _ = get_secure_connection(healthcheck_uri=healthcheck_uri)
+    finally:
+        if conn is not None:
+            conn.close()
+    logger.info(
+        "DuckDB healthcheck completed",
+        extra={
+            "healthcheck_ms": int((time.monotonic() - healthcheck_start) * 1000),
+        },
+    )
+
+    _load_snapshot()
+    _warm_query_models()
+    yield
+
+
+app = FastAPI(lifespan=lifespan)
 
 MAX_QUERY_BYTES = int(os.getenv("MAX_QUERY_BYTES", "4000000"))
 MAX_IMAGE_BASE64_BYTES = int(os.getenv("MAX_IMAGE_BASE64_BYTES", "2000000"))
@@ -185,6 +214,10 @@ def _enforce_access(action: str, auth_context: AuthContext | None) -> None:
 
 def _metering_enabled() -> bool:
     return os.getenv("METERING_ENABLED", "0") == "1"
+
+
+def _audit_logging_enabled() -> bool:
+    return os.getenv("AUDIT_LOGGING_ENABLED", "1") == "1"
 
 
 def _schema_version() -> str:
@@ -330,31 +363,6 @@ async def health() -> HealthResponse:
     )
 
 
-@app.on_event("startup")
-async def startup() -> None:
-    healthcheck_uri = os.getenv("DUCKDB_HEALTHCHECK_URI")
-    if not healthcheck_uri:
-        graph_bucket, graph_prefix = _graph_settings()
-        healthcheck_uri = f"gs://{graph_bucket}/{graph_prefix}/healthcheck.parquet"
-
-    conn = None
-    healthcheck_start = time.monotonic()
-    try:
-        conn, _ = get_secure_connection(healthcheck_uri=healthcheck_uri)
-    finally:
-        if conn is not None:
-            conn.close()
-    logger.info(
-        "DuckDB healthcheck completed",
-        extra={
-            "healthcheck_ms": int((time.monotonic() - healthcheck_start) * 1000),
-        },
-    )
-
-    _load_snapshot()
-    _warm_query_models()
-
-
 @app.post("/query", response_model=QueryResponse)
 async def query(
     request: Request,
@@ -429,6 +437,23 @@ async def query(
             "correlation_id": request.state.correlation_id,
         },
     )
+    if _audit_logging_enabled():
+        try:
+            record_audit_log(
+                base_uri=_graph_root_uri(),
+                action=ACTION_QUERY,
+                decision="allow",
+                auth_context=auth_context,
+                resource=request.url.path,
+                request_id=trace_id,
+                pipeline_version=os.getenv("RETIKON_VERSION", "dev"),
+                schema_version=_schema_version(),
+            )
+        except Exception as exc:
+            logger.warning(
+                "Failed to record audit log",
+                extra={"error_message": str(exc)},
+            )
 
     timings: dict[str, float | int | str] = {}
     results: list[QueryResult] = []

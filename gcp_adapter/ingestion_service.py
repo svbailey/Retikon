@@ -11,6 +11,7 @@ from pydantic import BaseModel
 
 from gcp_adapter.dlq_pubsub import PubSubDlqPublisher
 from gcp_adapter.idempotency_firestore import FirestoreIdempotency
+from retikon_core.audit import record_audit_log
 from retikon_core.auth import (
     ACTION_INGEST,
     AuthContext,
@@ -112,6 +113,10 @@ def _metering_enabled() -> bool:
     return os.getenv("METERING_ENABLED", "0") == "1"
 
 
+def _audit_logging_enabled() -> bool:
+    return os.getenv("AUDIT_LOGGING_ENABLED", "1") == "1"
+
+
 def _schema_version() -> str:
     return os.getenv("SCHEMA_VERSION", "1")
 
@@ -169,6 +174,24 @@ async def ingest(
             "status": "authorized" if auth_context else "anonymous",
         },
     )
+    if _audit_logging_enabled():
+        try:
+            record_audit_log(
+                base_uri=config.graph_root_uri(),
+                action=ACTION_INGEST,
+                decision="allow",
+                auth_context=auth_context,
+                scope=auth_context.scope if auth_context else _default_scope(config),
+                resource=request.url.path,
+                request_id=trace_id,
+                pipeline_version=os.getenv("RETIKON_VERSION", "dev"),
+                schema_version=_schema_version(),
+            )
+        except Exception as exc:
+            logger.warning(
+                "Failed to record audit log",
+                extra={"error_message": str(exc)},
+            )
 
     try:
         body = await request.json()

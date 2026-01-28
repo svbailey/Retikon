@@ -15,6 +15,27 @@ type QueryResponse = {
   results: QueryHit[];
 };
 
+type AuditLogItem = {
+  id: string;
+  org_id?: string | null;
+  site_id?: string | null;
+  stream_id?: string | null;
+  api_key_id?: string | null;
+  actor_type?: string | null;
+  actor_id?: string | null;
+  action: string;
+  resource?: string | null;
+  decision: string;
+  reason?: string | null;
+  request_id?: string | null;
+  created_at?: string | null;
+};
+
+type AuditLogResponse = {
+  count: number;
+  rows: AuditLogItem[];
+};
+
 type UploadInfo = {
   uri: string;
   run_id: string;
@@ -201,6 +222,13 @@ export default function App() {
   const [thumbUrls, setThumbUrls] = useState<Record<string, string>>({});
   const [videoUrls, setVideoUrls] = useState<Record<string, string>>({});
   const [videoLoading, setVideoLoading] = useState<Record<string, boolean>>({});
+  const [auditLogs, setAuditLogs] = useState<AuditLogItem[]>([]);
+  const [auditStatus, setAuditStatus] = useState<StepStatus>("idle");
+  const [auditError, setAuditError] = useState<string | null>(null);
+  const [auditAction, setAuditAction] = useState("");
+  const [auditDecision, setAuditDecision] = useState("");
+  const [auditLimit, setAuditLimit] = useState(50);
+  const [auditUrlOverride, setAuditUrlOverride] = useState("");
 
   const queryUrl = useMemo(() => {
     return (
@@ -217,6 +245,10 @@ export default function App() {
       ""
     );
   }, [devApiOverride]);
+
+  const auditUrl = useMemo(() => {
+    return auditUrlOverride || import.meta.env.VITE_AUDIT_URL || "";
+  }, [auditUrlOverride]);
 
   const ingestUrl = useMemo(() => {
     return ingestUrlOverride || import.meta.env.VITE_INGEST_URL || "";
@@ -247,6 +279,9 @@ export default function App() {
   const indexStatusUrl = devApiUrl ? `${devApiUrl}/dev/index-status` : "";
   const localMode = Boolean(ingestUrl) && !devApiUrl;
   const objectUrl = devApiUrl ? `${devApiUrl}/dev/object` : "";
+  const auditLogsUrl = auditUrl
+    ? `${auditUrl.replace(/\/$/, "")}/audit/logs`
+    : "";
 
   const rawBucket = import.meta.env.VITE_RAW_BUCKET || "";
   const rawPrefix = import.meta.env.VITE_RAW_PREFIX || DEFAULT_RAW_PREFIX;
@@ -279,6 +314,10 @@ export default function App() {
     const ingestOverride = localStorage.getItem("retikon_ingest_url");
     if (ingestOverride) {
       setIngestUrlOverride(ingestOverride);
+    }
+    const auditOverride = localStorage.getItem("retikon_audit_url");
+    if (auditOverride) {
+      setAuditUrlOverride(auditOverride);
     }
     const storedMode = localStorage.getItem("retikon_query_mode");
     if (storedMode === "text" || storedMode === "all") {
@@ -315,6 +354,14 @@ export default function App() {
       localStorage.removeItem("retikon_ingest_url");
     }
   }, [ingestUrlOverride]);
+
+  useEffect(() => {
+    if (auditUrlOverride) {
+      localStorage.setItem("retikon_audit_url", auditUrlOverride);
+    } else {
+      localStorage.removeItem("retikon_audit_url");
+    }
+  }, [auditUrlOverride]);
 
   useEffect(() => {
     localStorage.setItem("retikon_query_mode", queryMode);
@@ -653,6 +700,41 @@ export default function App() {
       setIndexStatus(data);
     } catch (err) {
       setIndexError((err as Error).message);
+    }
+  };
+
+  const fetchAuditLogs = async () => {
+    if (!auditLogsUrl) {
+      setAuditError("Audit API URL is not configured.");
+      setAuditStatus("error");
+      return;
+    }
+    setAuditError(null);
+    setAuditStatus("working");
+    const params = new URLSearchParams();
+    if (auditAction) {
+      params.set("action", auditAction);
+    }
+    if (auditDecision) {
+      params.set("decision", auditDecision);
+    }
+    params.set("limit", String(auditLimit));
+    const url = `${auditLogsUrl}?${params.toString()}`;
+    try {
+      const resp = await fetch(url, { headers: devHeaders() });
+      if (!resp.ok) {
+        const detail = await resp.text();
+        throw new Error(detail || "Audit log fetch failed");
+      }
+      const data = (await resp.json()) as AuditLogResponse;
+      setAuditLogs(data.rows || []);
+      setAuditStatus("done");
+      addActivity("Audit logs loaded.", "success");
+    } catch (err) {
+      const message = (err as Error).message;
+      setAuditError(message);
+      setAuditStatus("error");
+      addActivity(message, "error");
     }
   };
 
@@ -1028,6 +1110,16 @@ export default function App() {
               <small>
                 Default: {import.meta.env.VITE_QUERY_URL || DEFAULT_QUERY_URL}
               </small>
+            </label>
+            <label className="field">
+              <span>Audit API URL</span>
+              <input
+                type="url"
+                placeholder="https://retikon-audit-...run.app"
+                value={auditUrlOverride}
+                onChange={(event) => setAuditUrlOverride(event.target.value)}
+              />
+              <small>Default: {import.meta.env.VITE_AUDIT_URL || "none"}</small>
             </label>
           </div>
           <p className="panel-help">
@@ -1627,6 +1719,66 @@ export default function App() {
             </article>
           ))}
         </div>
+      </section>
+
+      <section className="panel">
+        <div className="panel-header">
+          <h2>Audit Logs</h2>
+          <span className="counter">{auditLogs.length} rows</span>
+        </div>
+        <div className="form-grid">
+          <label className="field">
+            <span>Action</span>
+            <input
+              type="text"
+              placeholder="query:read"
+              value={auditAction}
+              onChange={(event) => setAuditAction(event.target.value)}
+            />
+          </label>
+          <label className="field">
+            <span>Decision</span>
+            <select
+              value={auditDecision}
+              onChange={(event) => setAuditDecision(event.target.value)}
+            >
+              <option value="">Any</option>
+              <option value="allow">Allow</option>
+              <option value="deny">Deny</option>
+            </select>
+          </label>
+          <label className="field">
+            <span>Limit</span>
+            <input
+              type="number"
+              min={1}
+              max={1000}
+              value={auditLimit}
+              onChange={(event) => setAuditLimit(Number(event.target.value))}
+            />
+          </label>
+        </div>
+        <div className="actions">
+          <button
+            onClick={fetchAuditLogs}
+            disabled={!auditLogsUrl || auditStatus === "working"}
+          >
+            {auditStatus === "working" ? "Loading..." : "Load audit logs"}
+          </button>
+        </div>
+        {!auditLogsUrl && (
+          <p className="hint">Audit API URL is not configured yet.</p>
+        )}
+        {auditError && <p className="error">{auditError}</p>}
+        {auditLogs.length === 0 ? (
+          <p className="hint">No audit logs loaded yet.</p>
+        ) : (
+          <div className="preview-panel">
+            <pre className="preview-json">
+              {JSON.stringify(auditLogs, null, 2)}
+            </pre>
+          </div>
+        )}
       </section>
 
       <section className="panel activity-panel">

@@ -66,6 +66,10 @@ make run-ingest
 make run-query
 ```
 
+If you use the Dev Console UI, set `VITE_AUDIT_URL` in
+`frontend/dev-console/.env` (see `frontend/dev-console/.env.example`) so the UI
+can load audit logs.
+
 `scripts/local_up.sh` auto-loads `.env` (and `.env.local` if present). If `.env`
 doesn't exist, it will copy from `.env.example` and apply safe local defaults.
 If a local snapshot is missing, it will bootstrap one automatically.

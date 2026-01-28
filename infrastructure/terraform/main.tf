@@ -84,6 +84,11 @@ resource "google_service_account" "query" {
   display_name = "Retikon Query Service Account"
 }
 
+resource "google_service_account" "audit" {
+  account_id   = var.audit_service_account_name
+  display_name = "Retikon Audit Service Account"
+}
+
 resource "google_service_account" "dev_console" {
   account_id   = var.dev_console_service_account_name
   display_name = "Retikon Dev Console Service Account"
@@ -186,6 +191,18 @@ resource "google_storage_bucket_iam_member" "query_graph_view" {
   member = "serviceAccount:${google_service_account.query.email}"
 }
 
+resource "google_storage_bucket_iam_member" "query_graph_create" {
+  bucket = google_storage_bucket.graph.name
+  role   = "roles/storage.objectCreator"
+  member = "serviceAccount:${google_service_account.query.email}"
+}
+
+resource "google_storage_bucket_iam_member" "audit_graph_view" {
+  bucket = google_storage_bucket.graph.name
+  role   = "roles/storage.objectViewer"
+  member = "serviceAccount:${google_service_account.audit.email}"
+}
+
 resource "google_storage_bucket_iam_member" "dev_console_raw_view" {
   bucket = google_storage_bucket.raw.name
   role   = "roles/storage.objectViewer"
@@ -277,6 +294,12 @@ resource "google_secret_manager_secret_iam_member" "dev_console_api_key_access" 
   secret_id = google_secret_manager_secret.query_api_key.secret_id
   role      = "roles/secretmanager.secretAccessor"
   member    = "serviceAccount:${google_service_account.dev_console.email}"
+}
+
+resource "google_secret_manager_secret_iam_member" "audit_api_key_access" {
+  secret_id = google_secret_manager_secret.query_api_key.secret_id
+  role      = "roles/secretmanager.secretAccessor"
+  member    = "serviceAccount:${google_service_account.audit.email}"
 }
 
 resource "google_cloud_run_service" "ingestion" {
@@ -596,6 +619,91 @@ resource "google_cloud_run_service" "query" {
         env {
           name  = "DUCKDB_TEMP_DIRECTORY"
           value = var.duckdb_temp_directory
+        }
+        env {
+          name  = "DUCKDB_ALLOW_INSTALL"
+          value = var.duckdb_allow_install ? "1" : "0"
+        }
+        env {
+          name  = "DUCKDB_GCS_FALLBACK"
+          value = var.duckdb_gcs_fallback ? "1" : "0"
+        }
+        env {
+          name  = "DUCKDB_SKIP_HEALTHCHECK"
+          value = var.duckdb_skip_healthcheck ? "1" : "0"
+        }
+      }
+    }
+  }
+
+  autogenerate_revision_name = true
+}
+
+resource "google_cloud_run_service" "audit" {
+  name     = "${var.audit_service_name}-${var.env}"
+  location = var.region
+
+  metadata {
+    annotations = {
+      "run.googleapis.com/ingress" = "all"
+    }
+  }
+
+  template {
+    metadata {
+      annotations = {
+        "autoscaling.knative.dev/maxScale" = tostring(var.audit_max_scale)
+        "autoscaling.knative.dev/minScale" = tostring(var.audit_min_scale)
+      }
+    }
+
+    spec {
+      service_account_name = google_service_account.audit.email
+      container_concurrency = var.audit_concurrency
+      timeout_seconds      = var.audit_timeout_seconds
+
+      containers {
+        image = var.audit_image
+
+        resources {
+          limits = {
+            cpu    = var.audit_cpu
+            memory = var.audit_memory
+          }
+        }
+
+        env {
+          name  = "APP_MODULE"
+          value = "gcp_adapter.audit_service:app"
+        }
+        env {
+          name  = "ENV"
+          value = var.env
+        }
+        env {
+          name  = "LOG_LEVEL"
+          value = var.log_level
+        }
+        env {
+          name  = "GRAPH_BUCKET"
+          value = google_storage_bucket.graph.name
+        }
+        env {
+          name  = "GRAPH_PREFIX"
+          value = var.graph_prefix
+        }
+        env {
+          name  = "AUDIT_REQUIRE_ADMIN"
+          value = var.audit_require_admin ? "1" : "0"
+        }
+        env {
+          name = "AUDIT_API_KEY"
+          value_from {
+            secret_key_ref {
+              name = google_secret_manager_secret.query_api_key.secret_id
+              key  = "latest"
+            }
+          }
         }
         env {
           name  = "DUCKDB_ALLOW_INSTALL"
@@ -1006,6 +1114,13 @@ resource "google_cloud_run_service" "stream_ingest" {
 resource "google_cloud_run_service_iam_member" "query_invoker" {
   location = google_cloud_run_service.query.location
   service  = google_cloud_run_service.query.name
+  role     = "roles/run.invoker"
+  member   = "allUsers"
+}
+
+resource "google_cloud_run_service_iam_member" "audit_invoker" {
+  location = google_cloud_run_service.audit.location
+  service  = google_cloud_run_service.audit.name
   role     = "roles/run.invoker"
   member   = "allUsers"
 }

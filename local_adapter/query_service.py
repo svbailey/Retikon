@@ -4,6 +4,7 @@ import os
 import secrets
 import time
 import uuid
+from contextlib import asynccontextmanager
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
@@ -41,7 +42,31 @@ configure_logging(
 )
 logger = get_logger(__name__)
 
-app = FastAPI()
+
+@asynccontextmanager
+async def lifespan(_: FastAPI):
+    healthcheck_uri = _default_healthcheck_uri()
+    conn = None
+    healthcheck_start = time.monotonic()
+    try:
+        conn, _ = get_secure_connection(healthcheck_uri=healthcheck_uri)
+    finally:
+        if conn is not None:
+            conn.close()
+    logger.info(
+        "DuckDB healthcheck completed",
+        extra={
+            "healthcheck_ms": int((time.monotonic() - healthcheck_start) * 1000),
+            "healthcheck_uri": healthcheck_uri,
+        },
+    )
+
+    _load_snapshot()
+    _warm_query_models()
+    yield
+
+
+app = FastAPI(lifespan=lifespan)
 
 MAX_QUERY_BYTES = int(os.getenv("MAX_QUERY_BYTES", "4000000"))
 MAX_IMAGE_BASE64_BYTES = int(os.getenv("MAX_IMAGE_BASE64_BYTES", "2000000"))
@@ -301,28 +326,6 @@ async def health() -> HealthResponse:
         commit=commit,
         timestamp=time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
     )
-
-
-@app.on_event("startup")
-async def startup() -> None:
-    healthcheck_uri = _default_healthcheck_uri()
-    conn = None
-    healthcheck_start = time.monotonic()
-    try:
-        conn, _ = get_secure_connection(healthcheck_uri=healthcheck_uri)
-    finally:
-        if conn is not None:
-            conn.close()
-    logger.info(
-        "DuckDB healthcheck completed",
-        extra={
-            "healthcheck_ms": int((time.monotonic() - healthcheck_start) * 1000),
-            "healthcheck_uri": healthcheck_uri,
-        },
-    )
-
-    _load_snapshot()
-    _warm_query_models()
 
 
 @app.post("/query", response_model=QueryResponse)

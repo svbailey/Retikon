@@ -18,12 +18,20 @@ output "query_service_name" {
   value = google_cloud_run_service.query.name
 }
 
+output "audit_service_name" {
+  value = google_cloud_run_service.audit.name
+}
+
 output "ingestion_service_url" {
   value = google_cloud_run_service.ingestion.status[0].url
 }
 
 output "query_service_url" {
   value = google_cloud_run_service.query.status[0].url
+}
+
+output "audit_service_url" {
+  value = google_cloud_run_service.audit.status[0].url
 }
 
 output "dev_console_service_url" {

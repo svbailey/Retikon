@@ -1,0 +1,459 @@
+import csv
+import io
+import json
+import os
+import tempfile
+import time
+from contextlib import asynccontextmanager
+from datetime import datetime, timezone
+from typing import Iterable, Iterator
+
+import duckdb
+import fsspec
+from fastapi import FastAPI, HTTPException, Request
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import StreamingResponse
+
+from retikon_core.auth import AuthContext, authorize_api_key
+from retikon_core.errors import AuthError
+from retikon_core.logging import configure_logging, get_logger
+from retikon_core.query_engine.warm_start import get_secure_connection
+from retikon_core.storage.paths import graph_root, join_uri
+
+SERVICE_NAME = "retikon-audit"
+
+configure_logging(
+    service=SERVICE_NAME,
+    env=os.getenv("ENV"),
+    version=os.getenv("RETIKON_VERSION"),
+)
+logger = get_logger(__name__)
+
+
+@asynccontextmanager
+async def lifespan(_: FastAPI) -> Iterator[None]:
+    base_uri = _graph_uri()
+    healthcheck_uri = _healthcheck_uri(base_uri)
+    if healthcheck_uri:
+        conn = None
+        start = time.monotonic()
+        try:
+            conn = _open_conn(base_uri)
+        finally:
+            if conn is not None:
+                conn.close()
+        logger.info(
+            "DuckDB healthcheck completed",
+            extra={"healthcheck_ms": int((time.monotonic() - start) * 1000)},
+        )
+    yield
+
+
+app = FastAPI(lifespan=lifespan)
+
+
+def _cors_origins() -> list[str]:
+    raw = os.getenv("CORS_ALLOW_ORIGINS", "")
+    if raw:
+        return [origin.strip() for origin in raw.split(",") if origin.strip()]
+    env = os.getenv("ENV", "dev").lower()
+    if env in {"dev", "local", "test"}:
+        return ["*"]
+    return []
+
+
+_cors = _cors_origins()
+if _cors:
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=_cors,
+        allow_credentials=False,
+        allow_methods=["*"],
+        allow_headers=["*"],
+    )
+
+
+def _api_key_required() -> bool:
+    env = os.getenv("ENV", "dev").lower()
+    return env not in {"dev", "local", "test"}
+
+
+def _require_admin() -> bool:
+    env = os.getenv("ENV", "dev").lower()
+    default = "0" if env in {"dev", "local", "test"} else "1"
+    return os.getenv("AUDIT_REQUIRE_ADMIN", default) == "1"
+
+
+def _audit_api_key() -> str | None:
+    return os.getenv("AUDIT_API_KEY") or os.getenv("QUERY_API_KEY")
+
+
+def _graph_uri() -> str:
+    graph_uri = os.getenv("GRAPH_URI")
+    if graph_uri:
+        return graph_uri
+    graph_bucket = os.getenv("GRAPH_BUCKET")
+    graph_prefix = os.getenv("GRAPH_PREFIX", "")
+    if graph_bucket:
+        return graph_root(graph_bucket, graph_prefix)
+    local_root = os.getenv("LOCAL_GRAPH_ROOT")
+    if local_root:
+        return local_root
+    raise HTTPException(status_code=500, detail="Missing GRAPH_URI or GRAPH_BUCKET")
+
+
+def _healthcheck_uri(base_uri: str) -> str | None:
+    override = os.getenv("DUCKDB_HEALTHCHECK_URI")
+    if override:
+        return override
+    if base_uri.startswith("gs://"):
+        return join_uri(base_uri, "healthcheck.parquet")
+    return None
+
+
+def _authorize(request: Request) -> AuthContext | None:
+    api_key = _audit_api_key()
+    raw_key = request.headers.get("x-api-key")
+    try:
+        context = authorize_api_key(
+            base_uri=_graph_uri(),
+            raw_key=raw_key,
+            fallback_key=api_key,
+            require=_api_key_required(),
+        )
+    except AuthError as exc:
+        raise HTTPException(status_code=401, detail="Unauthorized") from exc
+    if _require_admin() and (context is None or not context.is_admin):
+        raise HTTPException(status_code=403, detail="Forbidden")
+    return context
+
+
+def _open_conn(base_uri: str) -> duckdb.DuckDBPyConnection:
+    conn, _ = get_secure_connection(healthcheck_uri=_healthcheck_uri(base_uri))
+    return conn
+
+
+def _glob_exists(uri_pattern: str) -> bool:
+    fs, path = fsspec.core.url_to_fs(uri_pattern)
+    return bool(fs.glob(path))
+
+
+def _open_local_conn() -> duckdb.DuckDBPyConnection:
+    return duckdb.connect(database=":memory:")
+
+
+def _resolve_parquet_files(
+    uri_pattern: str,
+) -> tuple[list[str], tempfile.TemporaryDirectory | None]:
+    fs, path = fsspec.core.url_to_fs(uri_pattern)
+    matches = sorted(fs.glob(path))
+    if not matches:
+        return [], None
+
+    protocol = fs.protocol
+    if isinstance(protocol, (list, tuple, set)):
+        protocol = next(iter(protocol), None)
+
+    if protocol in {None, "file"}:
+        return matches, None
+
+    tmpdir = tempfile.TemporaryDirectory(prefix="retikon-audit-")
+    local_paths: list[str] = []
+    for remote_path in matches:
+        filename = os.path.basename(remote_path)
+        local_path = os.path.join(tmpdir.name, filename)
+        fs.get(remote_path, local_path)
+        local_paths.append(local_path)
+    return local_paths, tmpdir
+
+
+def _parse_timestamp(value: str | None) -> datetime | None:
+    if not value:
+        return None
+    candidate = value.strip()
+    if not candidate:
+        return None
+    if candidate.endswith("Z"):
+        candidate = candidate[:-1] + "+00:00"
+    try:
+        parsed = datetime.fromisoformat(candidate)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail="Invalid timestamp") from exc
+    if parsed.tzinfo is None:
+        parsed = parsed.replace(tzinfo=timezone.utc)
+    return parsed
+
+
+def _serialize_value(value: object) -> object:
+    if isinstance(value, datetime):
+        return value.astimezone(timezone.utc).isoformat()
+    if isinstance(value, bytes):
+        return value.decode("utf-8", errors="ignore")
+    return value
+
+
+def _build_filters(
+    *,
+    org_id: str | None,
+    site_id: str | None,
+    stream_id: str | None,
+    api_key_id: str | None,
+    action: str | None,
+    decision: str | None,
+    since: datetime | None,
+    until: datetime | None,
+) -> tuple[list[str], list[object]]:
+    clauses: list[str] = []
+    values: list[object] = []
+    if org_id:
+        clauses.append("org_id = ?")
+        values.append(org_id)
+    if site_id:
+        clauses.append("site_id = ?")
+        values.append(site_id)
+    if stream_id:
+        clauses.append("stream_id = ?")
+        values.append(stream_id)
+    if api_key_id:
+        clauses.append("api_key_id = ?")
+        values.append(api_key_id)
+    if action:
+        clauses.append("action = ?")
+        values.append(action)
+    if decision:
+        clauses.append("decision = ?")
+        values.append(decision)
+    if since is not None:
+        clauses.append("created_at >= ?")
+        values.append(since)
+    if until is not None:
+        clauses.append("created_at <= ?")
+        values.append(until)
+    return clauses, values
+
+
+def _query_rows(
+    *,
+    uri_pattern: str,
+    where_clauses: list[str],
+    values: list[object],
+    limit: int | None,
+) -> list[dict[str, object]]:
+    local_paths, tmpdir = _resolve_parquet_files(uri_pattern)
+    if not local_paths:
+        return []
+    conn = _open_local_conn()
+    try:
+        query = "SELECT * FROM read_parquet(?, union_by_name=true)"
+        params: list[object] = [local_paths]
+        if where_clauses:
+            query += " WHERE " + " AND ".join(where_clauses)
+            params.extend(values)
+        query += " ORDER BY created_at DESC"
+        if limit is not None:
+            query += " LIMIT ?"
+            params.append(limit)
+        cursor = conn.execute(query, params)
+        columns = [col[0] for col in cursor.description]
+        rows = cursor.fetchall()
+    finally:
+        conn.close()
+        if tmpdir is not None:
+            tmpdir.cleanup()
+    output: list[dict[str, object]] = []
+    for row in rows:
+        record = dict(zip(columns, row, strict=False))
+        output.append({key: _serialize_value(value) for key, value in record.items()})
+    return output
+
+
+def _stream_query(
+    *,
+    uri_pattern: str,
+    where_clauses: list[str],
+    values: list[object],
+    format: str,
+) -> Iterator[str]:
+    local_paths, tmpdir = _resolve_parquet_files(uri_pattern)
+    if not local_paths:
+        return iter(())
+    conn = _open_local_conn()
+    query = "SELECT * FROM read_parquet(?, union_by_name=true)"
+    params: list[object] = [local_paths]
+    if where_clauses:
+        query += " WHERE " + " AND ".join(where_clauses)
+        params.extend(values)
+    query += " ORDER BY created_at DESC"
+    cursor = conn.execute(query, params)
+    columns = [col[0] for col in cursor.description]
+
+    def _write_csv_row(row: Iterable[object]) -> str:
+        output = io.StringIO()
+        writer = csv.writer(output)
+        writer.writerow(row)
+        return output.getvalue()
+
+    def _iter_rows() -> Iterator[str]:
+        try:
+            if format == "csv":
+                yield _write_csv_row(columns)
+                while True:
+                    batch = cursor.fetchmany(500)
+                    if not batch:
+                        break
+                    for row in batch:
+                        serialized = [_serialize_value(value) for value in row]
+                        yield _write_csv_row(serialized)
+            else:
+                while True:
+                    batch = cursor.fetchmany(500)
+                    if not batch:
+                        break
+                    for row in batch:
+                        record = {
+                            col: _serialize_value(value)
+                            for col, value in zip(columns, row, strict=False)
+                        }
+                        yield json.dumps(record) + "\n"
+        finally:
+            conn.close()
+            if tmpdir is not None:
+                tmpdir.cleanup()
+
+    return _iter_rows()
+
+
+def _audit_pattern(base_uri: str) -> str:
+    return join_uri(base_uri, "vertices", "AuditLog", "core", "*.parquet")
+
+
+def _usage_pattern(base_uri: str) -> str:
+    return join_uri(base_uri, "vertices", "UsageEvent", "core", "*.parquet")
+
+
+@app.get("/health")
+async def health() -> dict[str, str]:
+    return {
+        "status": "ok",
+        "service": SERVICE_NAME,
+        "version": os.getenv("RETIKON_VERSION", "dev"),
+        "commit": os.getenv("GIT_COMMIT", "unknown"),
+        "timestamp": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+    }
+
+
+@app.get("/audit/logs")
+async def audit_logs(
+    request: Request,
+    org_id: str | None = None,
+    site_id: str | None = None,
+    stream_id: str | None = None,
+    api_key_id: str | None = None,
+    action: str | None = None,
+    decision: str | None = None,
+    since: str | None = None,
+    until: str | None = None,
+    limit: int = 100,
+) -> dict[str, object]:
+    _authorize(request)
+    base_uri = _graph_uri()
+    limit = max(1, min(limit, 1000))
+    where, values = _build_filters(
+        org_id=org_id,
+        site_id=site_id,
+        stream_id=stream_id,
+        api_key_id=api_key_id,
+        action=action,
+        decision=decision,
+        since=_parse_timestamp(since),
+        until=_parse_timestamp(until),
+    )
+    rows = _query_rows(
+        uri_pattern=_audit_pattern(base_uri),
+        where_clauses=where,
+        values=values,
+        limit=limit,
+    )
+    return {"count": len(rows), "rows": rows}
+
+
+@app.get("/audit/export")
+async def audit_export(
+    request: Request,
+    org_id: str | None = None,
+    site_id: str | None = None,
+    stream_id: str | None = None,
+    api_key_id: str | None = None,
+    action: str | None = None,
+    decision: str | None = None,
+    since: str | None = None,
+    until: str | None = None,
+    format: str = "jsonl",
+) -> StreamingResponse:
+    _authorize(request)
+    base_uri = _graph_uri()
+    since_ts = _parse_timestamp(since)
+    until_ts = _parse_timestamp(until)
+    where, values = _build_filters(
+        org_id=org_id,
+        site_id=site_id,
+        stream_id=stream_id,
+        api_key_id=api_key_id,
+        action=action,
+        decision=decision,
+        since=since_ts,
+        until=until_ts,
+    )
+    fmt = format.lower()
+    if fmt not in {"jsonl", "csv"}:
+        raise HTTPException(status_code=400, detail="format must be jsonl or csv")
+    generator = _stream_query(
+        uri_pattern=_audit_pattern(base_uri),
+        where_clauses=where,
+        values=values,
+        format=fmt,
+    )
+    media_type = "application/json" if fmt == "jsonl" else "text/csv"
+    return StreamingResponse(generator, media_type=media_type)
+
+
+@app.get("/access/export")
+async def access_export(
+    request: Request,
+    org_id: str | None = None,
+    site_id: str | None = None,
+    stream_id: str | None = None,
+    api_key_id: str | None = None,
+    event_type: str | None = None,
+    since: str | None = None,
+    until: str | None = None,
+    format: str = "jsonl",
+) -> StreamingResponse:
+    _authorize(request)
+    base_uri = _graph_uri()
+    since_ts = _parse_timestamp(since)
+    until_ts = _parse_timestamp(until)
+    where, values = _build_filters(
+        org_id=org_id,
+        site_id=site_id,
+        stream_id=stream_id,
+        api_key_id=api_key_id,
+        action=None,
+        decision=None,
+        since=since_ts,
+        until=until_ts,
+    )
+    if event_type:
+        where.append("event_type = ?")
+        values.append(event_type)
+    fmt = format.lower()
+    if fmt not in {"jsonl", "csv"}:
+        raise HTTPException(status_code=400, detail="format must be jsonl or csv")
+    generator = _stream_query(
+        uri_pattern=_usage_pattern(base_uri),
+        where_clauses=where,
+        values=values,
+        format=fmt,
+    )
+    media_type = "application/json" if fmt == "jsonl" else "text/csv"
+    return StreamingResponse(generator, media_type=media_type)

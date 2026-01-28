@@ -12,7 +12,7 @@ This runbook covers routine checks and incident response for Retikon services.
 ## Daily checks
 
 - Cloud Run health:
-  - Query `/health` or `/healthz` endpoints.
+  - Query `/health` or `/healthz` endpoints (ingest, query, audit).
 - Error rates:
   - Ingestion 5xx and query p95 alerts.
 - DLQ backlog:
@@ -73,3 +73,9 @@ This runbook covers routine checks and incident response for Retikon services.
 - Validate:
   - `curl -X POST "$QUERY_URL/query" -H "X-API-Key: $NEW_KEY" -H "Content-Type: application/json" -d '{"top_k":1,"query_text":"demo"}'`
 - Update any local tooling (Dev Console, load tests) with the new key.
+
+## Secret rotation (audit API key)
+
+- By default, audit uses the same Secret Manager key as `QUERY_API_KEY`.
+- If you split keys later, rotate the audit key the same way and roll the audit
+  service to pick up the new secret.
