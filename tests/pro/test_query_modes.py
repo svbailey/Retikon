@@ -17,20 +17,19 @@ def _client() -> TestClient:
 def test_query_mode_text_limits_modalities(monkeypatch):
     captured = {}
 
-    def fake_search_by_text(
+    def fake_run_query(
         *,
+        payload,
         snapshot_path,
-        query_text,
-        top_k,
+        search_type,
         modalities,
         scope,
-        trace,
+        timings,
     ):
         captured["modalities"] = modalities
         return []
 
-    monkeypatch.setattr(query_service, "search_by_text", fake_search_by_text)
-    monkeypatch.setattr(query_service, "search_by_image", lambda **kwargs: [])
+    monkeypatch.setattr(query_service, "run_query", fake_run_query)
 
     client = _client()
     resp = client.post("/query", json={"query_text": "hello", "mode": "text"})
