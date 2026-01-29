@@ -65,6 +65,16 @@ This runbook covers routine checks and incident response for Retikon services.
   - If multiple are enabled, verify `OCR_CONNECTOR_ID` is set.
   - Verify the token env var named by `token_env` is present on ingestion.
 
+## Office conversion incidents
+
+- Confirm `OFFICE_CONVERSION_MODE` is set appropriately (inline vs queue).
+- Inline mode:
+  - Verify LibreOffice is installed (`soffice` on PATH or `LIBREOFFICE_BIN` set).
+- Queue mode:
+  - Confirm Pub/Sub push subscription targets
+    `/data-factory/convert-office/worker`.
+  - Check DLQ topic (`OFFICE_CONVERSION_DLQ_TOPIC`) for failures.
+
 ## Cost controls
 
 - Validate raw bucket lifecycle rule is active (7-day delete).

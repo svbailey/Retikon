@@ -1,4 +1,5 @@
 import base64
+import json
 import os
 import time
 import uuid
@@ -8,6 +9,21 @@ from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
+from gcp_adapter.office_conversion import (
+    conversion_backend,
+    conversion_mode,
+    convert_office_bytes,
+    create_job_record,
+    decode_payload,
+    enqueue_conversion,
+    load_conversion_record,
+    publish_conversion_dlq,
+    save_conversion_record,
+    update_job_record,
+    validate_payload_size,
+    write_conversion_output,
+)
+from gcp_adapter.queue_pubsub import parse_pubsub_push
 from retikon_core.auth import AuthContext, authorize_api_key
 from retikon_core.config import get_config
 from retikon_core.connectors import (
@@ -24,7 +40,7 @@ from retikon_core.data_factory import (
     load_models,
     register_model,
 )
-from retikon_core.errors import AuthError
+from retikon_core.errors import AuthError, PermanentError, RecoverableError
 from retikon_core.logging import configure_logging, get_logger
 
 SERVICE_NAME = "retikon-data-factory"
@@ -138,12 +154,26 @@ class OcrConnectorResponse(BaseModel):
 class OfficeConversionRequest(BaseModel):
     filename: str
     content_base64: str
+    queue: bool | None = None
 
 
 class OfficeConversionResponse(BaseModel):
     status: str
     output_filename: str
+    content_base64: str | None = None
+    job_id: str | None = None
+    output_uri: str | None = None
     message: str | None = None
+
+
+class OfficeConversionJobResponse(BaseModel):
+    id: str
+    filename: str
+    status: str
+    output_uri: str | None = None
+    error: str | None = None
+    created_at: str
+    updated_at: str
 
 
 def _cors_origins() -> list[str]:
@@ -434,13 +464,180 @@ async def convert_office(
     payload: OfficeConversionRequest,
 ) -> OfficeConversionResponse:
     _authorize(request)
-    try:
-        base64.b64decode(payload.content_base64, validate=True)
-    except ValueError as exc:
-        raise HTTPException(status_code=400, detail="Invalid base64 payload") from exc
-    output_name = f"{payload.filename}.pdf"
-    return OfficeConversionResponse(
-        status="stub",
-        output_filename=output_name,
-        message="Conversion pipeline not enabled in dev",
+    if not _is_office_filename(payload.filename):
+        raise HTTPException(status_code=400, detail="Unsupported filename extension")
+    mode = _resolve_conversion_mode(payload.queue)
+    if mode == "disabled":
+        raise HTTPException(status_code=503, detail="Office conversion disabled")
+
+    base_uri = _get_config().graph_root_uri()
+    job = create_job_record(
+        filename=payload.filename,
+        content_base64=payload.content_base64,
+        status="queued" if mode == "queue" else "processing",
     )
+    save_conversion_record(base_uri, job)
+
+    if mode == "queue":
+        topic = os.getenv("OFFICE_CONVERSION_TOPIC", "")
+        if not topic:
+            raise HTTPException(
+                status_code=500,
+                detail="OFFICE_CONVERSION_TOPIC is required for queue mode",
+            )
+        try:
+            enqueue_conversion(
+                topic=topic,
+                payload={
+                    "job_id": job.id,
+                    "filename": job.filename,
+                    "content_base64": job.content_base64,
+                },
+            )
+        except Exception as exc:
+            failed = update_job_record(job, status="failed", error=str(exc))
+            save_conversion_record(base_uri, failed)
+            raise HTTPException(
+                status_code=500,
+                detail="Failed to enqueue conversion job",
+            ) from exc
+        return OfficeConversionResponse(
+            status="queued",
+            output_filename=_output_filename(payload.filename),
+            job_id=job.id,
+            output_uri=None,
+            message="Job queued for conversion",
+        )
+
+    try:
+        content = decode_payload(payload.content_base64)
+        validate_payload_size(content)
+        output_bytes = convert_office_bytes(
+            filename=payload.filename,
+            content=content,
+            backend=conversion_backend(),
+        )
+        output_uri = write_conversion_output(base_uri, job.id, output_bytes)
+        completed = update_job_record(job, status="completed", output_uri=output_uri)
+        save_conversion_record(base_uri, completed)
+        return OfficeConversionResponse(
+            status="completed",
+            output_filename=_output_filename(payload.filename),
+            content_base64=base64.b64encode(output_bytes).decode("utf-8"),
+            job_id=job.id,
+            output_uri=output_uri,
+        )
+    except PermanentError as exc:
+        failed = update_job_record(job, status="failed", error=str(exc))
+        save_conversion_record(base_uri, failed)
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except RecoverableError as exc:
+        failed = update_job_record(job, status="failed", error=str(exc))
+        save_conversion_record(base_uri, failed)
+        raise HTTPException(status_code=500, detail=str(exc)) from exc
+
+
+@app.get(
+    "/data-factory/convert-office/{job_id}",
+    response_model=OfficeConversionJobResponse,
+)
+async def get_conversion_job(
+    request: Request,
+    job_id: str,
+) -> OfficeConversionJobResponse:
+    _authorize(request)
+    job = load_conversion_record(_get_config().graph_root_uri(), job_id)
+    if job is None:
+        raise HTTPException(status_code=404, detail="Conversion job not found")
+    return OfficeConversionJobResponse(
+        id=job.id,
+        filename=job.filename,
+        status=job.status,
+        output_uri=job.output_uri,
+        error=job.error,
+        created_at=job.created_at,
+        updated_at=job.updated_at,
+    )
+
+
+@app.post("/data-factory/convert-office/worker")
+async def office_conversion_worker(request: Request) -> dict[str, str]:
+    body = await request.json()
+    envelope = parse_pubsub_push(body)
+    payload = json.loads(envelope.message.data.decode("utf-8"))
+    job_id = str(payload.get("job_id", "")).strip()
+    filename = str(payload.get("filename", "")).strip()
+    content_base64 = str(payload.get("content_base64", "")).strip()
+    if not job_id or not filename or not content_base64:
+        raise HTTPException(status_code=400, detail="Invalid conversion payload")
+    if not _is_office_filename(filename):
+        raise HTTPException(status_code=400, detail="Unsupported filename extension")
+
+    base_uri = _get_config().graph_root_uri()
+    job = load_conversion_record(base_uri, job_id)
+    if job is None:
+        job = create_job_record(
+            filename=filename,
+            content_base64=content_base64,
+            status="processing",
+        )
+    else:
+        job = update_job_record(job, status="processing")
+    save_conversion_record(base_uri, job)
+
+    try:
+        content = decode_payload(content_base64)
+        validate_payload_size(content)
+        output_bytes = convert_office_bytes(
+            filename=filename,
+            content=content,
+            backend=conversion_backend(),
+        )
+        output_uri = write_conversion_output(base_uri, job.id, output_bytes)
+        completed = update_job_record(job, status="completed", output_uri=output_uri)
+        save_conversion_record(base_uri, completed)
+        return {"status": "ok"}
+    except PermanentError as exc:
+        failed = update_job_record(job, status="failed", error=str(exc))
+        save_conversion_record(base_uri, failed)
+        _publish_conversion_dlq(payload, str(exc))
+        return {"status": "dlq"}
+    except RecoverableError as exc:
+        failed = update_job_record(job, status="failed", error=str(exc))
+        save_conversion_record(base_uri, failed)
+        raise HTTPException(status_code=500, detail=str(exc)) from exc
+
+
+def _resolve_conversion_mode(queue_override: bool | None) -> str:
+    if queue_override is True:
+        return "queue"
+    if queue_override is False:
+        return "inline"
+    return conversion_mode()
+
+
+def _output_filename(filename: str) -> str:
+    stem = os.path.splitext(filename)[0]
+    return f"{stem}.pdf"
+
+
+def _publish_conversion_dlq(payload: dict[str, Any], error: str) -> None:
+    topic = os.getenv("OFFICE_CONVERSION_DLQ_TOPIC")
+    if not topic:
+        return
+    try:
+        publish_conversion_dlq(
+            topic=topic,
+            payload={
+                "error": error,
+                "payload": payload,
+                "failed_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+            },
+        )
+    except Exception:
+        logger.exception("Failed to publish office conversion DLQ message")
+
+
+def _is_office_filename(filename: str) -> bool:
+    ext = os.path.splitext(filename.lower())[1]
+    return ext in {".doc", ".docx", ".ppt", ".pptx"}

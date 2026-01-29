@@ -116,3 +116,23 @@ curl -X POST "$DATA_FACTORY_URL/data-factory/ocr/connectors" \
 Notes:
 - If multiple enabled connectors exist and no default is set, ingestion will
   error until `OCR_CONNECTOR_ID` is provided.
+
+## Office conversion setup (Pro)
+
+Office conversion is handled by the Data Factory service.
+
+Inline mode (simple):
+- `OFFICE_CONVERSION_MODE=inline`
+- `OFFICE_CONVERSION_BACKEND=libreoffice`
+- Ensure LibreOffice is available in the container (`soffice` on PATH or
+  set `LIBREOFFICE_BIN=/path/to/soffice`)
+
+Queue mode (async):
+- `OFFICE_CONVERSION_MODE=queue`
+- `OFFICE_CONVERSION_TOPIC=projects/$PROJECT/topics/retikon-office-conversion`
+- `OFFICE_CONVERSION_DLQ_TOPIC=projects/$PROJECT/topics/retikon-office-conversion-dlq`
+- Configure Pub/Sub push to call:
+  - `POST /data-factory/convert-office/worker`
+
+Optional limits:
+- `OFFICE_CONVERSION_MAX_BYTES` to cap payload size (defaults to `MAX_RAW_BYTES`).
