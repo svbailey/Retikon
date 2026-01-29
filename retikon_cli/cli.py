@@ -15,6 +15,7 @@ from typing import Any
 
 DEFAULT_INGEST_URL = "http://localhost:8081"
 DEFAULT_QUERY_URL = "http://localhost:8080"
+DEFAULT_TIMEOUT_S = 30
 DEFAULT_ENV_FILE = ".env"
 DEFAULT_ENV_EXAMPLE = ".env.example"
 
@@ -43,11 +44,23 @@ def _resolve_query_url(value: str | None) -> str:
     return value or os.getenv("RETIKON_QUERY_URL", DEFAULT_QUERY_URL)
 
 
+def _resolve_timeout(value: int | None = None) -> int:
+    if value is not None:
+        return value
+    raw = os.getenv("RETIKON_TIMEOUT_S")
+    if raw:
+        try:
+            return int(raw)
+        except ValueError:
+            return DEFAULT_TIMEOUT_S
+    return DEFAULT_TIMEOUT_S
+
+
 def _request_json(
     method: str,
     url: str,
     payload: dict[str, Any] | None = None,
-    timeout: int = 30,
+    timeout: int | None = None,
     api_key_envs: tuple[str, ...] | None = None,
 ) -> dict[str, Any]:
     data = None
@@ -74,8 +87,9 @@ def _request_json(
         method=method,
         headers=headers,
     )
+    timeout_value = _resolve_timeout(timeout)
     try:
-        with urllib.request.urlopen(req, timeout=timeout) as resp:
+        with urllib.request.urlopen(req, timeout=timeout_value) as resp:
             raw = resp.read()
             if not raw:
                 return {}

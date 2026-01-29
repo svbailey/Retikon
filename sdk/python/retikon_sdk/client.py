@@ -1,18 +1,55 @@
 from __future__ import annotations
 
 import json
+import os
 import urllib.error
 import urllib.request
 from dataclasses import dataclass
 from typing import Any, Iterable
 
+DEFAULT_INGEST_URL = "http://localhost:8081"
+DEFAULT_QUERY_URL = "http://localhost:8080"
+DEFAULT_TIMEOUT_S = 30
+
+
+def _env_timeout() -> int:
+    raw = os.getenv("RETIKON_TIMEOUT_S")
+    if raw:
+        try:
+            return int(raw)
+        except ValueError:
+            return DEFAULT_TIMEOUT_S
+    return DEFAULT_TIMEOUT_S
+
+
+def _env_api_key() -> str | None:
+    return os.getenv("QUERY_API_KEY") or os.getenv("INGEST_API_KEY")
+
 
 @dataclass(frozen=True)
 class RetikonClient:
-    ingest_url: str = "http://localhost:8081"
-    query_url: str = "http://localhost:8080"
+    ingest_url: str | None = None
+    query_url: str | None = None
     api_key: str | None = None
-    timeout: int = 30
+    timeout: int | None = None
+
+    def __post_init__(self) -> None:
+        ingest_url = (
+            self.ingest_url
+            or os.getenv("RETIKON_INGEST_URL")
+            or DEFAULT_INGEST_URL
+        )
+        query_url = (
+            self.query_url
+            or os.getenv("RETIKON_QUERY_URL")
+            or DEFAULT_QUERY_URL
+        )
+        api_key = self.api_key or _env_api_key()
+        timeout = self.timeout if self.timeout is not None else _env_timeout()
+        object.__setattr__(self, "ingest_url", ingest_url)
+        object.__setattr__(self, "query_url", query_url)
+        object.__setattr__(self, "api_key", api_key)
+        object.__setattr__(self, "timeout", timeout)
 
     def _headers(self) -> dict[str, str]:
         headers = {"Content-Type": "application/json"}

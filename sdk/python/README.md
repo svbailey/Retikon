@@ -34,6 +34,14 @@ resp = client.query(query_text="alarm", search_type="keyword")
 resp = client.query(search_type="metadata", metadata_filters={"content_type": "application/pdf"})
 ```
 
+Defaults can also come from environment variables:
+
+- `RETIKON_INGEST_URL`
+- `RETIKON_QUERY_URL`
+- `QUERY_API_KEY` or `INGEST_API_KEY`
+- `RETIKON_TIMEOUT_S`
+```
+
 ## Notes
 - The ingestion service reads local file paths, so the API must run on the same host.
 - For multimodal queries, omit `mode`/`modalities` to search across all modalities.

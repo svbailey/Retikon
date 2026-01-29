@@ -1,9 +1,39 @@
+const DEFAULT_INGEST_URL = "http://localhost:8081";
+const DEFAULT_QUERY_URL = "http://localhost:8080";
+const DEFAULT_TIMEOUT_MS = 30000;
+
+const ENV = typeof process !== "undefined" && process.env ? process.env : {};
+
+function parseEnvInt(value) {
+  if (!value) return null;
+  const parsed = Number.parseInt(value, 10);
+  return Number.isNaN(parsed) ? null : parsed;
+}
+
+function resolveTimeoutMs(explicit) {
+  if (explicit !== undefined && explicit !== null) return explicit;
+  const ms = parseEnvInt(ENV.RETIKON_TIMEOUT_MS);
+  if (ms !== null) return ms;
+  const seconds = parseEnvInt(ENV.RETIKON_TIMEOUT_S);
+  if (seconds !== null) return seconds * 1000;
+  return DEFAULT_TIMEOUT_MS;
+}
+
+function resolveApiKey(explicit) {
+  if (explicit !== undefined && explicit !== null) return explicit;
+  return ENV.QUERY_API_KEY || ENV.INGEST_API_KEY || null;
+}
+
 export class RetikonClient {
-  constructor({ ingestUrl = "http://localhost:8081", queryUrl = "http://localhost:8080", apiKey = null, timeoutMs = 30000 } = {}) {
+  constructor(options = {}) {
+  const ingestUrl =
+    options.ingestUrl ?? ENV.RETIKON_INGEST_URL ?? DEFAULT_INGEST_URL;
+  const queryUrl =
+    options.queryUrl ?? ENV.RETIKON_QUERY_URL ?? DEFAULT_QUERY_URL;
     this.ingestUrl = ingestUrl;
     this.queryUrl = queryUrl;
-    this.apiKey = apiKey;
-    this.timeoutMs = timeoutMs;
+    this.apiKey = resolveApiKey(options.apiKey);
+    this.timeoutMs = resolveTimeoutMs(options.timeoutMs);
   }
 
   _headers() {

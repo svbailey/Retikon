@@ -130,6 +130,12 @@ Pro (GCP) variables:
 
 Full env reference: `Dev Docs/Environment-Reference.md`
 
+CLI/SDK defaults (optional):
+
+- `RETIKON_INGEST_URL`
+- `RETIKON_QUERY_URL`
+- `RETIKON_TIMEOUT_S`
+
 ## Development workflow (high level)
 
 - Review the sprint plan in `Dev Docs/Retikon-GCP-Build-Kit-v2.5.md`.

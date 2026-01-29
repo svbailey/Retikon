@@ -72,6 +72,13 @@ Defaults shown match current code where applicable.
 - `METERING_ENABLED=0|1`
 - `AUDIT_LOGGING_ENABLED=0|1`
 
+## CLI/SDK defaults
+
+- `RETIKON_INGEST_URL` (default ingest base URL)
+- `RETIKON_QUERY_URL` (default query base URL)
+- `RETIKON_TIMEOUT_S` (default request timeout in seconds)
+- `RETIKON_TIMEOUT_MS` (JS SDK timeout override, milliseconds)
+
 ## Pro ingestion + ops
 
 - `DLQ_TOPIC`
