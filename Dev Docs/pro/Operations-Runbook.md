@@ -30,6 +30,11 @@ This runbook covers routine checks and incident response for Retikon services.
 - Check logs for snapshot load errors.
 - Confirm `SNAPSHOT_URI` is reachable.
 - If needed, roll back snapshot or reload via `/admin/reload-snapshot`.
+- Warmup tuning (tail latency):
+  - `QUERY_WARMUP=1` enables model warmup at startup.
+  - `QUERY_WARMUP_STEPS` controls which warmup steps run.
+    - Recommended default for production: `text,image_text,audio_text`.
+  - If p99 spikes appear, consider raising `query_min_scale` and ensuring warmup steps complete.
 
 ## Snapshot refresh strategy
 

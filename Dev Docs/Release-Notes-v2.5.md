@@ -53,6 +53,7 @@ Notes:
 Query service:
 - `QUERY_WARMUP` (default `1`) to enable warmup embeds on startup.
 - `QUERY_WARMUP_TEXT` (default `retikon warmup`) text used for warmup.
+- `QUERY_WARMUP_STEPS` (default `text,image_text,audio_text,image`) controls which warmup steps run.
 - `SLOW_QUERY_MS` and `LOG_QUERY_TIMINGS` retained for tail‑latency logging.
 
 ## Load‑Testing Baselines

@@ -618,6 +618,14 @@ resource "google_cloud_run_service" "query" {
           value = var.query_warmup_text
         }
         env {
+          name  = "QUERY_WARMUP_STEPS"
+          value = var.query_warmup_steps
+        }
+        env {
+          name  = "EMBEDDING_BACKEND"
+          value = var.query_embedding_backend
+        }
+        env {
           name  = "DUCKDB_THREADS"
           value = var.duckdb_threads != null ? tostring(var.duckdb_threads) : ""
         }
@@ -794,6 +802,10 @@ resource "google_cloud_run_service" "query_gpu" {
         env {
           name  = "QUERY_WARMUP_TEXT"
           value = var.query_warmup_text
+        }
+        env {
+          name  = "EMBEDDING_BACKEND"
+          value = var.query_embedding_backend
         }
         env {
           name  = "DUCKDB_THREADS"

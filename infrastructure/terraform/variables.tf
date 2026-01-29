@@ -219,6 +219,16 @@ variable "query_warmup_text" {
   default = "retikon warmup"
 }
 
+variable "query_warmup_steps" {
+  type    = string
+  default = "text,image_text,audio_text,image"
+}
+
+variable "query_embedding_backend" {
+  type    = string
+  default = ""
+}
+
 variable "duckdb_threads" {
   type    = number
   default = null

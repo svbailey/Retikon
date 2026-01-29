@@ -12,6 +12,8 @@ services, plus the results record to fill before release.
 - Raw bucket (`RAW_BUCKET`) and ADC credentials for uploads.
 - Python dependencies installed:
   - `pip install -r requirements-dev.txt`
+- Optional (ONNX/quantized backends):
+  - `pip install onnxruntime`
 
 ## Query load test
 
@@ -40,6 +42,18 @@ python scripts/load_test_query.py \
 ```
 
 Capture output JSON and record the latencies below.
+
+### Optional ONNX/quantized setup
+
+Export ONNX artifacts and enable the backend before running benchmarks:
+
+```bash
+EXPORT_ONNX=1 MODEL_DIR=/app/models python scripts/download_models.py
+QUANTIZE_ONNX=1 MODEL_DIR=/app/models python scripts/download_models.py
+```
+
+Then set `EMBEDDING_BACKEND=onnx` or `EMBEDDING_BACKEND=quantized` on the query
+service and re-run the load tests for comparison.
 
 ### SLO split: text-only vs multimodal
 
@@ -122,6 +136,114 @@ waits for Firestore ingestion completion.
   - Query service tuned: minScale=2, maxScale=40, concurrency=4, cpu=2, memory=4Gi, timeout=120s.
   - Warmup enabled: `QUERY_WARMUP=1`, `QUERY_WARMUP_TEXT="retikon warmup"`.
   - Throughput was 4.97 rps for 300 requests.
+
+### Query (mode=text ONNX)
+
+- Target QPS: 5 (60s, concurrency 10)
+- p50 latency (ms): 803.77
+- p95 latency (ms): 1047.22
+- p99 latency (ms): 42777.79
+- Error rate: 0% (0/300)
+- Notes:
+  - Test ran against `https://retikon-query-dev-yt27ougp4q-uc.a.run.app/query` on 2026-01-29.
+  - Embedding backend: `EMBEDDING_BACKEND=onnx`.
+  - Query image: `dev-20260129-080400-onnx`.
+  - Payload used `mode=text`.
+  - Throughput was 4.94 rps for 300 requests.
+  - Re-test on 2026-01-29: p50 819.68 ms, p95 990.93 ms, p99 1111.70 ms, errors 0/300.
+  - Cloud Run logs show 42-45s requests at 2026-01-29T08:58:45Z and startup probes at 08:57-08:59Z; no >10s requests in the last 5 minutes after re-test.
+
+### Query (default multimodal ONNX)
+
+- Target QPS: 5 (60s, concurrency 10)
+- p50 latency (ms): 869.97
+- p95 latency (ms): 1095.20
+- p99 latency (ms): 1269.78
+- Error rate: 0% (0/300)
+- Notes:
+  - Test ran against `https://retikon-query-dev-yt27ougp4q-uc.a.run.app/query` on 2026-01-29.
+  - Embedding backend: `EMBEDDING_BACKEND=onnx`.
+  - Query image: `dev-20260129-080400-onnx`.
+  - Default query path (no mode/modality filter).
+  - Throughput was 4.93 rps for 300 requests.
+
+### Query (mode=text quantized)
+
+- Target QPS: 5 (60s, concurrency 10)
+- p50 latency (ms): 653.51
+- p95 latency (ms): 882.37
+- p99 latency (ms): 39912.46
+- Error rate: 0% (0/300)
+- Notes:
+  - Test ran against `https://retikon-query-dev-yt27ougp4q-uc.a.run.app/query` on 2026-01-29.
+  - Embedding backend: `EMBEDDING_BACKEND=quantized`.
+  - Query image: `dev-20260129-080400-onnx`.
+  - Payload used `mode=text`.
+  - Throughput was 4.93 rps for 300 requests.
+  - Cloud Run logs show two 39-40s requests at 2026-01-29T09:06:35Z.
+  - Re-test on 2026-01-29: p50 615.45 ms, p95 852.01 ms, p99 911.85 ms, errors 0/300.
+  - No >10s requests in the last 10 minutes after re-test.
+
+### Query (default multimodal quantized)
+
+- Target QPS: 5 (60s, concurrency 10)
+- p50 latency (ms): 789.86
+- p95 latency (ms): 959.55
+- p99 latency (ms): 1081.45
+- Error rate: 0% (0/300)
+- Notes:
+  - Test ran against `https://retikon-query-dev-yt27ougp4q-uc.a.run.app/query` on 2026-01-29.
+  - Embedding backend: `EMBEDDING_BACKEND=quantized`.
+  - Query image: `dev-20260129-080400-onnx`.
+  - Default query path (no mode/modality filter).
+  - Throughput was 4.94 rps for 300 requests.
+
+### Decision (backend default)
+
+- Date: 2026-01-29
+- Decision: keep HF (default) as the production backend; ONNX/quantized remain optional.
+- Rationale:
+  - HF baseline (2026-01-27) shows lower p50/p95/p99 than ONNX/quantized.
+  - ONNX/quantized runs showed intermittent long-tail spikes during some tests.
+  - No cost/CPU utilization data yet to justify higher latency.
+- Action taken:
+  - `query_embedding_backend` reverted to empty string (HF default) via Terraform apply.
+
+### Query (HF sanity re-test after revert)
+
+- Target QPS: 5 (60s, concurrency 10)
+- p50 latency (ms): 784.29
+- p95 latency (ms): 2045.90
+- p99 latency (ms): 39761.85
+- Error rate: 0% (0/300)
+- Notes:
+  - Test ran against `https://retikon-query-dev-yt27ougp4q-uc.a.run.app/query` on 2026-01-29.
+  - Backend set to default (HF).
+  - Cloud Run logs show 38–45s requests at 2026-01-29T09:15:53Z and 09:15:59Z.
+
+### Investigation notes (cold starts)
+
+- Service config at 2026-01-29: minScale=2, maxScale=40, containerConcurrency=2, cpu=4, memory=8Gi, timeout=120s, QUERY_WARMUP=1.
+- Load tests used concurrency=10, so Cloud Run needed to scale beyond minScale (new instances warm up).
+- Cloud Run logs show repeated STARTUP probe events around the test windows, and >10s requests align with those windows.
+- Warmup logs show repeated warnings: "Query model warmup failed" with error "mean must have 1 elements if it is an iterable, got 3".
+- Warmup timings (examples): text_embed_ms ~12–33s; image_text_embed_ms ~2–5s; audio_text_embed_ms ~5–9s.
+- Likely root cause of 40s p99 tail: cold-start + long warmup on new instances.
+- Mitigation applied: `query_min_scale=5` and `QUERY_WARMUP_STEPS=text` (config) to reduce cold-start tail.
+- Re-test after mitigation (2026-01-29):
+  - mode=text: p50 496.46 ms, p95 793.92 ms, p99 1101.07 ms, errors 0/300.
+  - default: p50 541.03 ms, p95 822.52 ms, p99 931.50 ms, errors 0/300.
+  - No >10s requests in the last 15 minutes.
+- Warmup fix deployed (image `dev-20260129-094559-warmup`), warmup completed (text-only) with `text_embed_ms` ~20–24s.
+- Re-test after warmup fix + minScale=5 (2026-01-29):
+  - mode=text: p50 601.23 ms, p95 852.75 ms, p99 1038.39 ms, errors 0/300.
+  - default: p50 622.56 ms, p95 1987.39 ms, p99 11672.58 ms, errors 0/300.
+  - Logs show 10–12s requests at 2026-01-29T10:07:44Z during default (multimodal) run.
+- Warmup expanded to `text,image_text,audio_text` (2026-01-29):
+  - Warmup completed with timings: text ~24–25s, image_text ~3–4s, audio_text ~4.8–6.8s.
+  - mode=text: p50 531.28 ms, p95 828.19 ms, p99 905.14 ms, errors 0/300.
+  - default: p50 712.68 ms, p95 1070.06 ms, p99 1322.76 ms, errors 0/300.
+  - No new >10s requests since warmup expansion; last >10s entries were at 10:07:44Z (before re-test).
 
 ### Ingestion
 

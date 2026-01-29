@@ -14,6 +14,13 @@ def main() -> None:
     image_model = _env("IMAGE_MODEL_NAME", "openai/clip-vit-base-patch32")
     audio_model = _env("AUDIO_MODEL_NAME", "laion/clap-htsat-fused")
     whisper_model = _env("WHISPER_MODEL_NAME", "small")
+    export_onnx = _env("EXPORT_ONNX", "").strip().lower() in {"1", "true", "yes"}
+    quantize_onnx = _env("QUANTIZE_ONNX", "").strip().lower() in {
+        "1",
+        "true",
+        "yes",
+    }
+    embedding_backend = _env("EMBEDDING_BACKEND", "").strip().lower()
 
     Path(model_dir).mkdir(parents=True, exist_ok=True)
     os.environ.setdefault("HF_HOME", model_dir)
@@ -40,6 +47,30 @@ def main() -> None:
     import whisper
 
     whisper.load_model(whisper_model, download_root=model_dir)
+
+    if export_onnx or embedding_backend in {"onnx", "quantized"}:
+        export_script = Path(__file__).with_name("export_onnx.py")
+        if export_script.exists():
+            print("Exporting ONNX models...")
+            import subprocess
+            import sys
+
+            subprocess.check_call([sys.executable, export_script.as_posix(), "--all"])
+        else:
+            raise SystemExit(f"Missing ONNX export script: {export_script}")
+
+    if quantize_onnx or embedding_backend == "quantized":
+        quantize_script = Path(__file__).with_name("quantize_onnx.py")
+        if quantize_script.exists():
+            print("Quantizing ONNX models...")
+            import subprocess
+            import sys
+
+            subprocess.check_call(
+                [sys.executable, quantize_script.as_posix(), "--all"]
+            )
+        else:
+            raise SystemExit(f"Missing ONNX quantize script: {quantize_script}")
 
 
 if __name__ == "__main__":

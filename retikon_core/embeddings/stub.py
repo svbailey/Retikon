@@ -8,6 +8,37 @@ from typing import Callable, Iterable, Protocol, TypeVar
 
 from PIL import Image
 
+from retikon_core.embeddings.onnx_backend import (
+    OnnxClapAudioEmbedder as BackendOnnxClapAudioEmbedder,
+)
+from retikon_core.embeddings.onnx_backend import (
+    OnnxClapTextEmbedder as BackendOnnxClapTextEmbedder,
+)
+from retikon_core.embeddings.onnx_backend import (
+    OnnxClipImageEmbedder as BackendOnnxClipImageEmbedder,
+)
+from retikon_core.embeddings.onnx_backend import (
+    OnnxClipTextEmbedder as BackendOnnxClipTextEmbedder,
+)
+from retikon_core.embeddings.onnx_backend import (
+    OnnxTextEmbedder as BackendOnnxTextEmbedder,
+)
+from retikon_core.embeddings.onnx_backend import (
+    QuantizedClapAudioEmbedder as BackendQuantizedClapAudioEmbedder,
+)
+from retikon_core.embeddings.onnx_backend import (
+    QuantizedClapTextEmbedder as BackendQuantizedClapTextEmbedder,
+)
+from retikon_core.embeddings.onnx_backend import (
+    QuantizedClipImageEmbedder as BackendQuantizedClipImageEmbedder,
+)
+from retikon_core.embeddings.onnx_backend import (
+    QuantizedClipTextEmbedder as BackendQuantizedClipTextEmbedder,
+)
+from retikon_core.embeddings.onnx_backend import (
+    QuantizedTextEmbedder as BackendQuantizedTextEmbedder,
+)
+
 
 class TextEmbedder(Protocol):
     def encode(self, texts: Iterable[str]) -> list[list[float]]: ...
@@ -259,66 +290,76 @@ def _require_onnxruntime() -> None:
 class OnnxTextEmbedder:
     def __init__(self) -> None:
         _require_onnxruntime()
-        self._fallback = RealTextEmbedder()
+        self._backend = BackendOnnxTextEmbedder()
 
     def encode(self, texts: Iterable[str]) -> list[list[float]]:
-        return self._fallback.encode(texts)
+        return self._backend.encode(texts)
 
 
 class OnnxClipImageEmbedder:
     def __init__(self) -> None:
         _require_onnxruntime()
-        self._fallback = RealClipImageEmbedder()
+        self._backend = BackendOnnxClipImageEmbedder()
 
     def encode(self, images: Iterable[Image.Image]) -> list[list[float]]:
-        return self._fallback.encode(images)
+        return self._backend.encode(images)
 
 
 class OnnxClipTextEmbedder:
     def __init__(self) -> None:
         _require_onnxruntime()
-        self._fallback = RealClipTextEmbedder()
+        self._backend = BackendOnnxClipTextEmbedder()
 
     def encode(self, texts: Iterable[str]) -> list[list[float]]:
-        return self._fallback.encode(texts)
+        return self._backend.encode(texts)
 
 
 class OnnxClapAudioEmbedder:
     def __init__(self) -> None:
         _require_onnxruntime()
-        self._fallback = RealClapAudioEmbedder()
+        self._backend = BackendOnnxClapAudioEmbedder()
 
     def encode(self, clips: Iterable[bytes]) -> list[list[float]]:
-        return self._fallback.encode(clips)
+        return self._backend.encode(clips)
 
 
 class OnnxClapTextEmbedder:
     def __init__(self) -> None:
         _require_onnxruntime()
-        self._fallback = RealClapTextEmbedder()
+        self._backend = BackendOnnxClapTextEmbedder()
 
     def encode(self, texts: Iterable[str]) -> list[list[float]]:
-        return self._fallback.encode(texts)
+        return self._backend.encode(texts)
 
 
 class QuantizedTextEmbedder(OnnxTextEmbedder):
-    pass
+    def __init__(self) -> None:
+        _require_onnxruntime()
+        self._backend = BackendQuantizedTextEmbedder()
 
 
 class QuantizedClipImageEmbedder(OnnxClipImageEmbedder):
-    pass
+    def __init__(self) -> None:
+        _require_onnxruntime()
+        self._backend = BackendQuantizedClipImageEmbedder()
 
 
 class QuantizedClipTextEmbedder(OnnxClipTextEmbedder):
-    pass
+    def __init__(self) -> None:
+        _require_onnxruntime()
+        self._backend = BackendQuantizedClipTextEmbedder()
 
 
 class QuantizedClapAudioEmbedder(OnnxClapAudioEmbedder):
-    pass
+    def __init__(self) -> None:
+        _require_onnxruntime()
+        self._backend = BackendQuantizedClapAudioEmbedder()
 
 
 class QuantizedClapTextEmbedder(OnnxClapTextEmbedder):
-    pass
+    def __init__(self) -> None:
+        _require_onnxruntime()
+        self._backend = BackendQuantizedClapTextEmbedder()
 
 
 _TEXT_CACHE: dict[int, StubTextEmbedder] = {}

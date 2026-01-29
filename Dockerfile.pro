@@ -5,6 +5,8 @@ ENV APP_MODULE=${APP_MODULE}
 ARG PRELOAD_MODELS=1
 ARG MODEL_DIR=/app/models
 ARG INSTALL_OCR=0
+ARG EXPORT_ONNX=0
+ARG QUANTIZE_ONNX=0
 
 WORKDIR /app
 
@@ -36,6 +38,7 @@ COPY gcp_adapter/ /app/gcp_adapter/
 ENV PYTHONPATH=/app
 
 RUN if [ "${PRELOAD_MODELS}" = "1" ]; then \
+        EXPORT_ONNX="${EXPORT_ONNX}" QUANTIZE_ONNX="${QUANTIZE_ONNX}" \
         python /app/scripts/download_models.py ; \
     fi
 

@@ -695,6 +695,7 @@ Enable these APIs in the target project:
   - `ENABLE_OCR` (optional, default 0), `OCR_MAX_PAGES` (optional)
   - `SNAPSHOT_URI` (query service)
   - `QUERY_WARMUP` (optional, default 1), `QUERY_WARMUP_TEXT` (optional)
+  - `QUERY_WARMUP_STEPS` (optional, default `text,image_text,audio_text,image`)
   - `SLOW_QUERY_MS` (optional), `LOG_QUERY_TIMINGS` (optional)
   - `DUCKDB_GCS_FALLBACK` (optional)
 - Local `.env` file for dev (non-prod only).

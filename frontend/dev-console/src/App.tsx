@@ -334,7 +334,7 @@ export default function App() {
   const [queryUrlOverride, setQueryUrlOverride] = useState("");
   const [ingestUrlOverride, setIngestUrlOverride] = useState("");
   const [localPath, setLocalPath] = useState("");
-  const [queryMode, setQueryMode] = useState<"text" | "all">("all");
+  const [queryMode, setQueryMode] = useState<"text" | "all">("text");
   const [thumbUrls, setThumbUrls] = useState<Record<string, string>>({});
   const [videoUrls, setVideoUrls] = useState<Record<string, string>>({});
   const [videoLoading, setVideoLoading] = useState<Record<string, boolean>>({});

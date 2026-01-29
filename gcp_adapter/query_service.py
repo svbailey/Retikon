@@ -87,6 +87,14 @@ SLOW_QUERY_MS = int(os.getenv("SLOW_QUERY_MS", "2000"))
 LOG_QUERY_TIMINGS = os.getenv("LOG_QUERY_TIMINGS", "0") == "1"
 QUERY_WARMUP = os.getenv("QUERY_WARMUP", "1") == "1"
 QUERY_WARMUP_TEXT = os.getenv("QUERY_WARMUP_TEXT", "retikon warmup")
+QUERY_WARMUP_STEPS = {
+    step.strip().lower()
+    for step in os.getenv(
+        "QUERY_WARMUP_STEPS",
+        "text,image_text,audio_text,image",
+    ).split(",")
+    if step.strip()
+}
 
 ALLOWED_MODALITIES = {"document", "transcript", "image", "audio"}
 ALLOWED_SEARCH_TYPES = {"vector", "keyword", "metadata"}
@@ -363,35 +371,55 @@ def _warm_query_models() -> None:
     if not QUERY_WARMUP:
         logger.info("Query model warmup skipped")
         return
+    if not QUERY_WARMUP_STEPS:
+        logger.info("Query model warmup skipped (no steps configured)")
+        return
+
     timings: dict[str, float] = {}
-    try:
-        start = time.monotonic()
-        get_text_embedder(768).encode([QUERY_WARMUP_TEXT])
-        timings["text_embed_ms"] = round((time.monotonic() - start) * 1000.0, 2)
+    errors: dict[str, str] = {}
+    step_timings = {
+        "text": "text_embed_ms",
+        "image_text": "image_text_embed_ms",
+        "audio_text": "audio_text_embed_ms",
+        "image": "image_embed_ms",
+    }
 
+    def _run_step(step: str, fn) -> None:
+        if step not in QUERY_WARMUP_STEPS:
+            return
         start = time.monotonic()
-        get_image_text_embedder(512).encode([QUERY_WARMUP_TEXT])
-        timings["image_text_embed_ms"] = round(
-            (time.monotonic() - start) * 1000.0, 2
-        )
+        try:
+            fn()
+        except Exception as exc:
+            errors[step] = str(exc)
+        else:
+            timings[step_timings[step]] = round(
+                (time.monotonic() - start) * 1000.0,
+                2,
+            )
 
-        start = time.monotonic()
-        get_audio_text_embedder(512).encode([QUERY_WARMUP_TEXT])
-        timings["audio_text_embed_ms"] = round(
-            (time.monotonic() - start) * 1000.0, 2
-        )
+    _run_step("text", lambda: get_text_embedder(768).encode([QUERY_WARMUP_TEXT]))
+    _run_step(
+        "image_text",
+        lambda: get_image_text_embedder(512).encode([QUERY_WARMUP_TEXT]),
+    )
+    _run_step(
+        "audio_text",
+        lambda: get_audio_text_embedder(512).encode([QUERY_WARMUP_TEXT]),
+    )
+    _run_step(
+        "image",
+        lambda: get_image_embedder(512).encode(
+            [Image.new("RGB", (1, 1), color=(0, 0, 0))]
+        ),
+    )
 
-        start = time.monotonic()
-        dummy = Image.new("RGB", (1, 1), color=(0, 0, 0))
-        get_image_embedder(512).encode([dummy])
-        timings["image_embed_ms"] = round((time.monotonic() - start) * 1000.0, 2)
-
-        logger.info("Query model warmup completed", extra={"timings": timings})
-    except Exception as exc:
-        logger.warning(
-            "Query model warmup failed",
-            extra={"error_message": str(exc), "timings": timings},
-        )
+    extra = {"timings": timings, "warmup_steps": sorted(QUERY_WARMUP_STEPS)}
+    if errors:
+        extra["errors"] = errors
+        logger.warning("Query model warmup completed with errors", extra=extra)
+    else:
+        logger.info("Query model warmup completed", extra=extra)
 
 
 @app.get("/health", response_model=HealthResponse)
