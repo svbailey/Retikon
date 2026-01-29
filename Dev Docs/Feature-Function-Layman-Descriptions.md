@@ -809,7 +809,7 @@ Internal helpers are included because they are still part of the codebase, but t
 
 ### `retikon_core/query_engine/index_builder.py`
 - Functions
-  - `_parse_uri`: Internal helper that parses URI, so search is fast and accurate.
+  - `_parse_remote_uri`: Internal helper that parses remote URIs, so search is fast and accurate.
   - `_is_remote`: Internal helper that checks whether remote, so search is fast and accurate.
   - `_glob_files`: Internal helper that glob files, so search is fast and accurate.
   - `_normalize_uri`: Internal helper that cleans up URI, so search is fast and accurate.

@@ -59,13 +59,14 @@ class ManifestGroup:
     vector: str | None = None
 
 
-def _parse_uri(uri: str) -> tuple[str, str]:
+def _parse_remote_uri(uri: str) -> tuple[str, str, str]:
     parsed = urlparse(uri)
-    if parsed.scheme != "gs" or not parsed.netloc:
-        raise ValueError(f"Unsupported GCS URI: {uri}")
-    bucket = parsed.netloc
+    if not parsed.scheme or not parsed.netloc:
+        raise ValueError(f"Unsupported remote URI: {uri}")
+    scheme = parsed.scheme
+    container = parsed.netloc
     path = parsed.path.lstrip("/")
-    return bucket, path
+    return scheme, container, path
 
 
 def _is_remote(uri: str) -> bool:
@@ -113,14 +114,15 @@ def _localize_manifest_uri(
     uri: str,
     *,
     local_root: Path,
-    bucket: str,
+    scheme: str,
+    container: str,
     prefix: str,
 ) -> str:
     parsed = urlparse(uri)
-    if parsed.scheme != "gs" or parsed.netloc != bucket:
+    if parsed.scheme != scheme or parsed.netloc != container:
         return uri
     object_path = parsed.path.lstrip("/")
-    rel_path = _relative_object_path(object_path, bucket, prefix)
+    rel_path = _relative_object_path(object_path, container, prefix)
     return str(local_root / rel_path)
 
 
@@ -136,12 +138,13 @@ def _load_manifest_groups(
 
     local_root = Path(base_uri).resolve()
     map_to_local = source_uri is not None and not _is_remote(base_uri)
-    source_bucket = ""
+    source_scheme = ""
+    source_container = ""
     source_prefix = ""
     if map_to_local:
         if source_uri is None:
             raise ValueError("source_uri is required when mapping manifests locally")
-        source_bucket, source_prefix = _parse_uri(source_uri)
+        source_scheme, source_container, source_prefix = _parse_remote_uri(source_uri)
 
     groups: dict[str, list[ManifestGroup]] = {}
     counters: dict[str, int] = {}
@@ -159,7 +162,8 @@ def _load_manifest_groups(
                 normalized = _localize_manifest_uri(
                     normalized,
                     local_root=local_root,
-                    bucket=source_bucket,
+                    scheme=source_scheme,
+                    container=source_container,
                     prefix=source_prefix,
                 )
             info = _vertex_kind_from_uri(normalized)
@@ -186,9 +190,9 @@ def _load_manifest_groups(
     return groups, sorted(set(media_files)), True
 
 
-def _relative_object_path(path: str, bucket: str, prefix: str) -> str:
-    if path.startswith(f"{bucket}/"):
-        path = path[len(bucket) + 1 :]
+def _relative_object_path(path: str, container: str, prefix: str) -> str:
+    if path.startswith(f"{container}/"):
+        path = path[len(container) + 1 :]
     prefix = prefix.strip("/")
     if prefix and path.startswith(f"{prefix}/"):
         path = path[len(prefix) + 1 :]
@@ -196,14 +200,14 @@ def _relative_object_path(path: str, bucket: str, prefix: str) -> str:
 
 
 def _copy_graph_to_local(base_uri: str, work_dir: str) -> str:
-    bucket, prefix = _parse_uri(base_uri)
+    _, container, prefix = _parse_remote_uri(base_uri)
     local_root = Path(work_dir).resolve() / "graph"
     local_root.mkdir(parents=True, exist_ok=True)
 
     def copy_pattern(pattern: str) -> None:
         fs, path = fsspec.core.url_to_fs(pattern)
         for match in fs.glob(path):
-            rel_path = _relative_object_path(match, bucket, prefix)
+            rel_path = _relative_object_path(match, container, prefix)
             if not rel_path:
                 continue
             dest = local_root / rel_path

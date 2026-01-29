@@ -9,6 +9,7 @@ import pytest
 
 from retikon_core.errors import RecoverableError
 from retikon_core.query_engine.index_builder import build_snapshot
+from retikon_core.query_engine import index_builder
 from retikon_core.storage.manifest import build_manifest, write_manifest
 from retikon_core.storage.paths import GraphPaths, edge_part_uri, manifest_uri
 from retikon_core.storage.schemas import schema_for
@@ -363,3 +364,12 @@ def test_index_builder_creates_snapshot(tmp_path):
     assert "transcripts_text_embedding" in index_names
     assert "image_assets_clip_vector" in index_names
     assert "audio_clips_clap_embedding" in index_names
+
+
+def test_index_builder_parses_remote_uri():
+    scheme, container, path = index_builder._parse_remote_uri(
+        "s3://retikon-graph/retikon_v2"
+    )
+    assert scheme == "s3"
+    assert container == "retikon-graph"
+    assert path == "retikon_v2"
