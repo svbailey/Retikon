@@ -879,6 +879,22 @@ Internal helpers are included because they are still part of the codebase, but t
 - Classes
   - `DuckDBAuthInfo`: Data structure or helper class for Duck D B Auth Info, so search is fast and accurate.
 
+### `retikon_core/services/query_service_core.py`
+- Functions
+  - `resolve_modalities`: Validates and resolves modalities, so query inputs are consistent.
+  - `resolve_search_type`: Validates search type, so query inputs are consistent.
+  - `validate_query_payload`: Validates query payload, so invalid requests are rejected early.
+  - `run_query`: Executes query logic, so results are consistent across local and Pro.
+  - `apply_privacy_redaction`: Redacts snippets, so privacy policies are enforced.
+  - `describe_query_modality`: Summarizes query modality, so logging and metering are consistent.
+  - `build_query_response`: Builds response payload, so adapters stay thin.
+  - `warm_query_models`: Warms models, so tail latency is reduced.
+- Classes
+  - `QueryValidationError`: Data structure or helper class for query validation errors, so adapters can return clear HTTP responses.
+  - `QueryRequest`: Data structure or helper class for query request payloads, so inputs are consistent.
+  - `QueryHit`: Data structure or helper class for query hits, so outputs are consistent.
+  - `QueryResponse`: Data structure or helper class for query responses, so outputs are consistent.
+
 ### `retikon_core/queue/types.py`
 - Classes
   - `QueueMessage`: Data structure or helper class for Queue Message, so the system works as expected.

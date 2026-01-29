@@ -5,36 +5,30 @@ import secrets
 import time
 import uuid
 from contextlib import asynccontextmanager
-from dataclasses import dataclass, replace
+from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
 from urllib.parse import urlparse
 
 from fastapi import FastAPI, Header, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
-from PIL import Image
-from pydantic import BaseModel, Field
+from pydantic import BaseModel
 
 from retikon_core.config import get_config
-from retikon_core.embeddings import (
-    get_audio_text_embedder,
-    get_image_embedder,
-    get_image_text_embedder,
-    get_text_embedder,
-)
 from retikon_core.logging import configure_logging, get_logger
-from retikon_core.privacy import (
-    PrivacyContext,
-    load_privacy_policies,
-    redact_text_for_context,
-)
 from retikon_core.query_engine import download_snapshot, get_secure_connection
-from retikon_core.query_engine.query_runner import (
-    QueryResult,
-    search_by_image,
-    search_by_keyword,
-    search_by_metadata,
-    search_by_text,
+from retikon_core.services.query_service_core import (
+    QueryRequest,
+    QueryResponse,
+    QueryValidationError,
+    apply_privacy_redaction,
+    build_query_response,
+    describe_query_modality,
+    resolve_modalities,
+    resolve_search_type,
+    run_query,
+    validate_query_payload,
+    warm_query_models,
 )
 from retikon_core.storage.paths import join_uri
 
@@ -88,9 +82,6 @@ QUERY_WARMUP_STEPS = {
     if step.strip()
 }
 
-ALLOWED_MODALITIES = {"document", "transcript", "image", "audio"}
-ALLOWED_SEARCH_TYPES = {"vector", "keyword", "metadata"}
-
 
 @dataclass
 class SnapshotState:
@@ -108,31 +99,6 @@ class HealthResponse(BaseModel):
     version: str
     commit: str
     timestamp: str
-
-
-class QueryRequest(BaseModel):
-    query_text: str | None = None
-    image_base64: str | None = None
-    top_k: int = Field(default=5, ge=1, le=50)
-    mode: str | None = None
-    modalities: list[str] | None = None
-    search_type: str | None = None
-    metadata_filters: dict[str, str] | None = None
-
-
-class QueryHit(BaseModel):
-    modality: str
-    uri: str
-    snippet: str | None = None
-    timestamp_ms: int | None = None
-    thumbnail_uri: str | None = None
-    score: float
-    media_asset_id: str | None = None
-    media_type: str | None = None
-
-
-class QueryResponse(BaseModel):
-    results: list[QueryHit]
 
 
 def _correlation_id(header_value: str | None) -> str:
@@ -220,36 +186,6 @@ def _default_healthcheck_uri() -> str | None:
     return candidate
 
 
-def _apply_privacy_redaction(results: list[QueryResult]) -> list[QueryResult]:
-    try:
-        policies = load_privacy_policies(get_config().graph_root_uri())
-    except Exception as exc:
-        logger.warning(
-            "Failed to load privacy policies",
-            extra={"error_message": str(exc)},
-        )
-        return results
-    if not policies:
-        return results
-
-    context = PrivacyContext(action="query", scope=None, is_admin=False)
-    redacted: list[QueryResult] = []
-    for item in results:
-        if item.snippet is None:
-            redacted.append(item)
-            continue
-        snippet = redact_text_for_context(
-            item.snippet,
-            policies=policies,
-            context=context.with_modality(item.modality),
-        )
-        if snippet == item.snippet:
-            redacted.append(item)
-        else:
-            redacted.append(replace(item, snippet=snippet))
-    return redacted
-
-
 def _load_snapshot() -> None:
     snapshot_uri = _default_snapshot_uri()
     start = time.monotonic()
@@ -278,104 +214,13 @@ def _load_snapshot() -> None:
     )
 
 
-def _resolve_modalities(payload: QueryRequest) -> set[str]:
-    if payload.mode and payload.modalities:
-        raise HTTPException(
-            status_code=400,
-            detail="Specify either mode or modalities, not both",
-        )
-
-    if payload.mode:
-        mode = payload.mode.strip().lower()
-        if mode == "text":
-            return {"document", "transcript"}
-        if mode == "all":
-            return set(ALLOWED_MODALITIES)
-        if mode == "image":
-            return {"image"}
-        if mode == "audio":
-            return {"audio"}
-        raise HTTPException(status_code=400, detail=f"Unsupported mode: {payload.mode}")
-
-    if payload.modalities is None:
-        return set(ALLOWED_MODALITIES)
-
-    modalities = {modality.strip().lower() for modality in payload.modalities}
-    if not modalities:
-        raise HTTPException(status_code=400, detail="modalities cannot be empty")
-    unknown = sorted(modalities - ALLOWED_MODALITIES)
-    if unknown:
-        raise HTTPException(
-            status_code=400,
-            detail=f"Unknown modalities: {', '.join(unknown)}",
-        )
-    return modalities
-
-
-def _resolve_search_type(payload: QueryRequest) -> str:
-    raw = payload.search_type or "vector"
-    search_type = raw.strip().lower()
-    if search_type not in ALLOWED_SEARCH_TYPES:
-        raise HTTPException(
-            status_code=400,
-            detail=f"Unsupported search_type: {payload.search_type}",
-        )
-    return search_type
-
-
 def _warm_query_models() -> None:
-    if not QUERY_WARMUP:
-        logger.info("Query model warmup skipped")
-        return
-    if not QUERY_WARMUP_STEPS:
-        logger.info("Query model warmup skipped (no steps configured)")
-        return
-
-    timings: dict[str, float] = {}
-    errors: dict[str, str] = {}
-    step_timings = {
-        "text": "text_embed_ms",
-        "image_text": "image_text_embed_ms",
-        "audio_text": "audio_text_embed_ms",
-        "image": "image_embed_ms",
-    }
-
-    def _run_step(step: str, fn) -> None:
-        if step not in QUERY_WARMUP_STEPS:
-            return
-        start = time.monotonic()
-        try:
-            fn()
-        except Exception as exc:
-            errors[step] = str(exc)
-        else:
-            timings[step_timings[step]] = round(
-                (time.monotonic() - start) * 1000.0,
-                2,
-            )
-
-    _run_step("text", lambda: get_text_embedder(768).encode([QUERY_WARMUP_TEXT]))
-    _run_step(
-        "image_text",
-        lambda: get_image_text_embedder(512).encode([QUERY_WARMUP_TEXT]),
+    warm_query_models(
+        enabled=QUERY_WARMUP,
+        steps=QUERY_WARMUP_STEPS,
+        warmup_text=QUERY_WARMUP_TEXT,
+        logger=logger,
     )
-    _run_step(
-        "audio_text",
-        lambda: get_audio_text_embedder(512).encode([QUERY_WARMUP_TEXT]),
-    )
-    _run_step(
-        "image",
-        lambda: get_image_embedder(512).encode(
-            [Image.new("RGB", (1, 1), color=(0, 0, 0))]
-        ),
-    )
-
-    extra = {"timings": timings, "warmup_steps": sorted(QUERY_WARMUP_STEPS)}
-    if errors:
-        extra["errors"] = errors
-        logger.warning("Query model warmup completed with errors", extra=extra)
-    else:
-        logger.info("Query model warmup completed", extra=extra)
 
 
 @app.get("/health", response_model=HealthResponse)
@@ -405,7 +250,17 @@ async def query(
 
     _authorize(request)
 
-    search_type = _resolve_search_type(payload)
+    try:
+        search_type = resolve_search_type(payload)
+        modalities = resolve_modalities(payload)
+        validate_query_payload(
+            payload=payload,
+            search_type=search_type,
+            modalities=modalities,
+            max_image_base64_bytes=MAX_IMAGE_BASE64_BYTES,
+        )
+    except QueryValidationError as exc:
+        raise HTTPException(status_code=exc.status_code, detail=exc.detail) from exc
     if (
         not payload.query_text
         and not payload.image_base64
@@ -415,36 +270,6 @@ async def query(
             status_code=400,
             detail="query_text or image_base64 is required",
         )
-
-    if payload.image_base64 and len(payload.image_base64) > MAX_IMAGE_BASE64_BYTES:
-        raise HTTPException(status_code=413, detail="Image payload too large")
-    modalities = _resolve_modalities(payload)
-    if payload.image_base64 and "image" not in modalities:
-        raise HTTPException(
-            status_code=400,
-            detail="image_base64 requires image modality",
-        )
-    if search_type != "vector" and payload.image_base64:
-        raise HTTPException(
-            status_code=400,
-            detail="image_base64 is only supported for vector search",
-        )
-    if search_type == "keyword" and not payload.query_text:
-        raise HTTPException(
-            status_code=400,
-            detail="query_text is required for keyword search",
-        )
-    if search_type == "metadata":
-        if payload.query_text or payload.image_base64:
-            raise HTTPException(
-                status_code=400,
-                detail="metadata search does not accept query_text or image_base64",
-            )
-        if not payload.metadata_filters:
-            raise HTTPException(
-                status_code=400,
-                detail="metadata_filters is required for metadata search",
-            )
 
     if STATE.local_path is None:
         try:
@@ -465,65 +290,26 @@ async def query(
     )
 
     timings: dict[str, float | int | str] = {}
-    results: list[QueryResult] = []
-    if search_type == "vector" and payload.query_text:
-        results.extend(
-            search_by_text(
-                snapshot_path=snapshot_path,
-                query_text=payload.query_text,
-                top_k=payload.top_k,
-                modalities=list(modalities),
-                trace=timings,
-            )
+    try:
+        results = run_query(
+            payload=payload,
+            snapshot_path=snapshot_path,
+            search_type=search_type,
+            modalities=modalities,
+            timings=timings,
         )
-    elif search_type == "keyword" and payload.query_text:
-        results.extend(
-            search_by_keyword(
-                snapshot_path=snapshot_path,
-                query_text=payload.query_text,
-                top_k=payload.top_k,
-                trace=timings,
-            )
-        )
-    elif search_type == "metadata" and payload.metadata_filters:
-        try:
-            results.extend(
-                search_by_metadata(
-                    snapshot_path=snapshot_path,
-                    filters=payload.metadata_filters,
-                    top_k=payload.top_k,
-                    trace=timings,
-                )
-            )
-        except ValueError as exc:
-            raise HTTPException(status_code=400, detail=str(exc)) from exc
-    if payload.image_base64:
-        try:
-            results.extend(
-                search_by_image(
-                    snapshot_path=snapshot_path,
-                    image_base64=payload.image_base64,
-                    top_k=payload.top_k,
-                    trace=timings,
-                )
-            )
-        except ValueError as exc:
-            raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except QueryValidationError as exc:
+        raise HTTPException(status_code=exc.status_code, detail=exc.detail) from exc
 
-    results.sort(key=lambda item: item.score, reverse=True)
-    trimmed = results[: payload.top_k]
-    trimmed = _apply_privacy_redaction(trimmed)
+    trimmed = apply_privacy_redaction(
+        results=results[: payload.top_k],
+        base_uri=get_config().graph_root_uri(),
+        scope=None,
+        is_admin=False,
+        logger=logger,
+    )
     duration_ms = int((time.monotonic() - start_time) * 1000)
-    if search_type == "metadata":
-        modality = "metadata"
-    elif search_type == "keyword":
-        modality = "keyword"
-    elif payload.query_text and payload.image_base64:
-        modality = "text+image"
-    elif payload.image_base64:
-        modality = "image"
-    else:
-        modality = "text"
+    modality = describe_query_modality(payload, search_type)
     logger.info(
         "Query completed",
         extra={
@@ -557,21 +343,7 @@ async def query(
                 "timings": timings,
             },
         )
-    return QueryResponse(
-        results=[
-            QueryHit(
-                modality=item.modality,
-                uri=item.uri,
-                snippet=item.snippet,
-                timestamp_ms=item.timestamp_ms,
-                thumbnail_uri=item.thumbnail_uri,
-                score=item.score,
-                media_asset_id=item.media_asset_id,
-                media_type=item.media_type,
-            )
-            for item in trimmed
-        ]
-    )
+    return build_query_response(trimmed, payload.top_k)
 
 
 @app.post("/admin/reload-snapshot", response_model=HealthResponse)
