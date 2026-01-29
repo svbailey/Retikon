@@ -216,9 +216,11 @@ def ingest_video(
             audio_bytes = Path(audio_path).read_bytes()
             audio_vector = get_audio_embedder(512).encode([audio_bytes])[0]
             segments = transcribe_audio(audio_path, probe.duration_seconds)
-            text_vectors = get_text_embedder(768).encode(
-                [segment.text for segment in segments]
-            )
+            text_vectors: list[list[float]] = []
+            if segments:
+                text_vectors = get_text_embedder(768).encode(
+                    [segment.text for segment in segments]
+                )
 
             audio_clip_id = str(uuid.uuid4())
             audio_clip_core = {

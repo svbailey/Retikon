@@ -99,6 +99,61 @@ def test_audio_pipeline_writes_graphar(tmp_path, monkeypatch):
         assert _is_uuid4(value)
 
 
+def test_audio_pipeline_empty_transcript_skips_embeddings(tmp_path, monkeypatch):
+    config = get_config()
+    fixture = Path("tests/fixtures/sample.wav")
+
+    def fake_probe(_path):
+        return type(
+            "Probe",
+            (),
+            {
+                "duration_seconds": 1.0,
+                "has_audio": True,
+                "has_video": False,
+                "audio_sample_rate": 48000,
+                "audio_channels": 1,
+                "video_width": None,
+                "video_height": None,
+                "frame_rate": None,
+                "frame_count": None,
+            },
+        )()
+
+    def raise_embedder(_dim):
+        raise AssertionError("Text embedder should not be called for empty transcript")
+
+    monkeypatch.setattr(audio_pipeline, "probe_media", fake_probe)
+    monkeypatch.setattr(
+        audio_pipeline,
+        "normalize_audio",
+        lambda _path, sample_rate=48000: str(fixture),
+    )
+    monkeypatch.setattr(audio_pipeline, "transcribe_audio", lambda *_: [])
+    monkeypatch.setattr(audio_pipeline, "get_text_embedder", raise_embedder)
+
+    source = IngestSource(
+        bucket="test-raw",
+        name="raw/audio/sample.wav",
+        generation="1",
+        content_type="audio/wav",
+        size_bytes=fixture.stat().st_size,
+        md5_hash=None,
+        crc32c=None,
+        local_path=str(fixture),
+    )
+
+    result = audio_pipeline.ingest_audio(
+        source=source,
+        config=config,
+        output_uri=tmp_path.as_posix(),
+        pipeline_version="v2.5",
+        schema_version="1",
+    )
+
+    assert result.counts["Transcript"] == 0
+
+
 def test_audio_duration_cap(monkeypatch):
     config = get_config()
 
@@ -261,6 +316,72 @@ def test_video_pipeline_writes_graphar(tmp_path, monkeypatch):
         assert _is_uuid4(value)
     for value in edge_table.column("dst_id").to_pylist():
         assert _is_uuid4(value)
+
+
+def test_video_pipeline_empty_transcript_skips_embeddings(tmp_path, monkeypatch):
+    config = get_config()
+    video_fixture = Path("tests/fixtures/sample.mp4")
+    frame_fixture = Path("tests/fixtures/sample.jpg")
+    audio_fixture = Path("tests/fixtures/sample.wav")
+
+    def fake_probe(_path):
+        return type(
+            "Probe",
+            (),
+            {
+                "duration_seconds": 1.0,
+                "has_audio": True,
+                "has_video": True,
+                "audio_sample_rate": 48000,
+                "audio_channels": 1,
+                "video_width": 2,
+                "video_height": 2,
+                "frame_rate": 1.0,
+                "frame_count": 2,
+            },
+        )()
+
+    def raise_embedder(_dim):
+        raise AssertionError("Text embedder should not be called for empty transcript")
+
+    monkeypatch.setattr(video_pipeline, "probe_media", fake_probe)
+    monkeypatch.setattr(
+        video_pipeline,
+        "extract_keyframes",
+        lambda *args, **kwargs: [
+            FrameInfo(path=str(frame_fixture), timestamp_ms=0),
+            FrameInfo(path=str(frame_fixture), timestamp_ms=1000),
+        ],
+    )
+    monkeypatch.setattr(
+        video_pipeline,
+        "extract_audio",
+        lambda _path, sample_rate=48000: str(audio_fixture),
+    )
+    monkeypatch.setattr(video_pipeline, "cleanup_tmp", lambda _path: None)
+    monkeypatch.setattr(video_pipeline, "transcribe_audio", lambda *_: [])
+    monkeypatch.setattr(video_pipeline, "get_text_embedder", raise_embedder)
+
+    source = IngestSource(
+        bucket="test-raw",
+        name="raw/videos/sample.mp4",
+        generation="1",
+        content_type="video/mp4",
+        size_bytes=video_fixture.stat().st_size,
+        md5_hash=None,
+        crc32c=None,
+        local_path=str(video_fixture),
+    )
+
+    result = video_pipeline.ingest_video(
+        source=source,
+        config=config,
+        output_uri=tmp_path.as_posix(),
+        pipeline_version="v2.5",
+        schema_version="1",
+    )
+
+    assert result.counts["Transcript"] == 0
 
 
 def test_video_duration_cap(monkeypatch):

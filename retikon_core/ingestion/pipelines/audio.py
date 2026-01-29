@@ -50,8 +50,10 @@ def ingest_audio(
         audio_vector = get_audio_embedder(512).encode([audio_bytes])[0]
 
         segments = transcribe_audio(normalized_path, probe.duration_seconds)
-        texts = [segment.text for segment in segments]
-        text_vectors = get_text_embedder(768).encode(texts)
+        text_vectors: list[list[float]] = []
+        if segments:
+            texts = [segment.text for segment in segments]
+            text_vectors = get_text_embedder(768).encode(texts)
 
         output_root = output_uri or config.graph_root_uri()
         media_asset_id = str(uuid.uuid4())
