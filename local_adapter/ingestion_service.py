@@ -133,6 +133,7 @@ async def ingest(payload: IngestRequest) -> IngestResponse:
         md5_hash=None,
         crc32c=None,
         local_path=str(path),
+        uri_scheme="file",
     )
 
     try:

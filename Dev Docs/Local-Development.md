@@ -66,6 +66,9 @@ make run-ingest
 make run-query
 ```
 
+Local query results return file-backed URIs (file://) so you can open assets
+directly from disk.
+
 If you use the Dev Console UI, set `VITE_AUDIT_URL` in
 `frontend/dev-console/.env` (see `frontend/dev-console/.env.example`) so the UI
 can load audit logs.
