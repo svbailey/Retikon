@@ -279,8 +279,9 @@ class RealClapTextEmbedder:
 
 def _require_onnxruntime() -> None:
     try:
-        import onnxruntime  # type: ignore[import-untyped]
-        _ = onnxruntime
+        import importlib
+
+        _ = importlib.import_module("onnxruntime")
     except ImportError as exc:  # pragma: no cover - depends on optional deps
         raise RuntimeError(
             "onnxruntime is required for ONNX/quantized embedding backends"

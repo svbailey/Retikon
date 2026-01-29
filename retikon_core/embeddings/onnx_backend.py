@@ -48,9 +48,9 @@ def _onnx_dir(quantized: bool) -> Path:
 
 def _require_onnxruntime():
     try:
-        import onnxruntime as ort  # type: ignore[import-untyped]
+        import importlib
 
-        return ort
+        return importlib.import_module("onnxruntime")
     except ImportError as exc:
         raise RuntimeError(
             "onnxruntime is required for ONNX/quantized embedding backends"
