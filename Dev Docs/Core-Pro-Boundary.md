@@ -26,11 +26,20 @@ Pro (Commercial):
 Core:
 - Must not import google.* or depend on GCP-specific SDKs.
 - Default storage is local (filesystem).
-- Remote object stores are optional and must be added via extras in Pro.
+- Optional object-store support is allowed in Core via extras (S3-compatible,
+  GCS, Azure) but Core must remain cloud-agnostic and unmanaged.
 
 Pro:
 - May depend on GCP SDKs and adapters.
 - Owns Cloud Run entrypoints, Eventarc, Firestore, Pub/Sub, Terraform.
+
+## Storage + URI policy
+
+- Core local mode returns file-backed URIs (file:// or absolute paths).
+- When Core is configured with a remote object store, URIs preserve the
+  storage scheme (gs://, s3://, etc.).
+- Pro adds managed GCP storage, identity, and operational controls on top of
+  the Core storage policy.
 
 ## Test boundaries
 

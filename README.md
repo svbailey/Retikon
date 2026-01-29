@@ -29,7 +29,9 @@ tracks the v2.5 build kit and the development plan.
 Retikon is an open-core platform:
 
 - **Retikon Core (OSS, Apache 2.0)**: local runtime, batch ingestion pipelines,
-  GraphAr writer, SDKs + CLI, and a minimal developer console.
+  GraphAr writer, SDKs + CLI, and a minimal developer console. Core is local
+  by default and can optionally target cloud object stores via extras (S3/GCS/Azure),
+  without managed cloud services.
 - **Retikon Pro (Commercial)**: managed control plane, streaming ingestion,
   compaction/retention automation, fleet ops, observability, governance,
   multi-tenant metering, and enterprise support.
@@ -48,6 +50,8 @@ Retikon is an open-core platform:
 ## Monorepo boundary rules
 
 - Core must remain cloud-agnostic (no GCP SDK imports).
+- Core defaults to local filesystem storage; optional object-store support is
+  allowed via extras without managed services.
 - Pro owns GCP-specific adapters, infra, and runbooks.
 - See: `Dev Docs/Core-Pro-Boundary.md` for the enforced rules.
 
@@ -74,7 +78,7 @@ Retikon is an open-core platform:
 
 ## GraphAr layout (strict)
 
-- Root prefix: `gs://<graph-bucket>/retikon_v2/`
+- Root prefix: `<graph-root-uri>/retikon_v2/` (gs:// in GCS, local path in local)
 - Vertices: `vertices/<Type>/{core,text,vector}/part-<uuid>.parquet`
 - Edges: `edges/<Type>/adj_list/part-<uuid>.parquet`
 - IDs: UUIDv4 strings for all vertices and edges.
