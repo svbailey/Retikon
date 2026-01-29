@@ -10,7 +10,11 @@ from pydantic import BaseModel
 
 from retikon_core.auth import AuthContext, authorize_api_key
 from retikon_core.config import get_config
-from retikon_core.connectors import list_connectors
+from retikon_core.connectors import (
+    list_connectors,
+    load_ocr_connectors,
+    register_ocr_connector,
+)
 from retikon_core.data_factory import (
     add_annotation,
     create_dataset,
@@ -102,6 +106,35 @@ class ConnectorResponse(BaseModel):
     notes: str | None = None
 
 
+class OcrConnectorRequest(BaseModel):
+    name: str
+    url: str
+    auth_type: str = "none"
+    auth_header: str | None = None
+    token_env: str | None = None
+    enabled: bool = True
+    is_default: bool = False
+    max_pages: int | None = None
+    timeout_s: float | None = None
+    notes: str | None = None
+
+
+class OcrConnectorResponse(BaseModel):
+    id: str
+    name: str
+    url: str
+    auth_type: str
+    auth_header: str | None = None
+    token_env: str | None = None
+    enabled: bool
+    is_default: bool
+    max_pages: int | None = None
+    timeout_s: float | None = None
+    notes: str | None = None
+    created_at: str
+    updated_at: str
+
+
 class OfficeConversionRequest(BaseModel):
     filename: str
     content_base64: str
@@ -183,6 +216,24 @@ def _connector_response(item) -> ConnectorResponse:
         modalities=list(item.modalities),
         status=item.status,
         notes=item.notes,
+    )
+
+
+def _ocr_connector_response(item) -> OcrConnectorResponse:
+    return OcrConnectorResponse(
+        id=item.id,
+        name=item.name,
+        url=item.url,
+        auth_type=item.auth_type,
+        auth_header=item.auth_header,
+        token_env=item.token_env,
+        enabled=item.enabled,
+        is_default=item.is_default,
+        max_pages=item.max_pages,
+        timeout_s=item.timeout_s,
+        notes=item.notes,
+        created_at=item.created_at,
+        updated_at=item.updated_at,
     )
 
 
@@ -346,9 +397,35 @@ async def get_connectors(
 
 
 @app.post("/data-factory/ocr/connectors")
-async def register_ocr_connector(request: Request) -> dict[str, str]:
+async def register_ocr_connector_endpoint(
+    request: Request,
+    payload: OcrConnectorRequest,
+) -> OcrConnectorResponse:
     _authorize(request)
-    return {"status": "ok"}
+    try:
+        connector = register_ocr_connector(
+            base_uri=_get_config().graph_root_uri(),
+            name=payload.name,
+            url=payload.url,
+            auth_type=payload.auth_type,
+            auth_header=payload.auth_header,
+            token_env=payload.token_env,
+            enabled=payload.enabled,
+            is_default=payload.is_default,
+            max_pages=payload.max_pages,
+            timeout_s=payload.timeout_s,
+            notes=payload.notes,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    return _ocr_connector_response(connector)
+
+
+@app.get("/data-factory/ocr/connectors", response_model=list[OcrConnectorResponse])
+async def list_ocr_connectors(request: Request) -> list[OcrConnectorResponse]:
+    _authorize(request)
+    connectors = load_ocr_connectors(_get_config().graph_root_uri())
+    return [_ocr_connector_response(item) for item in connectors]
 
 
 @app.post("/data-factory/convert-office", response_model=OfficeConversionResponse)

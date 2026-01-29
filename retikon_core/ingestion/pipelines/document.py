@@ -194,7 +194,11 @@ def ingest_document(
     extension = source.extension
     text = _extract_text(source.local_path, extension)
     if not text.strip() and config.enable_ocr and extension == ".pdf":
-        text = ocr_text_from_pdf(source.local_path, config.ocr_max_pages)
+        text = ocr_text_from_pdf(
+            source.local_path,
+            config.ocr_max_pages,
+            base_uri=config.graph_root_uri(),
+        )
     if not text.strip():
         raise PermanentError("No extractable text")
 

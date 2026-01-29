@@ -58,6 +58,12 @@ This runbook covers routine checks and incident response for Retikon services.
 - Check ingestion logs for `PermanentError` vs `RecoverableError`.
 - Verify raw bucket object size and extension allowlists.
 - Confirm Firestore idempotency records.
+- OCR-specific checks:
+  - Confirm `ENABLE_OCR=1` on the ingestion service.
+  - Ensure at least one OCR connector is enabled
+    (`/data-factory/ocr/connectors`).
+  - If multiple are enabled, verify `OCR_CONNECTOR_ID` is set.
+  - Verify the token env var named by `token_env` is present on ingestion.
 
 ## Cost controls
 

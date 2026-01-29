@@ -80,3 +80,39 @@ terraform apply \
 - `AUDIT_API_KEY` defaults to the same Secret Manager key as `QUERY_API_KEY`.
 - `AUDIT_REQUIRE_ADMIN=1` in prod (enforced by Terraform variable
   `audit_require_admin`).
+
+## OCR connector setup (Pro)
+
+OCR connectors are configured via the Data Factory service and stored in the
+graph control namespace.
+
+1) Register a connector (example):
+
+```bash
+curl -X POST "$DATA_FACTORY_URL/data-factory/ocr/connectors" \
+  -H "Content-Type: application/json" \
+  -H "X-API-Key: $DATA_FACTORY_API_KEY" \
+  -d '{
+    "name": "OCR Primary",
+    "url": "https://ocr.example.com/v1/extract",
+    "auth_type": "header",
+    "auth_header": "X-API-Key",
+    "token_env": "OCR_API_KEY",
+    "enabled": true,
+    "is_default": true,
+    "max_pages": 5,
+    "timeout_s": 30
+  }'
+```
+
+2) Configure ingestion to use OCR:
+
+- `ENABLE_OCR=1`
+- `OCR_MAX_PAGES=5` (optional)
+- `OCR_CONNECTOR_ID=<connector-id>` (optional if a single default exists)
+- Set the token value for the chosen connector:
+  - `OCR_API_KEY=<secret>` (or whatever `token_env` is set to)
+
+Notes:
+- If multiple enabled connectors exist and no default is set, ingestion will
+  error until `OCR_CONNECTOR_ID` is provided.

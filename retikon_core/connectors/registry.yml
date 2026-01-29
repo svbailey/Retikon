@@ -79,6 +79,19 @@ connectors:
     status: target
     notes: Core-only generic HTTP connector interface.
 
+  - id: ocr_connector
+    name: Managed OCR Connector
+    category: ocr
+    tier: tier1
+    edition: pro
+    direction: [destination]
+    auth_methods: [header, bearer, none]
+    incremental: false
+    streaming: false
+    modalities: [document, image]
+    status: available
+    notes: Pro OCR extraction connector for document/image ingestion.
+
   - id: bigquery
     name: BigQuery
     category: warehouse

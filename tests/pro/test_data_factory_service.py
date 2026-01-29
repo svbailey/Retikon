@@ -58,3 +58,28 @@ def test_data_factory_service(monkeypatch, tmp_path):
     resp = client.get("/data-factory/connectors")
     assert resp.status_code == 200
     assert isinstance(resp.json(), list)
+
+    resp = client.post(
+        "/data-factory/ocr/connectors",
+        json={
+            "name": "OCR Primary",
+            "url": "https://ocr.example.com/v1/extract",
+            "auth_type": "header",
+            "auth_header": "X-API-Key",
+            "token_env": "OCR_API_KEY",
+            "enabled": True,
+            "is_default": True,
+            "max_pages": 5,
+            "timeout_s": 30,
+        },
+    )
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["name"] == "OCR Primary"
+    assert body["is_default"] is True
+
+    resp = client.get("/data-factory/ocr/connectors")
+    assert resp.status_code == 200
+    items = resp.json()
+    assert len(items) == 1
+    assert items[0]["id"] == body["id"]
