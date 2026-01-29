@@ -588,14 +588,11 @@ Internal helpers are included because they are still part of the codebase, but t
 - Classes
   - `DownloadResult`: Data structure or helper class for Download Result, so content can be safely ingested and processed.
 
-### `retikon_core/ingestion/eventarc.py`
-- Functions
-  - `_coerce_int`: Internal helper that converts int, so content can be safely ingested and processed.
-  - `parse_cloudevent`: Function that parses cloudevent, so content can be safely ingested and processed.
+### `retikon_core/ingestion/storage_event.py`
 - Classes
-  - `GcsEvent`: Data structure or helper class for GCS Event, so content can be safely ingested and processed.
+  - `StorageEvent`: Data structure or helper class for a storage event, so content can be safely ingested and processed across local or cloud storage.
     - Methods
-      - `extension`: Function that extension, so content can be safely ingested and processed.
+      - `extension`: Function that extracts file extension, so content can be safely ingested and processed.
 
 ### `retikon_core/ingestion/idempotency.py`
 - Functions
@@ -723,7 +720,7 @@ Internal helpers are included because they are still part of the codebase, but t
 - Classes
   - `StreamEvent`: Data structure or helper class for Stream Event, so content can be safely ingested and processed.
     - Methods
-      - `to_gcs_event`: Function that converts to GCS event, so content can be safely ingested and processed.
+      - `to_storage_event`: Function that converts to a storage event, so content can be safely ingested and processed across local or cloud storage.
   - `StreamDispatchResult`: Data structure or helper class for Stream Dispatch Result, so content can be safely ingested and processed.
   - `StreamBackpressureError`: Data structure or helper class for Stream Backpressure Error, so content can be safely ingested and processed.
   - `StreamBatcher`: Data structure or helper class for Stream Batcher, so content can be safely ingested and processed.

@@ -279,12 +279,12 @@ async def ingest_stream_push(request: Request) -> dict[str, Any]:
     processed = 0
     skipped = 0
     for event in events:
-        gcs_event = event.to_gcs_event()
+        storage_event = event.to_storage_event()
         decision = idempotency.begin(
-            bucket=gcs_event.bucket,
-            name=gcs_event.name,
-            generation=gcs_event.generation,
-            size=gcs_event.size,
+            bucket=storage_event.bucket,
+            name=storage_event.name,
+            generation=storage_event.generation,
+            size=storage_event.size,
             pipeline_version=pipeline_version(),
         )
         attempt_count = decision.attempt_count
@@ -303,7 +303,7 @@ async def ingest_stream_push(request: Request) -> dict[str, Any]:
                 error_code="MAX_ATTEMPTS",
                 error_message="Max ingest attempts exceeded",
                 attempt_count=attempt_count,
-                gcs_event=gcs_event,
+                storage_event=storage_event,
                 stream_event=event,
             )
             idempotency.mark_dlq(
@@ -315,7 +315,7 @@ async def ingest_stream_push(request: Request) -> dict[str, Any]:
             continue
 
         try:
-            outcome = process_event(event=gcs_event, config=config)
+            outcome = process_event(event=storage_event, config=config)
             idempotency.mark_completed(decision.doc_id)
             firestore_client.collection(config.firestore_collection).document(
                 decision.doc_id
@@ -333,7 +333,7 @@ async def ingest_stream_push(request: Request) -> dict[str, Any]:
                 error_code="PERMANENT",
                 error_message=str(exc),
                 attempt_count=attempt_count,
-                gcs_event=gcs_event,
+                storage_event=storage_event,
                 stream_event=event,
             )
             idempotency.mark_dlq(decision.doc_id, "PERMANENT", str(exc))
@@ -397,7 +397,7 @@ def _publish_dlq(
     error_code: str,
     error_message: str,
     attempt_count: int,
-    gcs_event: Any,
+    storage_event: Any,
     stream_event: StreamEvent,
 ) -> None:
     if publisher is None:
@@ -408,11 +408,11 @@ def _publish_dlq(
         attempt_count=attempt_count,
         modality=stream_event.modality,
         gcs_event={
-            "bucket": gcs_event.bucket,
-            "name": gcs_event.name,
-            "generation": gcs_event.generation,
-            "content_type": gcs_event.content_type,
-            "size": gcs_event.size,
+            "bucket": storage_event.bucket,
+            "name": storage_event.name,
+            "generation": storage_event.generation,
+            "content_type": storage_event.content_type,
+            "size": storage_event.size,
         },
         cloudevent={
             "stream_id": stream_event.stream_id,

@@ -6,7 +6,7 @@ from collections import deque
 from dataclasses import dataclass
 from typing import Any, Iterable, Sequence
 
-from retikon_core.ingestion.eventarc import GcsEvent
+from retikon_core.ingestion.storage_event import StorageEvent
 from retikon_core.queue import QueuePublisher
 
 
@@ -24,8 +24,8 @@ class StreamEvent:
     modality: str | None = None
     received_at: str | None = None
 
-    def to_gcs_event(self) -> GcsEvent:
-        return GcsEvent(
+    def to_storage_event(self) -> StorageEvent:
+        return StorageEvent(
             bucket=self.bucket,
             name=self.name,
             generation=str(self.generation),

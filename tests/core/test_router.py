@@ -2,7 +2,7 @@ import pytest
 
 from retikon_core.config import get_config
 from retikon_core.errors import PermanentError
-from retikon_core.ingestion.eventarc import GcsEvent
+from retikon_core.ingestion.storage_event import StorageEvent
 from retikon_core.ingestion.router import (
     _check_size,
     _ensure_allowed,
@@ -19,7 +19,7 @@ def test_router_modality():
 
 def test_allowlist_rejects_extension():
     config = get_config()
-    event = GcsEvent(
+    event = StorageEvent(
         bucket="test",
         name="raw/docs/sample.exe",
         generation="1",
@@ -34,7 +34,7 @@ def test_allowlist_rejects_extension():
 
 def test_allowlist_rejects_legacy_doc():
     config = get_config()
-    event = GcsEvent(
+    event = StorageEvent(
         bucket="test",
         name="raw/docs/sample.doc",
         generation="1",
@@ -49,7 +49,7 @@ def test_allowlist_rejects_legacy_doc():
 
 def test_allowlist_rejects_legacy_ppt():
     config = get_config()
-    event = GcsEvent(
+    event = StorageEvent(
         bucket="test",
         name="raw/docs/sample.ppt",
         generation="1",
@@ -64,7 +64,7 @@ def test_allowlist_rejects_legacy_ppt():
 
 def test_content_type_mismatch_rejected():
     config = get_config()
-    event = GcsEvent(
+    event = StorageEvent(
         bucket="test",
         name="raw/docs/sample.pdf",
         generation="1",
@@ -79,7 +79,7 @@ def test_content_type_mismatch_rejected():
 
 def test_size_guard():
     config = get_config()
-    event = GcsEvent(
+    event = StorageEvent(
         bucket="test",
         name="raw/docs/sample.pdf",
         generation="1",

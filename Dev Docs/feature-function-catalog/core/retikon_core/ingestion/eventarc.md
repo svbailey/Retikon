@@ -1,12 +1,8 @@
-# retikon_core/ingestion/eventarc.py
+# retikon_core/ingestion/storage_event.py
 
 Edition: Core
 
-## Functions
-- `_coerce_int`: Internal helper that converts int, so content can be safely ingested and processed.
-- `parse_cloudevent`: Function that parses cloudevent, so content can be safely ingested and processed.
-
 ## Classes
-- `GcsEvent`: Data structure or helper class for GCS Event, so content can be safely ingested and processed.
+- `StorageEvent`: Data structure or helper class for a storage event, so content can be safely ingested and processed.
   - Methods
-    - `extension`: Function that extension, so content can be safely ingested and processed.
+    - `extension`: Function that extracts file extension, so content can be safely ingested and processed.

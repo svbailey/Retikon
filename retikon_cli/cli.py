@@ -192,7 +192,7 @@ def _prefix_for_modality(modality: str) -> str:
 
 def _seed_local_graph(sample_path: Path) -> None:
     from retikon_core.config import get_config
-    from retikon_core.ingestion.eventarc import GcsEvent
+    from retikon_core.ingestion.storage_event import StorageEvent
     from retikon_core.ingestion.router import (
         _check_size,
         _ensure_allowed,
@@ -212,7 +212,7 @@ def _seed_local_graph(sample_path: Path) -> None:
     modality = _infer_modality(extension, config)
     object_name = f"raw/{_prefix_for_modality(modality)}/{sample_path.name}"
 
-    event = GcsEvent(
+    event = StorageEvent(
         bucket=config.raw_bucket or "local",
         name=object_name,
         generation="local",
@@ -234,6 +234,7 @@ def _seed_local_graph(sample_path: Path) -> None:
         md5_hash=None,
         crc32c=None,
         local_path=str(sample_path),
+        uri_scheme="file",
     )
 
     _run_pipeline(

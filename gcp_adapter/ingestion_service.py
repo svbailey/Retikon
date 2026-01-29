@@ -26,7 +26,8 @@ from retikon_core.errors import (
     RecoverableError,
     ValidationError,
 )
-from retikon_core.ingestion import parse_cloudevent, process_event
+from gcp_adapter.eventarc import parse_cloudevent
+from retikon_core.ingestion import process_event
 from retikon_core.ingestion.router import pipeline_version
 from retikon_core.logging import configure_logging, get_logger
 from retikon_core.metering import record_usage

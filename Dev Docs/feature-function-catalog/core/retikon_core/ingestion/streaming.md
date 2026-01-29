@@ -11,7 +11,7 @@ Edition: Core
 ## Classes
 - `StreamEvent`: Data structure or helper class for Stream Event, so content can be safely ingested and processed.
   - Methods
-    - `to_gcs_event`: Function that converts to GCS event, so content can be safely ingested and processed.
+    - `to_storage_event`: Function that converts to a storage event, so content can be safely ingested and processed across local or cloud storage.
 - `StreamDispatchResult`: Data structure or helper class for Stream Dispatch Result, so content can be safely ingested and processed.
 - `StreamBackpressureError`: Data structure or helper class for Stream Backpressure Error, so content can be safely ingested and processed.
 - `StreamBatcher`: Data structure or helper class for Stream Batcher, so content can be safely ingested and processed.

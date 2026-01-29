@@ -11,7 +11,7 @@ from pydantic import BaseModel
 
 from retikon_core.config import get_config
 from retikon_core.errors import PermanentError
-from retikon_core.ingestion.eventarc import GcsEvent
+from retikon_core.ingestion.storage_event import StorageEvent
 from retikon_core.ingestion.router import (
     _check_size,
     _ensure_allowed,
@@ -108,7 +108,7 @@ async def ingest(payload: IngestRequest) -> IngestResponse:
     modality = _infer_modality(extension, config)
     object_name = f"raw/{_prefix_for_modality(modality)}/{path.name}"
 
-    event = GcsEvent(
+    event = StorageEvent(
         bucket=config.raw_bucket or "local",
         name=object_name,
         generation="local",

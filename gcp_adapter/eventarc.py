@@ -1,26 +1,9 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
 from typing import Any
 
 from retikon_core.errors import ValidationError
-
-
-@dataclass(frozen=True)
-class GcsEvent:
-    bucket: str
-    name: str
-    generation: str
-    content_type: str | None
-    size: int | None
-    md5_hash: str | None
-    crc32c: str | None
-
-    @property
-    def extension(self) -> str:
-        if "." not in self.name:
-            return ""
-        return f".{self.name.rsplit('.', 1)[-1].lower()}"
+from retikon_core.ingestion.storage_event import StorageEvent
 
 
 def _coerce_int(value: Any) -> int | None:
@@ -33,7 +16,7 @@ def _coerce_int(value: Any) -> int | None:
     return None
 
 
-def parse_cloudevent(payload: dict[str, Any]) -> GcsEvent:
+def parse_cloudevent(payload: dict[str, Any]) -> StorageEvent:
     data = payload.get("data")
     if not isinstance(data, dict):
         raise ValidationError("CloudEvent data is required")
@@ -45,7 +28,7 @@ def parse_cloudevent(payload: dict[str, Any]) -> GcsEvent:
     if not bucket or not name or not generation:
         raise ValidationError("CloudEvent data missing bucket, name, or generation")
 
-    return GcsEvent(
+    return StorageEvent(
         bucket=bucket,
         name=name,
         generation=str(generation),

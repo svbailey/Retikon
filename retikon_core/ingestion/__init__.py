@@ -1,4 +1,4 @@
-from retikon_core.ingestion.eventarc import GcsEvent, parse_cloudevent
+from retikon_core.ingestion.storage_event import StorageEvent
 from retikon_core.ingestion.idempotency import (
     IdempotencyDecision,
     InMemoryIdempotency,
@@ -8,11 +8,10 @@ from retikon_core.ingestion.idempotency_sqlite import SqliteIdempotency
 from retikon_core.ingestion.router import process_event
 
 __all__ = [
-    "GcsEvent",
+    "StorageEvent",
     "IdempotencyDecision",
     "InMemoryIdempotency",
     "SqliteIdempotency",
     "build_doc_id",
-    "parse_cloudevent",
     "process_event",
 ]

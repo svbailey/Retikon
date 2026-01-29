@@ -6,7 +6,7 @@ from dataclasses import dataclass
 from retikon_core.config import Config
 from retikon_core.errors import PermanentError
 from retikon_core.ingestion.download import DownloadResult, cleanup_tmp, download_to_tmp
-from retikon_core.ingestion.eventarc import GcsEvent
+from retikon_core.ingestion.storage_event import StorageEvent
 from retikon_core.ingestion.pipelines import audio, document, image, video
 from retikon_core.ingestion.rate_limit import enforce_rate_limit
 from retikon_core.ingestion.types import IngestSource
@@ -43,7 +43,7 @@ def _modality_for_name(name: str) -> str:
     raise PermanentError(f"Unsupported object prefix: {name}")
 
 
-def _ensure_allowed(event: GcsEvent, config: Config, modality: str) -> None:
+def _ensure_allowed(event: StorageEvent, config: Config, modality: str) -> None:
     extension = _extension_for_event(event)
     if modality == "document" and extension not in config.allowed_doc_ext:
         raise PermanentError(f"Unsupported document extension: {extension}")
@@ -120,7 +120,7 @@ def _normalize_content_type(value: str | None) -> str | None:
     return value.split(";", 1)[0].strip().lower()
 
 
-def _extension_for_event(event: GcsEvent) -> str:
+def _extension_for_event(event: StorageEvent) -> str:
     if event.extension:
         return event.extension
     if event.content_type:
@@ -130,13 +130,13 @@ def _extension_for_event(event: GcsEvent) -> str:
     return ""
 
 
-def _check_size(event: GcsEvent, config: Config) -> None:
+def _check_size(event: StorageEvent, config: Config) -> None:
     if event.size is not None and event.size > config.max_raw_bytes:
         raise PermanentError(f"Object too large: {event.size} bytes")
 
 
 def _make_source(
-    event: GcsEvent,
+    event: StorageEvent,
     download: DownloadResult,
     config: Config,
 ) -> IngestSource:
@@ -244,7 +244,7 @@ def _run_pipeline(
 
 def process_event(
     *,
-    event: GcsEvent,
+    event: StorageEvent,
     config: Config,
 ) -> PipelineOutcome:
     _check_size(event, config)
