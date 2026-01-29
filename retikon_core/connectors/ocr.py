@@ -192,31 +192,46 @@ def _connector_from_dict(payload: dict[str, object]) -> OcrConnector:
         name=str(payload.get("name", "")),
         url=str(payload.get("url", "")),
         auth_type=_normalize_auth_type(str(payload.get("auth_type", "none"))),
-        auth_header=_normalize_optional_str(payload.get("auth_header") or None),
-        token_env=_normalize_optional_str(payload.get("token_env") or None),
+        auth_header=_coerce_optional_str(payload.get("auth_header")),
+        token_env=_coerce_optional_str(payload.get("token_env")),
         enabled=bool(payload.get("enabled", True)),
         is_default=bool(payload.get("is_default", False)),
         max_pages=_coerce_int(payload.get("max_pages")),
         timeout_s=_coerce_float(payload.get("timeout_s")),
-        notes=_normalize_optional_str(payload.get("notes") or None),
+        notes=_coerce_optional_str(payload.get("notes")),
         created_at=str(payload.get("created_at", "")),
         updated_at=str(payload.get("updated_at", "")),
     )
 
 
+def _coerce_optional_str(value: object) -> str | None:
+    if value is None:
+        return None
+    text = str(value).strip()
+    return text or None
+
+
 def _coerce_int(value: object) -> int | None:
     if value is None:
         return None
-    try:
+    if isinstance(value, bool):
         return int(value)
-    except (TypeError, ValueError):
-        return None
+    if isinstance(value, (int, float, str)):
+        try:
+            return int(value)
+        except (TypeError, ValueError):
+            return None
+    return None
 
 
 def _coerce_float(value: object) -> float | None:
     if value is None:
         return None
-    try:
+    if isinstance(value, bool):
         return float(value)
-    except (TypeError, ValueError):
-        return None
+    if isinstance(value, (int, float, str)):
+        try:
+            return float(value)
+        except (TypeError, ValueError):
+            return None
+    return None

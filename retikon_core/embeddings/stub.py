@@ -4,7 +4,7 @@ import hashlib
 import io
 import os
 import random
-from typing import Callable, Iterable, Protocol, TypeVar
+from typing import Any, Callable, Iterable, Protocol, TypeVar
 
 from PIL import Image
 
@@ -95,11 +95,11 @@ def _embedding_device() -> str:
     return os.getenv("EMBEDDING_DEVICE", "cpu")
 
 
-_CLIP_BUNDLE: tuple[object, object, str] | None = None
-_CLAP_BUNDLE: tuple[object, object, str] | None = None
+_CLIP_BUNDLE: tuple[Any, Any, str] | None = None
+_CLAP_BUNDLE: tuple[Any, Any, str] | None = None
 
 
-def _get_clip_bundle() -> tuple[object, object, str]:
+def _get_clip_bundle() -> tuple[Any, Any, str]:
     global _CLIP_BUNDLE
     device = _embedding_device()
     if _CLIP_BUNDLE is None or _CLIP_BUNDLE[2] != device:
@@ -115,7 +115,7 @@ def _get_clip_bundle() -> tuple[object, object, str]:
     return _CLIP_BUNDLE
 
 
-def _get_clap_bundle() -> tuple[object, object, str]:
+def _get_clap_bundle() -> tuple[Any, Any, str]:
     global _CLAP_BUNDLE
     device = _embedding_device()
     if _CLAP_BUNDLE is None or _CLAP_BUNDLE[2] != device:
