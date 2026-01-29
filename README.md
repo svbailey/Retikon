@@ -127,6 +127,8 @@ Pro (GCP) variables:
 - `AUDIT_REQUIRE_ADMIN` (set `1` to require admin API keys)
 - `INGEST_API_KEY` (optional for ingestion auth)
 
+Full env reference: `Dev Docs/Environment-Reference.md`
+
 ## Development workflow (high level)
 
 - Review the sprint plan in `Dev Docs/Retikon-GCP-Build-Kit-v2.5.md`.
