@@ -218,8 +218,51 @@ waits for Firestore ingestion completion.
 - Error rate: 0% (0/300)
 - Notes:
   - Test ran against `https://retikon-query-dev-yt27ougp4q-uc.a.run.app/query` on 2026-01-29.
+
+### Query (CPU vs GPU, low-load comparison)
+
+- Date: 2026-01-29
+- Parameters: qps=2, duration=60s, concurrency=2, top_k=5, timeout=60s.
+- GPU config: minScale=1, concurrency=1, region=us-east4.
+- Note: GPU uses the same us-central1 graph bucket (cross-region reads).
+
+| Modality | CPU p50/p95/p99 (ms) | GPU p50/p95/p99 (ms) | Errors (CPU/GPU) |
+| --- | --- | --- | --- |
+| text | 508 / 614 / 671 | 507 / 580 / 681 | 0 / 0 |
+| image_text | 503 / 542 / 591 | 501 / 514 / 532 | 0 / 0 |
+| audio_text | 480 / 518 / 554 | 489 / 509 / 510 | 0 / 0 |
+| multimodal | 571 / 640 / 741 | 522 / 559 / 589 | 0 / 0 |
+| image_base64 | 641 / 803 / 855 | 507 / 800 / 1706 | 0 / 0 |
+
+### Query (CPU vs GPU, QPS=5, opt2 build)
+
+- Date: 2026-01-29
+- Parameters: qps=5, duration=60s, concurrency=10, top_k=5, timeout=60s.
+- Images: CPU `dev-20260129-123607-opt2`, GPU `dev-20260129-123607-opt2`.
+- GPU config: minScale=1, concurrency=1, region=us-east4; graph bucket in us-central1.
+
+| Modality | CPU p50/p95/p99 (ms) | GPU p50/p95/p99 (ms) | Errors (CPU/GPU) |
+| --- | --- | --- | --- |
+| text | 425.34 / 689.64 / 1026.98 | 3479.66 / 3631.08 / 3666.97 | 0 / 0 |
+| image_text | 363.59 / 490.53 / 613.61 | 3260.94 / 3394.01 / 3420.74 | 0 / 0 |
+| audio_text | 340.76 / 423.67 / 570.87 | 3136.70 / 3273.37 / 3288.65 | 0 / 0 |
+| multimodal | 470.75 / 741.68 / 845.81 | 3742.24 / 3881.45 / 3909.84 | 0 / 0 |
+| image_base64 | 713.81 / 1491.75 / 4984.22 | 4105.78 / 4244.40 / 4349.84 | 0 / 0 |
+
+- Notes:
+  - CPU throughput ~4.95 rps; GPU throughput ~2.4–3.2 rps (single concurrency).
+  - GPU slower across all modalities at QPS=5; likely cross-region reads + low concurrency.
+
+### Ingestion (fixture sweep)
+
+- Date: 2026-01-29
+- Parameters: 10 fixtures, concurrency=4, poll enabled.
+- Results: throughput 13.18 rps; completion p50=26.64s, p95=64.38s.
   - Backend set to default (HF).
   - Cloud Run logs show 38–45s requests at 2026-01-29T09:15:53Z and 09:15:59Z.
+- Re-run 2026-01-29 (20 fixtures, concurrency=4, poll enabled):
+  - Throughput 13.81 rps; completion p50=37.58s, p95=85.17s.
+  - Uploads 20, bytes_total 95,700.
 
 ### Investigation notes (cold starts)
 

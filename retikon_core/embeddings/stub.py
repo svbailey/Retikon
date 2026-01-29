@@ -95,6 +95,42 @@ def _embedding_device() -> str:
     return os.getenv("EMBEDDING_DEVICE", "cpu")
 
 
+_CLIP_BUNDLE: tuple[object, object, str] | None = None
+_CLAP_BUNDLE: tuple[object, object, str] | None = None
+
+
+def _get_clip_bundle() -> tuple[object, object, str]:
+    global _CLIP_BUNDLE
+    device = _embedding_device()
+    if _CLIP_BUNDLE is None or _CLIP_BUNDLE[2] != device:
+        from transformers import CLIPModel, CLIPProcessor
+
+        model_name = _image_model_name()
+        cache_dir = _model_dir()
+        model = CLIPModel.from_pretrained(model_name, cache_dir=cache_dir)
+        processor = CLIPProcessor.from_pretrained(model_name, cache_dir=cache_dir)
+        model.to(device)
+        model.eval()
+        _CLIP_BUNDLE = (model, processor, device)
+    return _CLIP_BUNDLE
+
+
+def _get_clap_bundle() -> tuple[object, object, str]:
+    global _CLAP_BUNDLE
+    device = _embedding_device()
+    if _CLAP_BUNDLE is None or _CLAP_BUNDLE[2] != device:
+        from transformers import ClapModel, ClapProcessor
+
+        model_name = _audio_model_name()
+        cache_dir = _model_dir()
+        model = ClapModel.from_pretrained(model_name, cache_dir=cache_dir)
+        processor = ClapProcessor.from_pretrained(model_name, cache_dir=cache_dir)
+        model.to(device)
+        model.eval()
+        _CLAP_BUNDLE = (model, processor, device)
+    return _CLAP_BUNDLE
+
+
 def _seed_from_bytes(payload: bytes) -> int:
     digest = hashlib.sha256(payload).digest()
     return int.from_bytes(digest[:8], "big")
@@ -163,15 +199,10 @@ class RealTextEmbedder:
 
 class RealClipImageEmbedder:
     def __init__(self) -> None:
-        from transformers import CLIPModel, CLIPProcessor
-
-        model_name = _image_model_name()
-        cache_dir = _model_dir()
-        self.device = _embedding_device()
-        self.model = CLIPModel.from_pretrained(model_name, cache_dir=cache_dir)
-        self.processor = CLIPProcessor.from_pretrained(model_name, cache_dir=cache_dir)
-        self.model.to(self.device)
-        self.model.eval()
+        model, processor, device = _get_clip_bundle()
+        self.model = model
+        self.processor = processor
+        self.device = device
 
     def encode(self, images: Iterable[Image.Image]) -> list[list[float]]:
         import torch
@@ -186,15 +217,10 @@ class RealClipImageEmbedder:
 
 class RealClipTextEmbedder:
     def __init__(self) -> None:
-        from transformers import CLIPModel, CLIPProcessor
-
-        model_name = _image_model_name()
-        cache_dir = _model_dir()
-        self.device = _embedding_device()
-        self.model = CLIPModel.from_pretrained(model_name, cache_dir=cache_dir)
-        self.processor = CLIPProcessor.from_pretrained(model_name, cache_dir=cache_dir)
-        self.model.to(self.device)
-        self.model.eval()
+        model, processor, device = _get_clip_bundle()
+        self.model = model
+        self.processor = processor
+        self.device = device
 
     def encode(self, texts: Iterable[str]) -> list[list[float]]:
         import torch
@@ -209,15 +235,10 @@ class RealClipTextEmbedder:
 
 class RealClapAudioEmbedder:
     def __init__(self) -> None:
-        from transformers import ClapModel, ClapProcessor
-
-        model_name = _audio_model_name()
-        cache_dir = _model_dir()
-        self.device = _embedding_device()
-        self.model = ClapModel.from_pretrained(model_name, cache_dir=cache_dir)
-        self.processor = ClapProcessor.from_pretrained(model_name, cache_dir=cache_dir)
-        self.model.to(self.device)
-        self.model.eval()
+        model, processor, device = _get_clap_bundle()
+        self.model = model
+        self.processor = processor
+        self.device = device
 
     def encode(self, clips: Iterable[bytes]) -> list[list[float]]:
         import numpy as np
@@ -256,15 +277,10 @@ class RealClapAudioEmbedder:
 
 class RealClapTextEmbedder:
     def __init__(self) -> None:
-        from transformers import ClapModel, ClapProcessor
-
-        model_name = _audio_model_name()
-        cache_dir = _model_dir()
-        self.device = _embedding_device()
-        self.model = ClapModel.from_pretrained(model_name, cache_dir=cache_dir)
-        self.processor = ClapProcessor.from_pretrained(model_name, cache_dir=cache_dir)
-        self.model.to(self.device)
-        self.model.eval()
+        model, processor, device = _get_clap_bundle()
+        self.model = model
+        self.processor = processor
+        self.device = device
 
     def encode(self, texts: Iterable[str]) -> list[list[float]]:
         import torch

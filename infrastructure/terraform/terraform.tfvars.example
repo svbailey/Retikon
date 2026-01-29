@@ -80,6 +80,7 @@ whisper_model_name = "small"
 ingestion_image = "us-central1-docker.pkg.dev/simitor/retikon-repo/retikon-ingest:latest"
 query_image = "us-central1-docker.pkg.dev/simitor/retikon-repo/retikon-query:latest"
 query_gpu_enabled = false
+query_gpu_region = ""
 query_gpu_image = ""
 query_gpu_cpu = "4000m"
 query_gpu_memory = "16Gi"

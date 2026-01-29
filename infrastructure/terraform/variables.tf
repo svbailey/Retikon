@@ -99,6 +99,11 @@ variable "query_gpu_enabled" {
   default = false
 }
 
+variable "query_gpu_region" {
+  type    = string
+  default = ""
+}
+
 variable "query_gpu_image" {
   type    = string
   default = ""

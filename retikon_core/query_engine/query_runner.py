@@ -3,6 +3,7 @@ from __future__ import annotations
 import base64
 import io
 import os
+import threading
 import time
 from dataclasses import dataclass
 from functools import lru_cache
@@ -22,6 +23,39 @@ from retikon_core.query_engine.warm_start import load_extensions
 from retikon_core.tenancy.types import TenantScope
 
 logger = get_logger(__name__)
+
+_CONN_LOCAL = threading.local()
+
+
+def _conn_cache() -> dict[str, tuple[int, int, duckdb.DuckDBPyConnection]]:
+    cache = getattr(_CONN_LOCAL, "duckdb_conns", None)
+    if cache is None:
+        cache = {}
+        _CONN_LOCAL.duckdb_conns = cache
+    return cache
+
+
+def _snapshot_signature(path: str) -> tuple[int, int] | None:
+    try:
+        stat = os.stat(path)
+    except OSError:
+        return None
+    return stat.st_mtime_ns, stat.st_size
+
+
+def _is_cached_conn(snapshot_path: str, conn: duckdb.DuckDBPyConnection) -> bool:
+    cache = _conn_cache()
+    cached = cache.get(snapshot_path)
+    return cached is not None and cached[2] is conn
+
+
+def _release_conn(snapshot_path: str, conn: duckdb.DuckDBPyConnection) -> None:
+    if _is_cached_conn(snapshot_path, conn):
+        return
+    try:
+        conn.close()
+    except Exception:
+        pass
 
 
 def _normalize_modalities(modalities: Sequence[str] | None) -> set[str]:
@@ -82,9 +116,29 @@ def _decode_base64_image(payload: str) -> Image.Image:
 
 
 def _connect(snapshot_path: str) -> duckdb.DuckDBPyConnection:
+    cache = _conn_cache()
+    signature = _snapshot_signature(snapshot_path)
+    cached = cache.get(snapshot_path)
+    if cached is not None:
+        cached_mtime, cached_size, cached_conn = cached
+        if signature is None and cached_mtime == -1:
+            return cached_conn
+        if signature is not None:
+            mtime_ns, size = signature
+            if cached_mtime == mtime_ns and cached_size == size:
+                return cached_conn
+        try:
+            cached_conn.close()
+        except Exception:
+            pass
+
     conn = duckdb.connect(snapshot_path, read_only=True)
     allow_install = os.getenv("DUCKDB_ALLOW_INSTALL", "0") == "1"
     load_extensions(conn, ("vss",), allow_install)
+    if signature is None:
+        cache[snapshot_path] = (-1, -1, conn)
+    else:
+        cache[snapshot_path] = (signature[0], signature[1], conn)
     return conn
 
 
@@ -363,7 +417,7 @@ def search_by_text(
                     )
                 )
     finally:
-        conn.close()
+        _release_conn(snapshot_path, conn)
 
     results.sort(key=lambda item: item.score, reverse=True)
     return results[: int(top_k)]
@@ -447,7 +501,7 @@ def search_by_keyword(
                 )
             )
     finally:
-        conn.close()
+        _release_conn(snapshot_path, conn)
 
     return results[: int(top_k)]
 
@@ -521,7 +575,7 @@ def search_by_metadata(
             for media_asset_id, uri, media_type in rows
         ]
     finally:
-        conn.close()
+        _release_conn(snapshot_path, conn)
 
     return results[: int(top_k)]
 
@@ -598,7 +652,7 @@ def search_by_image(
             ) in image_rows
         ]
     finally:
-        conn.close()
+        _release_conn(snapshot_path, conn)
 
     results.sort(key=lambda item: item.score, reverse=True)
     return results[: int(top_k)]

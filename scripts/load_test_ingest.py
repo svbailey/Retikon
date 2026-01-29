@@ -129,9 +129,9 @@ def main() -> None:
     start = time.perf_counter()
     with ThreadPoolExecutor(max_workers=args.concurrency) as executor:
         futures = []
-        for path in files:
+        for idx, path in enumerate(files):
             category = _classify(path)
-            object_name = f"{args.prefix}/{category}/{args.run_id}/{path.name}"
+            object_name = f"{args.prefix}/{category}/{args.run_id}/{idx}-{path.name}"
             futures.append(
                 executor.submit(
                     _upload_object,

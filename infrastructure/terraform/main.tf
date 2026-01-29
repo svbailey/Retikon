@@ -659,7 +659,7 @@ resource "google_cloud_run_service" "query" {
 resource "google_cloud_run_service" "query_gpu" {
   count    = var.query_gpu_enabled ? 1 : 0
   name     = "${var.query_gpu_service_name}-${var.env}"
-  location = var.region
+  location = var.query_gpu_region != "" ? var.query_gpu_region : var.region
 
   metadata {
     annotations = {
