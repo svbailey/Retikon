@@ -16,7 +16,7 @@ from retikon_sdk import RetikonClient
 
 client = RetikonClient(
     ingest_url="http://localhost:8081",
-    query_url="http://localhost:8082",
+    query_url="http://localhost:8080",
 )
 
 # Ingest a local file by path

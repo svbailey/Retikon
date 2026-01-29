@@ -9,7 +9,7 @@ import { RetikonClient } from "@retikon/core-sdk";
 
 const client = new RetikonClient({
   ingestUrl: "http://localhost:8081",
-  queryUrl: "http://localhost:8082",
+  queryUrl: "http://localhost:8080",
 });
 
 const ingest = await client.ingest({ path: "/data/sample.csv", contentType: "text/csv" });

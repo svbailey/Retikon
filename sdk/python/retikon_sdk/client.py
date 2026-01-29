@@ -10,7 +10,7 @@ from typing import Any, Iterable
 @dataclass(frozen=True)
 class RetikonClient:
     ingest_url: str = "http://localhost:8081"
-    query_url: str = "http://localhost:8082"
+    query_url: str = "http://localhost:8080"
     api_key: str | None = None
     timeout: int = 30
 

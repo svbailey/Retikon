@@ -8,7 +8,7 @@ info:
 servers:
   - url: http://localhost:8081
     description: Local ingestion service
-  - url: http://localhost:8082
+  - url: http://localhost:8080
     description: Local query service
 tags:
   - name: ingest

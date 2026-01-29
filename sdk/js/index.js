@@ -1,5 +1,5 @@
 export class RetikonClient {
-  constructor({ ingestUrl = "http://localhost:8081", queryUrl = "http://localhost:8082", apiKey = null, timeoutMs = 30000 } = {}) {
+  constructor({ ingestUrl = "http://localhost:8081", queryUrl = "http://localhost:8080", apiKey = null, timeoutMs = 30000 } = {}) {
     this.ingestUrl = ingestUrl;
     this.queryUrl = queryUrl;
     this.apiKey = apiKey;

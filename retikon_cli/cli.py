@@ -14,7 +14,7 @@ from pathlib import Path
 from typing import Any
 
 DEFAULT_INGEST_URL = "http://localhost:8081"
-DEFAULT_QUERY_URL = "http://localhost:8082"
+DEFAULT_QUERY_URL = "http://localhost:8080"
 DEFAULT_ENV_FILE = ".env"
 DEFAULT_ENV_EXAMPLE = ".env.example"
 
@@ -518,7 +518,7 @@ def build_parser() -> argparse.ArgumentParser:
     up_parser = subparsers.add_parser("up", help="Run local Retikon services")
     up_parser.add_argument("--host", default="0.0.0.0")
     up_parser.add_argument("--ingest-port", type=int, default=8081)
-    up_parser.add_argument("--query-port", type=int, default=8082)
+    up_parser.add_argument("--query-port", type=int, default=8080)
     up_parser.add_argument("--log-level", default="info")
     up_parser.add_argument("--dry-run", action="store_true", help="Print commands only")
     up_parser.set_defaults(func=cmd_up)
@@ -528,7 +528,7 @@ def build_parser() -> argparse.ArgumentParser:
     )
     daemon_parser.add_argument("--host", default="0.0.0.0")
     daemon_parser.add_argument("--ingest-port", type=int, default=8081)
-    daemon_parser.add_argument("--query-port", type=int, default=8082)
+    daemon_parser.add_argument("--query-port", type=int, default=8080)
     daemon_parser.add_argument("--log-level", default="info")
     daemon_parser.add_argument(
         "--dry-run", action="store_true", help="Print commands only"
