@@ -22,6 +22,36 @@ make build-data-factory
 make build-privacy
 ```
 
+## Optional monolith deployment (single-service Pro)
+
+For smaller teams, you can deploy a single Cloud Run service that exposes all
+Pro endpoints from one FastAPI app. Endpoints keep their existing paths
+(`/query`, `/ingest`, `/audit/logs`, etc.) with a shared `/health`.
+
+Build the monolith image:
+
+```bash
+docker build -f Dockerfile.pro -t retikon-monolith:dev \
+  --build-arg APP_MODULE=gcp_adapter.monolith_service:app .
+```
+
+Deploy as a single Cloud Run service with the combined environment variables
+required by ingestion, query, audit, workflow, data factory, privacy, and any
+other enabled services.
+
+Notes:
+- Streaming ingest routes are included only if `STREAM_INGEST_TOPIC` is set.
+- GPU query service is not included in the monolith.
+
+When to use the monolith:
+- Best for small teams, staging, demos, or early customer pilots where ops
+  simplicity matters more than isolation.
+- Faster to deploy (one service), fewer env vars to manage, cheaper baseline.
+
+When to keep microservices:
+- Preferred for managed Pro at scale (independent scaling, fault isolation,
+  clearer blast-radius controls, and per-service rollout cadence).
+
 If you build the Dev Console UI, set:
 
 - `VITE_AUDIT_URL` to the audit service base URL.

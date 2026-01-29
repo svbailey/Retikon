@@ -1326,6 +1326,15 @@ Internal helpers are included because they are still part of the codebase, but t
   - `QueryHit`: Data structure or helper class for Query Hit, so queries run securely in the managed service.
   - `QueryResponse`: Data structure or helper class for Query Response, so queries run securely in the managed service.
 
+### `gcp_adapter/monolith_service.py`
+- Functions
+  - `_optional_stream_ingest`: Internal helper that loads stream ingest if configured, so the monolith starts cleanly.
+  - `_attach_routes`: Internal helper that attaches routes, so the monolith reuses service endpoints.
+  - `lifespan`: Function that runs startup/shutdown hooks, so shared services warm up correctly.
+  - `health`: Reports service health, so the monolith can be monitored.
+- Classes
+  - `HealthResponse`: Data structure or helper class for Health Response, so health endpoints are consistent.
+
 ### `gcp_adapter/queue_pubsub.py`
 - Functions
   - `parse_pubsub_push`: Function that parses Pub/Sub push, so Pub/Sub push messages are handled.
