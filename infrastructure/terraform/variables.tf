@@ -49,6 +49,11 @@ variable "workflow_service_name" {
   default = "retikon-workflows"
 }
 
+variable "chaos_service_name" {
+  type    = string
+  default = "retikon-chaos"
+}
+
 variable "index_job_name" {
   type    = string
   default = "retikon-index-builder"
@@ -120,6 +125,11 @@ variable "audit_image" {
 }
 
 variable "workflow_image" {
+  type    = string
+  default = "us-docker.pkg.dev/cloudrun/container/hello"
+}
+
+variable "chaos_image" {
   type    = string
   default = "us-docker.pkg.dev/cloudrun/container/hello"
 }
@@ -214,6 +224,11 @@ variable "workflow_timeout_seconds" {
   default = 60
 }
 
+variable "chaos_timeout_seconds" {
+  type    = number
+  default = 60
+}
+
 variable "query_slow_ms" {
   type    = number
   default = 2000
@@ -230,6 +245,11 @@ variable "audit_require_admin" {
 }
 
 variable "workflow_require_admin" {
+  type    = bool
+  default = true
+}
+
+variable "chaos_require_admin" {
   type    = bool
   default = true
 }
@@ -329,6 +349,16 @@ variable "workflow_min_scale" {
   default = 0
 }
 
+variable "chaos_max_scale" {
+  type    = number
+  default = 5
+}
+
+variable "chaos_min_scale" {
+  type    = number
+  default = 0
+}
+
 variable "audit_memory" {
   type    = string
   default = "1Gi"
@@ -355,6 +385,21 @@ variable "workflow_cpu" {
 }
 
 variable "workflow_concurrency" {
+  type    = number
+  default = 10
+}
+
+variable "chaos_memory" {
+  type    = string
+  default = "1Gi"
+}
+
+variable "chaos_cpu" {
+  type    = string
+  default = "1000m"
+}
+
+variable "chaos_concurrency" {
   type    = number
   default = 10
 }
@@ -837,6 +882,11 @@ variable "audit_service_account_name" {
 variable "workflow_service_account_name" {
   type    = string
   default = "retikon-workflows-sa"
+}
+
+variable "chaos_service_account_name" {
+  type    = string
+  default = "retikon-chaos-sa"
 }
 
 variable "dev_console_service_account_name" {

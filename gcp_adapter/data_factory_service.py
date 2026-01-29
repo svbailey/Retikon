@@ -23,7 +23,7 @@ from gcp_adapter.office_conversion import (
     validate_payload_size,
     write_conversion_output,
 )
-from gcp_adapter.queue_pubsub import parse_pubsub_push
+from gcp_adapter.queue_pubsub import PubSubPublisher, parse_pubsub_push
 from retikon_core.auth import AuthContext, authorize_api_key
 from retikon_core.config import get_config
 from retikon_core.connectors import (
@@ -32,13 +32,20 @@ from retikon_core.connectors import (
     register_ocr_connector,
 )
 from retikon_core.data_factory import (
+    TrainingExecutor,
+    TrainingJob,
+    TrainingResult,
     add_annotation,
     create_dataset,
-    create_training_job,
+    execute_training_job,
+    get_training_job,
     list_annotations,
     list_datasets,
+    list_training_jobs,
     load_models,
+    mark_training_job_failed,
     register_model,
+    register_training_job,
 )
 from retikon_core.errors import AuthError, PermanentError, RecoverableError
 from retikon_core.logging import configure_logging, get_logger
@@ -105,6 +112,19 @@ class TrainingRequest(BaseModel):
     labels: list[str] | None = None
 
     model_config = {"protected_namespaces": ()}
+
+
+class TrainingJobResponse(BaseModel):
+    id: str
+    status: str
+    created_at: str
+    updated_at: str
+    started_at: str | None = None
+    finished_at: str | None = None
+    error: str | None = None
+    output: dict[str, object] | None = None
+    metrics: dict[str, object] | None = None
+    spec: dict[str, object]
 
 
 class ConnectorResponse(BaseModel):
@@ -211,6 +231,114 @@ def _require_admin() -> bool:
 def _data_factory_api_key() -> str | None:
     return os.getenv("DATA_FACTORY_API_KEY") or os.getenv("QUERY_API_KEY")
 
+
+_training_queue_publisher: PubSubPublisher | None = None
+
+
+def _training_run_mode() -> str:
+    env = os.getenv("ENV", "dev").lower()
+    default = "inline" if env in {"dev", "local", "test"} else "queue"
+    return os.getenv("TRAINING_RUN_MODE", default).strip().lower()
+
+
+def _training_queue_topic() -> str | None:
+    return os.getenv("TRAINING_QUEUE_TOPIC")
+
+
+def _training_dlq_topic() -> str | None:
+    return os.getenv("TRAINING_DLQ_TOPIC")
+
+
+def _training_runner_token() -> str | None:
+    return os.getenv("TRAINING_RUNNER_TOKEN") or os.getenv("DATA_FACTORY_API_KEY")
+
+
+def _training_sim_seconds() -> float:
+    raw = os.getenv("TRAINING_SIM_SECONDS", "")
+    try:
+        return float(raw)
+    except ValueError:
+        return 0.0
+
+
+def _training_queue_publisher_instance() -> PubSubPublisher:
+    global _training_queue_publisher
+    if _training_queue_publisher is None:
+        _training_queue_publisher = PubSubPublisher()
+    return _training_queue_publisher
+
+
+def _enqueue_training_job(job: TrainingJob, reason: str) -> str:
+    topic = _training_queue_topic()
+    if not topic:
+        raise RuntimeError("TRAINING_QUEUE_TOPIC is not configured")
+    payload: dict[str, Any] = {"job_id": job.id, "reason": reason}
+    token = _training_runner_token()
+    if token:
+        payload["token"] = token
+    publisher = _training_queue_publisher_instance()
+    return publisher.publish_json(topic=topic, payload=payload)
+
+
+def _publish_training_dlq(payload: dict[str, Any]) -> None:
+    topic = _training_dlq_topic()
+    if not topic:
+        return
+    publisher = _training_queue_publisher_instance()
+    publisher.publish_json(topic=topic, payload=payload)
+
+
+def _training_runner_authorized(request: Request, payload: dict[str, Any]) -> None:
+    token = _training_runner_token()
+    if token:
+        payload_token = payload.get("token")
+        if payload_token != token:
+            raise HTTPException(status_code=403, detail="Forbidden")
+        return
+    _authorize(request)
+
+
+def _training_job_response(job: TrainingJob) -> TrainingJobResponse:
+    spec = {
+        "dataset_id": job.spec.dataset_id,
+        "model_id": job.spec.model_id,
+        "epochs": job.spec.epochs,
+        "batch_size": job.spec.batch_size,
+        "learning_rate": job.spec.learning_rate,
+        "labels": list(job.spec.labels) if job.spec.labels else None,
+    }
+    return TrainingJobResponse(
+        id=job.id,
+        status=job.status,
+        created_at=job.created_at,
+        updated_at=job.updated_at,
+        started_at=job.started_at,
+        finished_at=job.finished_at,
+        error=job.error,
+        output=job.output,
+        metrics=job.metrics,
+        spec=spec,
+    )
+
+
+class _StubTrainingExecutor(TrainingExecutor):
+    def execute(self, *, job: TrainingJob) -> TrainingResult:
+        delay = _training_sim_seconds()
+        if delay > 0:
+            time.sleep(delay)
+        return TrainingResult(
+            status="completed",
+            output={"message": "stub"},
+            metrics={"epochs": job.spec.epochs},
+        )
+
+
+def _execute_training_job_inline(job: TrainingJob) -> TrainingJob:
+    return execute_training_job(
+        base_uri=_get_config().graph_root_uri(),
+        job_id=job.id,
+        executor=_StubTrainingExecutor(),
+    )
 
 def _authorize(request: Request) -> AuthContext | None:
     raw_key = request.headers.get("x-api-key")
@@ -389,9 +517,10 @@ async def create_model_endpoint(
 async def create_training_endpoint(
     request: Request,
     payload: TrainingRequest,
-) -> dict[str, Any]:
+) -> TrainingJobResponse:
     _authorize(request)
-    job = create_training_job(
+    job = register_training_job(
+        base_uri=_get_config().graph_root_uri(),
         dataset_id=payload.dataset_id,
         model_id=payload.model_id,
         epochs=payload.epochs,
@@ -399,19 +528,85 @@ async def create_training_endpoint(
         learning_rate=payload.learning_rate,
         labels=payload.labels,
     )
-    return {
-        "id": job.id,
-        "status": job.status,
-        "created_at": job.created_at,
-        "spec": {
-            "dataset_id": job.spec.dataset_id,
-            "model_id": job.spec.model_id,
-            "epochs": job.spec.epochs,
-            "batch_size": job.spec.batch_size,
-            "learning_rate": job.spec.learning_rate,
-            "labels": list(job.spec.labels) if job.spec.labels else None,
-        },
-    }
+    if _training_run_mode() == "queue" and _training_queue_topic():
+        try:
+            _enqueue_training_job(job, reason="manual")
+        except RuntimeError as exc:
+            raise HTTPException(status_code=500, detail=str(exc)) from exc
+    else:
+        job = _execute_training_job_inline(job)
+    return _training_job_response(job)
+
+
+@app.get("/data-factory/training/jobs", response_model=list[TrainingJobResponse])
+async def list_training_jobs_endpoint(
+    request: Request,
+    status: str | None = None,
+    limit: int | None = None,
+) -> list[TrainingJobResponse]:
+    _authorize(request)
+    jobs = list_training_jobs(
+        _get_config().graph_root_uri(),
+        status=status,
+        limit=limit,
+    )
+    return [_training_job_response(job) for job in jobs]
+
+
+@app.get(
+    "/data-factory/training/jobs/{job_id}",
+    response_model=TrainingJobResponse,
+)
+async def get_training_job_endpoint(
+    request: Request,
+    job_id: str,
+) -> TrainingJobResponse:
+    _authorize(request)
+    job = get_training_job(_get_config().graph_root_uri(), job_id)
+    if job is None:
+        raise HTTPException(status_code=404, detail="Training job not found")
+    return _training_job_response(job)
+
+
+@app.post(
+    "/data-factory/training/runner",
+    response_model=TrainingJobResponse,
+)
+async def training_runner(
+    request: Request,
+    body: dict[str, Any],
+) -> TrainingJobResponse:
+    envelope = parse_pubsub_push(body)
+    try:
+        payload = json.loads(envelope.message.data.decode("utf-8"))
+    except json.JSONDecodeError as exc:
+        raise HTTPException(status_code=400, detail="Invalid payload") from exc
+    if not isinstance(payload, dict):
+        raise HTTPException(status_code=400, detail="Invalid payload")
+    _training_runner_authorized(request, payload)
+    job_id = payload.get("job_id")
+    if not isinstance(job_id, str) or not job_id:
+        raise HTTPException(status_code=400, detail="Missing job_id")
+    base_uri = _get_config().graph_root_uri()
+    job = get_training_job(base_uri, job_id)
+    if job is None:
+        raise HTTPException(status_code=404, detail="Training job not found")
+    try:
+        updated = _execute_training_job_inline(job)
+    except Exception as exc:
+        mark_training_job_failed(
+            base_uri=base_uri,
+            job_id=job_id,
+            error=str(exc),
+        )
+        _publish_training_dlq(
+            {
+                "job_id": job_id,
+                "error": str(exc),
+            }
+        )
+        raise HTTPException(status_code=500, detail=str(exc)) from exc
+    return _training_job_response(updated)
 
 
 @app.get("/data-factory/connectors", response_model=list[ConnectorResponse])

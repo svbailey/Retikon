@@ -30,6 +30,10 @@ output "workflow_service_name" {
   value = google_cloud_run_service.workflow.name
 }
 
+output "chaos_service_name" {
+  value = google_cloud_run_service.chaos.name
+}
+
 output "ingestion_service_url" {
   value = google_cloud_run_service.ingestion.status[0].url
 }
@@ -48,6 +52,10 @@ output "audit_service_url" {
 
 output "workflow_service_url" {
   value = google_cloud_run_service.workflow.status[0].url
+}
+
+output "chaos_service_url" {
+  value = google_cloud_run_service.chaos.status[0].url
 }
 
 output "dev_console_service_url" {

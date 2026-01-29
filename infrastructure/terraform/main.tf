@@ -119,6 +119,11 @@ resource "google_service_account" "workflow" {
   display_name = "Retikon Workflow Service Account"
 }
 
+resource "google_service_account" "chaos" {
+  account_id   = var.chaos_service_account_name
+  display_name = "Retikon Chaos Service Account"
+}
+
 resource "google_service_account" "dev_console" {
   account_id   = var.dev_console_service_account_name
   display_name = "Retikon Dev Console Service Account"
@@ -251,6 +256,12 @@ resource "google_storage_bucket_iam_member" "workflow_graph_admin" {
   member = "serviceAccount:${google_service_account.workflow.email}"
 }
 
+resource "google_storage_bucket_iam_member" "chaos_graph_admin" {
+  bucket = google_storage_bucket.graph.name
+  role   = "roles/storage.objectAdmin"
+  member = "serviceAccount:${google_service_account.chaos.email}"
+}
+
 resource "google_storage_bucket_iam_member" "dev_console_raw_view" {
   bucket = google_storage_bucket.raw.name
   role   = "roles/storage.objectViewer"
@@ -354,6 +365,12 @@ resource "google_secret_manager_secret_iam_member" "workflow_api_key_access" {
   secret_id = google_secret_manager_secret.query_api_key.secret_id
   role      = "roles/secretmanager.secretAccessor"
   member    = "serviceAccount:${google_service_account.workflow.email}"
+}
+
+resource "google_secret_manager_secret_iam_member" "chaos_api_key_access" {
+  secret_id = google_secret_manager_secret.query_api_key.secret_id
+  role      = "roles/secretmanager.secretAccessor"
+  member    = "serviceAccount:${google_service_account.chaos.email}"
 }
 
 resource "google_cloud_run_service" "ingestion" {
@@ -1099,6 +1116,107 @@ resource "google_cloud_run_service" "workflow" {
   autogenerate_revision_name = true
 }
 
+resource "google_cloud_run_service" "chaos" {
+  name     = "${var.chaos_service_name}-${var.env}"
+  location = var.region
+
+  metadata {
+    annotations = {
+      "run.googleapis.com/ingress" = "all"
+    }
+  }
+
+  template {
+    metadata {
+      annotations = {
+        "autoscaling.knative.dev/maxScale" = tostring(var.chaos_max_scale)
+        "autoscaling.knative.dev/minScale" = tostring(var.chaos_min_scale)
+      }
+    }
+
+    spec {
+      service_account_name = google_service_account.chaos.email
+      container_concurrency = var.chaos_concurrency
+      timeout_seconds      = var.chaos_timeout_seconds
+
+      containers {
+        image = var.chaos_image
+
+        resources {
+          limits = {
+            cpu    = var.chaos_cpu
+            memory = var.chaos_memory
+          }
+        }
+
+        env {
+          name  = "APP_MODULE"
+          value = "gcp_adapter.chaos_service:app"
+        }
+        env {
+          name  = "ENV"
+          value = var.env
+        }
+        env {
+          name  = "LOG_LEVEL"
+          value = var.log_level
+        }
+        env {
+          name  = "RAW_BUCKET"
+          value = google_storage_bucket.raw.name
+        }
+        env {
+          name  = "GRAPH_BUCKET"
+          value = google_storage_bucket.graph.name
+        }
+        env {
+          name  = "GRAPH_PREFIX"
+          value = var.graph_prefix
+        }
+        env {
+          name  = "MAX_RAW_BYTES"
+          value = tostring(var.max_raw_bytes)
+        }
+        env {
+          name  = "MAX_VIDEO_SECONDS"
+          value = tostring(var.max_video_seconds)
+        }
+        env {
+          name  = "MAX_AUDIO_SECONDS"
+          value = tostring(var.max_audio_seconds)
+        }
+        env {
+          name  = "MAX_FRAMES_PER_VIDEO"
+          value = tostring(var.max_frames_per_video)
+        }
+        env {
+          name  = "CHUNK_TARGET_TOKENS"
+          value = tostring(var.chunk_target_tokens)
+        }
+        env {
+          name  = "CHUNK_OVERLAP_TOKENS"
+          value = tostring(var.chunk_overlap_tokens)
+        }
+        env {
+          name  = "CHAOS_REQUIRE_ADMIN"
+          value = var.chaos_require_admin ? "1" : "0"
+        }
+        env {
+          name = "CHAOS_API_KEY"
+          value_from {
+            secret_key_ref {
+              name = google_secret_manager_secret.query_api_key.secret_id
+              key  = "latest"
+            }
+          }
+        }
+      }
+    }
+  }
+
+  autogenerate_revision_name = true
+}
+
 resource "google_cloud_run_service" "dev_console" {
   name     = "${var.dev_console_service_name}-${var.env}"
   location = var.region
@@ -1511,6 +1629,13 @@ resource "google_cloud_run_service_iam_member" "audit_invoker" {
 resource "google_cloud_run_service_iam_member" "workflow_invoker" {
   location = google_cloud_run_service.workflow.location
   service  = google_cloud_run_service.workflow.name
+  role     = "roles/run.invoker"
+  member   = "allUsers"
+}
+
+resource "google_cloud_run_service_iam_member" "chaos_invoker" {
+  location = google_cloud_run_service.chaos.location
+  service  = google_cloud_run_service.chaos.name
   role     = "roles/run.invoker"
   member   = "allUsers"
 }

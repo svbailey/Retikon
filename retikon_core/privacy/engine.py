@@ -4,7 +4,12 @@ import os
 from typing import Iterable
 
 from retikon_core.privacy.types import PrivacyContext, PrivacyPolicy
-from retikon_core.redaction import redact_text
+from retikon_core.redaction import (
+    RedactionPlan,
+    media_redaction_enabled,
+    plan_media_redaction,
+    redact_text,
+)
 from retikon_core.tenancy.types import TenantScope
 
 
@@ -56,6 +61,27 @@ def redact_text_for_context(
     if not redaction_types:
         return text
     return redact_text(text, redaction_types=redaction_types)
+
+
+def redaction_plan_for_context(
+    *,
+    policies: Iterable[PrivacyPolicy],
+    context: PrivacyContext,
+    enabled: bool | None = None,
+) -> RedactionPlan | None:
+    if context.modality is None:
+        return None
+    if context.is_admin and _admin_bypass_enabled():
+        return None
+    redaction_types = resolve_redaction_types(policies, context)
+    if not redaction_types:
+        return None
+    plan_enabled = media_redaction_enabled() if enabled is None else enabled
+    return plan_media_redaction(
+        modality=context.modality,
+        redaction_types=redaction_types,
+        enabled=plan_enabled,
+    )
 
 
 def _admin_bypass_enabled() -> bool:

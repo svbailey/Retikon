@@ -55,6 +55,27 @@ def test_data_factory_service(monkeypatch, tmp_path):
     assert resp.status_code == 200
     assert resp.json()[0]["name"] == "Model"
 
+    resp = client.post(
+        "/data-factory/training",
+        json={
+            "dataset_id": dataset_id,
+            "model_id": resp.json()[0]["id"],
+            "epochs": 2,
+        },
+    )
+    assert resp.status_code == 201
+    job = resp.json()
+    assert job["status"] in {"completed", "queued"}
+    assert job["spec"]["epochs"] == 2
+
+    resp = client.get("/data-factory/training/jobs")
+    assert resp.status_code == 200
+    assert len(resp.json()) >= 1
+
+    resp = client.get(f"/data-factory/training/jobs/{job['id']}")
+    assert resp.status_code == 200
+    assert resp.json()["id"] == job["id"]
+
     resp = client.get("/data-factory/connectors")
     assert resp.status_code == 200
     assert isinstance(resp.json(), list)

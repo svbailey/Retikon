@@ -1,4 +1,8 @@
-from retikon_core.privacy.engine import build_context, redact_text_for_context
+from retikon_core.privacy.engine import (
+    build_context,
+    redact_text_for_context,
+    redaction_plan_for_context,
+)
 from retikon_core.privacy.store import (
     load_privacy_policies,
     privacy_policy_registry_uri,
@@ -14,6 +18,7 @@ __all__ = [
     "build_context",
     "load_privacy_policies",
     "privacy_policy_registry_uri",
+    "redaction_plan_for_context",
     "redact_text_for_context",
     "register_privacy_policy",
     "save_privacy_policies",

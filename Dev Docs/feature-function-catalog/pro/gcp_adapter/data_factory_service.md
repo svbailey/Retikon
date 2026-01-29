@@ -18,6 +18,9 @@ Edition: Pro
 - `get_models`: Function that gets models, so the system works as expected.
 - `create_model_endpoint`: Function that creates model endpoint, so the system works as expected.
 - `create_training_endpoint`: Function that creates training endpoint, so the system works as expected.
+- `list_training_jobs_endpoint`: Function that lists training jobs, so the system works as expected.
+- `get_training_job_endpoint`: Function that gets a training job, so the system works as expected.
+- `training_runner`: Function that executes queued training jobs, so the system works as expected.
 - `get_connectors`: Function that gets connectors, so the system works as expected.
 - `register_ocr_connector`: Function that registers OCR connector, so the system works as expected.
 - `convert_office`: Function that convert office, so the system works as expected.
@@ -28,6 +31,7 @@ Edition: Pro
 - `AnnotationRequest`: Data structure or helper class for Annotation Request, so the system works as expected.
 - `ModelRequest`: Data structure or helper class for Model Request, so the system works as expected.
 - `TrainingRequest`: Data structure or helper class for Training Request, so the system works as expected.
+- `TrainingJobResponse`: Data structure or helper class for Training Job Response, so the system works as expected.
 - `ConnectorResponse`: Data structure or helper class for Connector Response, so the system works as expected.
 - `OfficeConversionRequest`: Data structure or helper class for Office Conversion Request, so the system works as expected.
 - `OfficeConversionResponse`: Data structure or helper class for Office Conversion Response, so the system works as expected.
