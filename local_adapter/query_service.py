@@ -17,6 +17,7 @@ from pydantic import BaseModel
 from retikon_core.config import get_config
 from retikon_core.logging import configure_logging, get_logger
 from retikon_core.query_engine import download_snapshot, get_secure_connection
+from retikon_core.services.query_config import QueryServiceConfig
 from retikon_core.services.query_service_core import (
     QueryRequest,
     QueryResponse,
@@ -67,20 +68,7 @@ async def lifespan(_: FastAPI):
 
 app = FastAPI(lifespan=lifespan)
 
-MAX_QUERY_BYTES = int(os.getenv("MAX_QUERY_BYTES", "4000000"))
-MAX_IMAGE_BASE64_BYTES = int(os.getenv("MAX_IMAGE_BASE64_BYTES", "2000000"))
-SLOW_QUERY_MS = int(os.getenv("SLOW_QUERY_MS", "2000"))
-LOG_QUERY_TIMINGS = os.getenv("LOG_QUERY_TIMINGS", "0") == "1"
-QUERY_WARMUP = os.getenv("QUERY_WARMUP", "1") == "1"
-QUERY_WARMUP_TEXT = os.getenv("QUERY_WARMUP_TEXT", "retikon warmup")
-QUERY_WARMUP_STEPS = {
-    step.strip().lower()
-    for step in os.getenv(
-        "QUERY_WARMUP_STEPS",
-        "text,image_text,audio_text,image",
-    ).split(",")
-    if step.strip()
-}
+QUERY_CONFIG = QueryServiceConfig.from_env()
 
 
 @dataclass
@@ -216,9 +204,9 @@ def _load_snapshot() -> None:
 
 def _warm_query_models() -> None:
     warm_query_models(
-        enabled=QUERY_WARMUP,
-        steps=QUERY_WARMUP_STEPS,
-        warmup_text=QUERY_WARMUP_TEXT,
+        enabled=QUERY_CONFIG.query_warmup,
+        steps=QUERY_CONFIG.query_warmup_steps,
+        warmup_text=QUERY_CONFIG.query_warmup_text,
         logger=logger,
     )
 
@@ -245,7 +233,7 @@ async def query(
     start_time = time.monotonic()
     if request.headers.get("content-length"):
         content_length = int(request.headers["content-length"])
-        if content_length > MAX_QUERY_BYTES:
+        if content_length > QUERY_CONFIG.max_query_bytes:
             raise HTTPException(status_code=413, detail="Request too large")
 
     _authorize(request)
@@ -257,7 +245,7 @@ async def query(
             payload=payload,
             search_type=search_type,
             modalities=modalities,
-            max_image_base64_bytes=MAX_IMAGE_BASE64_BYTES,
+            max_image_base64_bytes=QUERY_CONFIG.max_image_base64_bytes,
         )
     except QueryValidationError as exc:
         raise HTTPException(status_code=exc.status_code, detail=exc.detail) from exc
@@ -320,15 +308,21 @@ async def query(
             "duration_ms": duration_ms,
         },
     )
-    if LOG_QUERY_TIMINGS or duration_ms >= SLOW_QUERY_MS:
+    if QUERY_CONFIG.log_query_timings or duration_ms >= QUERY_CONFIG.slow_query_ms:
         snapshot_age_s = None
         if STATE.loaded_at:
             snapshot_age_s = round(
                 (datetime.now(timezone.utc) - STATE.loaded_at).total_seconds(), 2
             )
-        log_fn = logger.warning if duration_ms >= SLOW_QUERY_MS else logger.info
+        log_fn = (
+            logger.warning
+            if duration_ms >= QUERY_CONFIG.slow_query_ms
+            else logger.info
+        )
         log_fn(
-            "Slow query" if duration_ms >= SLOW_QUERY_MS else "Query timings",
+            "Slow query"
+            if duration_ms >= QUERY_CONFIG.slow_query_ms
+            else "Query timings",
             extra={
                 "request_id": trace_id,
                 "correlation_id": request.state.correlation_id,

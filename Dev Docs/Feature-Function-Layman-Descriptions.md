@@ -895,6 +895,12 @@ Internal helpers are included because they are still part of the codebase, but t
   - `QueryHit`: Data structure or helper class for query hits, so outputs are consistent.
   - `QueryResponse`: Data structure or helper class for query responses, so outputs are consistent.
 
+### `retikon_core/services/query_config.py`
+- Classes
+  - `QueryServiceConfig`: Data structure or helper class for query service settings, so local and Pro stay consistent.
+    - Methods
+      - `from_env`: Function that builds settings from env, so configuration is centralized.
+
 ### `retikon_core/queue/types.py`
 - Classes
   - `QueueMessage`: Data structure or helper class for Queue Message, so the system works as expected.
