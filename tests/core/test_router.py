@@ -2,12 +2,12 @@ import pytest
 
 from retikon_core.config import get_config
 from retikon_core.errors import PermanentError
-from retikon_core.ingestion.storage_event import StorageEvent
 from retikon_core.ingestion.router import (
     _check_size,
     _ensure_allowed,
     _modality_for_name,
 )
+from retikon_core.ingestion.storage_event import StorageEvent
 
 
 def test_router_modality():

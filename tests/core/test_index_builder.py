@@ -8,8 +8,8 @@ import pyarrow as pa
 import pytest
 
 from retikon_core.errors import RecoverableError
-from retikon_core.query_engine.index_builder import build_snapshot
 from retikon_core.query_engine import index_builder
+from retikon_core.query_engine.index_builder import build_snapshot
 from retikon_core.storage.manifest import build_manifest, write_manifest
 from retikon_core.storage.paths import GraphPaths, edge_part_uri, manifest_uri
 from retikon_core.storage.schemas import schema_for

@@ -192,7 +192,6 @@ def _prefix_for_modality(modality: str) -> str:
 
 def _seed_local_graph(sample_path: Path) -> None:
     from retikon_core.config import get_config
-    from retikon_core.ingestion.storage_event import StorageEvent
     from retikon_core.ingestion.router import (
         _check_size,
         _ensure_allowed,
@@ -200,6 +199,7 @@ def _seed_local_graph(sample_path: Path) -> None:
         _schema_version,
         pipeline_version,
     )
+    from retikon_core.ingestion.storage_event import StorageEvent
     from retikon_core.ingestion.types import IngestSource
 
     os.environ.setdefault("RETIKON_TOKENIZER", "stub")

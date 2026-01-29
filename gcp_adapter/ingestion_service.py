@@ -10,6 +10,7 @@ from google.cloud import firestore
 from pydantic import BaseModel
 
 from gcp_adapter.dlq_pubsub import PubSubDlqPublisher
+from gcp_adapter.eventarc import parse_cloudevent
 from gcp_adapter.idempotency_firestore import FirestoreIdempotency
 from retikon_core.audit import record_audit_log
 from retikon_core.auth import (
@@ -26,7 +27,6 @@ from retikon_core.errors import (
     RecoverableError,
     ValidationError,
 )
-from gcp_adapter.eventarc import parse_cloudevent
 from retikon_core.ingestion import process_event
 from retikon_core.ingestion.router import pipeline_version
 from retikon_core.logging import configure_logging, get_logger

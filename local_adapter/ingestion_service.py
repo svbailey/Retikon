@@ -11,7 +11,6 @@ from pydantic import BaseModel
 
 from retikon_core.config import get_config
 from retikon_core.errors import PermanentError
-from retikon_core.ingestion.storage_event import StorageEvent
 from retikon_core.ingestion.router import (
     _check_size,
     _ensure_allowed,
@@ -19,6 +18,7 @@ from retikon_core.ingestion.router import (
     _schema_version,
     pipeline_version,
 )
+from retikon_core.ingestion.storage_event import StorageEvent
 from retikon_core.ingestion.types import IngestSource
 from retikon_core.logging import configure_logging, get_logger
 

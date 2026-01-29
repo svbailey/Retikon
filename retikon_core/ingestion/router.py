@@ -6,9 +6,9 @@ from dataclasses import dataclass
 from retikon_core.config import Config
 from retikon_core.errors import PermanentError
 from retikon_core.ingestion.download import DownloadResult, cleanup_tmp, download_to_tmp
-from retikon_core.ingestion.storage_event import StorageEvent
 from retikon_core.ingestion.pipelines import audio, document, image, video
 from retikon_core.ingestion.rate_limit import enforce_rate_limit
+from retikon_core.ingestion.storage_event import StorageEvent
 from retikon_core.ingestion.types import IngestSource
 from retikon_core.tenancy import scope_from_metadata
 from retikon_core.tenancy.types import TenantScope
