@@ -44,6 +44,11 @@ variable "audit_service_name" {
   default = "retikon-audit"
 }
 
+variable "workflow_service_name" {
+  type    = string
+  default = "retikon-workflows"
+}
+
 variable "index_job_name" {
   type    = string
   default = "retikon-index-builder"
@@ -110,6 +115,11 @@ variable "query_gpu_image" {
 }
 
 variable "audit_image" {
+  type    = string
+  default = "us-docker.pkg.dev/cloudrun/container/hello"
+}
+
+variable "workflow_image" {
   type    = string
   default = "us-docker.pkg.dev/cloudrun/container/hello"
 }
@@ -199,6 +209,11 @@ variable "audit_timeout_seconds" {
   default = 300
 }
 
+variable "workflow_timeout_seconds" {
+  type    = number
+  default = 60
+}
+
 variable "query_slow_ms" {
   type    = number
   default = 2000
@@ -212,6 +227,16 @@ variable "query_log_timings" {
 variable "audit_require_admin" {
   type    = bool
   default = true
+}
+
+variable "workflow_require_admin" {
+  type    = bool
+  default = true
+}
+
+variable "workflow_run_mode" {
+  type    = string
+  default = "queue"
 }
 
 variable "query_warmup" {
@@ -294,6 +319,16 @@ variable "audit_min_scale" {
   default = 0
 }
 
+variable "workflow_max_scale" {
+  type    = number
+  default = 10
+}
+
+variable "workflow_min_scale" {
+  type    = number
+  default = 0
+}
+
 variable "audit_memory" {
   type    = string
   default = "1Gi"
@@ -305,6 +340,21 @@ variable "audit_cpu" {
 }
 
 variable "audit_concurrency" {
+  type    = number
+  default = 10
+}
+
+variable "workflow_memory" {
+  type    = string
+  default = "1Gi"
+}
+
+variable "workflow_cpu" {
+  type    = string
+  default = "1000m"
+}
+
+variable "workflow_concurrency" {
   type    = number
   default = 10
 }
@@ -434,6 +484,11 @@ variable "stream_ingest_max_delivery_attempts" {
   default = 10
 }
 
+variable "workflow_max_delivery_attempts" {
+  type    = number
+  default = 5
+}
+
 variable "stream_ingest_retry_min_backoff" {
   type    = number
   default = 10
@@ -485,6 +540,16 @@ variable "compaction_schedule" {
 }
 
 variable "compaction_schedule_timezone" {
+  type    = string
+  default = "Etc/UTC"
+}
+
+variable "workflow_schedule" {
+  type    = string
+  default = "*/5 * * * *"
+}
+
+variable "workflow_schedule_timezone" {
   type    = string
   default = "Etc/UTC"
 }
@@ -739,6 +804,21 @@ variable "ingest_dlq_subscription_name" {
   default = "retikon-ingest-dlq-sub"
 }
 
+variable "workflow_queue_topic_name" {
+  type    = string
+  default = "retikon-workflow-queue"
+}
+
+variable "workflow_dlq_topic_name" {
+  type    = string
+  default = "retikon-workflow-dlq"
+}
+
+variable "workflow_queue_subscription_name" {
+  type    = string
+  default = "retikon-workflow-queue-sub"
+}
+
 variable "ingestion_service_account_name" {
   type    = string
   default = "retikon-ingest-sa"
@@ -752,6 +832,11 @@ variable "query_service_account_name" {
 variable "audit_service_account_name" {
   type    = string
   default = "retikon-audit-sa"
+}
+
+variable "workflow_service_account_name" {
+  type    = string
+  default = "retikon-workflows-sa"
 }
 
 variable "dev_console_service_account_name" {

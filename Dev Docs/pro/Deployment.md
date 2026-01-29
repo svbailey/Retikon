@@ -17,6 +17,7 @@ For BYOC (Kubernetes) deployments, see `Dev Docs/BYOC-Guide.md`.
 make build-ingest
 make build-query
 make build-audit
+make build-workflow
 make build-data-factory
 make build-privacy
 ```
@@ -39,6 +40,9 @@ docker tag retikon-query:dev \
 docker tag retikon-audit:dev \
   $REGION-docker.pkg.dev/$PROJECT/retikon/retikon-audit:TAG
 
+docker tag retikon-workflows:dev \
+  $REGION-docker.pkg.dev/$PROJECT/retikon/retikon-workflows:TAG
+
 docker tag retikon-data-factory:dev \
   $REGION-docker.pkg.dev/$PROJECT/retikon/retikon-data-factory:TAG
 
@@ -50,6 +54,8 @@ docker push $REGION-docker.pkg.dev/$PROJECT/retikon/retikon-ingest:TAG
 docker push $REGION-docker.pkg.dev/$PROJECT/retikon/retikon-query:TAG
 
 docker push $REGION-docker.pkg.dev/$PROJECT/retikon/retikon-audit:TAG
+
+docker push $REGION-docker.pkg.dev/$PROJECT/retikon/retikon-workflows:TAG
 
 docker push $REGION-docker.pkg.dev/$PROJECT/retikon/retikon-data-factory:TAG
 
@@ -65,6 +71,7 @@ terraform apply \
   -var="ingest_image=$REGION-docker.pkg.dev/$PROJECT/retikon/retikon-ingest:TAG" \
   -var="query_image=$REGION-docker.pkg.dev/$PROJECT/retikon/retikon-query:TAG" \
   -var="audit_image=$REGION-docker.pkg.dev/$PROJECT/retikon/retikon-audit:TAG" \
+  -var="workflow_image=$REGION-docker.pkg.dev/$PROJECT/retikon/retikon-workflows:TAG" \
   -var="data_factory_image=$REGION-docker.pkg.dev/$PROJECT/retikon/retikon-data-factory:TAG" \
   -var="privacy_image=$REGION-docker.pkg.dev/$PROJECT/retikon/retikon-privacy:TAG"
 ```

@@ -7,6 +7,7 @@ from retikon_core.workflows.store import (
     save_workflow_runs,
     save_workflows,
     update_workflow,
+    update_workflow_run,
     workflow_registry_uri,
     workflow_runs_uri,
 )
@@ -24,6 +25,7 @@ __all__ = [
     "save_workflow_runs",
     "save_workflows",
     "update_workflow",
+    "update_workflow_run",
     "workflow_registry_uri",
     "workflow_runs_uri",
 ]

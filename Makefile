@@ -4,11 +4,12 @@ APP_INGEST ?= local_adapter.ingestion_service:app
 APP_QUERY_PRO ?= gcp_adapter.query_service:app
 APP_INGEST_PRO ?= gcp_adapter.ingestion_service:app
 APP_AUDIT_PRO ?= gcp_adapter.audit_service:app
+APP_WORKFLOW_PRO ?= gcp_adapter.workflow_service:app
 APP_DATA_FACTORY_PRO ?= gcp_adapter.data_factory_service:app
 APP_PRIVACY_PRO ?= gcp_adapter.privacy_service:app
 DOCKERFILE_PRO ?= Dockerfile.pro
 
-.PHONY: lint fmt test run-ingest run-query build-ingest build-query run-gcp-ingest run-gcp-query run-gcp-audit build-audit build-data-factory build-privacy
+.PHONY: lint fmt test run-ingest run-query build-ingest build-query run-gcp-ingest run-gcp-query run-gcp-audit run-gcp-workflow build-audit build-workflow build-data-factory build-privacy
 
 lint:
 	$(PYTHON) -m ruff check .
@@ -35,6 +36,9 @@ run-gcp-query:
 run-gcp-audit:
 	PYTHONPATH=. $(PYTHON) -m uvicorn $(APP_AUDIT_PRO) --host 0.0.0.0 --port 8083 --reload
 
+run-gcp-workflow:
+	PYTHONPATH=. $(PYTHON) -m uvicorn $(APP_WORKFLOW_PRO) --host 0.0.0.0 --port 8084 --reload
+
 build-ingest:
 	docker build -f $(DOCKERFILE_PRO) -t retikon-ingest:dev --build-arg APP_MODULE=$(APP_INGEST_PRO) .
 
@@ -43,6 +47,9 @@ build-query:
 
 build-audit:
 	docker build -f $(DOCKERFILE_PRO) -t retikon-audit:dev --build-arg APP_MODULE=$(APP_AUDIT_PRO) .
+
+build-workflow:
+	docker build -f $(DOCKERFILE_PRO) -t retikon-workflows:dev --build-arg APP_MODULE=$(APP_WORKFLOW_PRO) --build-arg PRELOAD_MODELS=0 .
 
 build-data-factory:
 	docker build -f $(DOCKERFILE_PRO) -t retikon-data-factory:dev --build-arg APP_MODULE=$(APP_DATA_FACTORY_PRO) .

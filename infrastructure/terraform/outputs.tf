@@ -26,6 +26,10 @@ output "audit_service_name" {
   value = google_cloud_run_service.audit.name
 }
 
+output "workflow_service_name" {
+  value = google_cloud_run_service.workflow.name
+}
+
 output "ingestion_service_url" {
   value = google_cloud_run_service.ingestion.status[0].url
 }
@@ -40,6 +44,10 @@ output "query_gpu_service_url" {
 
 output "audit_service_url" {
   value = google_cloud_run_service.audit.status[0].url
+}
+
+output "workflow_service_url" {
+  value = google_cloud_run_service.workflow.status[0].url
 }
 
 output "dev_console_service_url" {
@@ -69,6 +77,18 @@ output "ingest_dlq_topic" {
 
 output "ingest_dlq_subscription" {
   value = google_pubsub_subscription.ingest_dlq.name
+}
+
+output "workflow_queue_topic" {
+  value = google_pubsub_topic.workflow_queue.name
+}
+
+output "workflow_queue_subscription" {
+  value = google_pubsub_subscription.workflow_queue.name
+}
+
+output "workflow_dlq_topic" {
+  value = google_pubsub_topic.workflow_dlq.name
 }
 
 output "stream_ingest_topic" {

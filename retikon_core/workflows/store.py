@@ -150,6 +150,22 @@ def register_workflow_run(
     return run
 
 
+def update_workflow_run(*, base_uri: str, run: WorkflowRun) -> WorkflowRun:
+    runs = load_workflow_runs(base_uri)
+    updated: list[WorkflowRun] = []
+    found = False
+    for existing in runs:
+        if existing.id == run.id:
+            updated.append(run)
+            found = True
+        else:
+            updated.append(existing)
+    if not found:
+        updated.append(run)
+    save_workflow_runs(base_uri, updated)
+    return run
+
+
 def list_workflow_runs(
     base_uri: str,
     *,

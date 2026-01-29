@@ -1,12 +1,19 @@
+import json
 import os
 import time
 import uuid
 from datetime import datetime, timezone
+from typing import Any, Iterable
+from urllib.error import HTTPError, URLError
+from urllib.parse import parse_qsl, urlencode, urlparse, urlunparse
+from urllib.request import Request as UrlRequest
+from urllib.request import urlopen
 
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
+from gcp_adapter.queue_pubsub import PubSubPublisher, parse_pubsub_push
 from retikon_core.auth import AuthContext, authorize_api_key
 from retikon_core.config import get_config
 from retikon_core.errors import AuthError
@@ -16,10 +23,12 @@ from retikon_core.workflows import (
     WorkflowSpec,
     WorkflowStep,
     list_workflow_runs,
+    load_workflow_runs,
     load_workflows,
     register_workflow,
     register_workflow_run,
     update_workflow,
+    update_workflow_run,
 )
 
 SERVICE_NAME = "retikon-workflows"
@@ -74,6 +83,7 @@ class WorkflowUpdateRequest(BaseModel):
 
 
 class WorkflowRunRequest(BaseModel):
+    execute: bool | None = None
     status: str | None = None
     finished_at: str | None = None
     error: str | None = None
@@ -104,6 +114,12 @@ class WorkflowRunResponse(BaseModel):
     error: str | None
     output: dict[str, object] | None
     triggered_by: str | None
+
+
+class ScheduleTickResponse(BaseModel):
+    triggered: int
+    skipped: int
+    run_ids: list[str]
 
 
 def _cors_origins() -> list[str]:
@@ -213,6 +229,484 @@ def _run_response(run: WorkflowRun) -> WorkflowRunResponse:
     )
 
 
+_queue_publisher: PubSubPublisher | None = None
+
+
+def _now_iso() -> str:
+    return datetime.now(timezone.utc).isoformat()
+
+
+def _parse_iso(value: str | None) -> datetime | None:
+    if not value:
+        return None
+    text = value.replace("Z", "+00:00")
+    try:
+        return datetime.fromisoformat(text)
+    except ValueError:
+        return None
+
+
+def _run_mode() -> str:
+    override = os.getenv("WORKFLOW_RUN_MODE")
+    if override:
+        return override.strip().lower()
+    env = os.getenv("ENV", "dev").lower()
+    return "inline" if env in {"dev", "local", "test"} else "queue"
+
+
+def _queue_topic() -> str | None:
+    return os.getenv("WORKFLOW_QUEUE_TOPIC")
+
+
+def _dlq_topic() -> str | None:
+    return os.getenv("WORKFLOW_DLQ_TOPIC")
+
+
+def _runner_token() -> str | None:
+    token = os.getenv("WORKFLOW_RUNNER_TOKEN")
+    return token.strip() if token else None
+
+
+def _queue_publisher_instance() -> PubSubPublisher:
+    global _queue_publisher
+    if _queue_publisher is None:
+        _queue_publisher = PubSubPublisher()
+    return _queue_publisher
+
+
+def _enqueue_run(*, run: WorkflowRun, workflow: WorkflowSpec, reason: str) -> str:
+    topic = _queue_topic()
+    if not topic:
+        raise RuntimeError("WORKFLOW_QUEUE_TOPIC is not configured")
+    payload = {
+        "workflow_id": workflow.id,
+        "run_id": run.id,
+        "triggered_by": run.triggered_by,
+        "reason": reason,
+    }
+    token = _runner_token()
+    if token:
+        payload["token"] = token
+    message_id = _queue_publisher_instance().publish_json(topic=topic, payload=payload)
+    logger.info(
+        "Enqueued workflow run",
+        extra={
+            "workflow_id": workflow.id,
+            "run_id": run.id,
+            "message_id": message_id,
+            "reason": reason,
+        },
+    )
+    return message_id
+
+
+def _publish_dlq(*, run: WorkflowRun, workflow: WorkflowSpec, error: str) -> str | None:
+    topic = _dlq_topic()
+    if not topic:
+        return None
+    payload = {
+        "workflow_id": workflow.id,
+        "run_id": run.id,
+        "status": run.status,
+        "error": error,
+        "triggered_by": run.triggered_by,
+        "finished_at": run.finished_at,
+    }
+    message_id = _queue_publisher_instance().publish_json(topic=topic, payload=payload)
+    logger.warning(
+        "Published workflow DLQ message",
+        extra={
+            "workflow_id": workflow.id,
+            "run_id": run.id,
+            "message_id": message_id,
+        },
+    )
+    return message_id
+
+
+def _cron_field_match(
+    field: str,
+    value: int,
+    *,
+    min_value: int,
+    max_value: int,
+) -> bool:
+    if field == "*":
+        return True
+    if field.startswith("*/"):
+        step = int(field[2:])
+        if step <= 0:
+            return False
+        return value % step == 0
+    if "," in field:
+        return any(
+            _cron_field_match(
+                part.strip(),
+                value,
+                min_value=min_value,
+                max_value=max_value,
+            )
+            for part in field.split(",")
+            if part.strip()
+        )
+    if field.isdigit():
+        number = int(field)
+        if number < min_value or number > max_value:
+            return False
+        return value == number
+    return False
+
+
+def _cron_matches(schedule: str, now: datetime) -> bool:
+    parts = [part for part in schedule.split(" ") if part]
+    if len(parts) != 5:
+        return False
+    minute, hour, dom, month, dow = parts
+    if not _cron_field_match(minute, now.minute, min_value=0, max_value=59):
+        return False
+    if not _cron_field_match(hour, now.hour, min_value=0, max_value=23):
+        return False
+    if not _cron_field_match(dom, now.day, min_value=1, max_value=31):
+        return False
+    if not _cron_field_match(month, now.month, min_value=1, max_value=12):
+        return False
+    python_dow = now.weekday()  # Mon=0..Sun=6
+    cron_dow = (python_dow + 1) % 7  # Mon=1..Sun=0
+    if dow == "7":
+        dow = "0"
+    return _cron_field_match(dow, cron_dow, min_value=0, max_value=6)
+
+
+def _interval_seconds(schedule: str) -> float | None:
+    raw = schedule.strip().lower()
+    for prefix in ("every ", "interval "):
+        if raw.startswith(prefix):
+            raw = raw[len(prefix) :]
+            break
+    if not raw:
+        return None
+    unit = raw[-1]
+    if unit not in {"s", "m", "h", "d"}:
+        return None
+    try:
+        value = float(raw[:-1])
+    except ValueError:
+        return None
+    if value <= 0:
+        return None
+    if unit == "s":
+        return value
+    if unit == "m":
+        return value * 60
+    if unit == "h":
+        return value * 3600
+    return value * 86400
+
+
+def _schedule_due(schedule: str, *, last_run: datetime | None, now: datetime) -> bool:
+    interval = _interval_seconds(schedule)
+    if interval is not None:
+        if last_run is None:
+            return True
+        return (now - last_run).total_seconds() >= interval
+    if schedule.startswith("@"):
+        mapping = {
+            "@hourly": 3600,
+            "@daily": 86400,
+            "@weekly": 604800,
+        }
+        interval_value = mapping.get(schedule)
+        if interval_value is None:
+            return False
+        if last_run is None:
+            return True
+        return (now - last_run).total_seconds() >= interval_value
+    if not _cron_matches(schedule, now):
+        return False
+    if last_run is None:
+        return True
+    last_minute = last_run.replace(second=0, microsecond=0)
+    now_minute = now.replace(second=0, microsecond=0)
+    return last_minute < now_minute
+
+
+def _step_timeout(step: WorkflowStep) -> float:
+    if step.timeout_seconds is not None:
+        return float(step.timeout_seconds)
+    default = os.getenv("WORKFLOW_STEP_TIMEOUT", "30")
+    try:
+        return float(default)
+    except ValueError:
+        return 30.0
+
+
+def _coerce_str(value: object) -> str | None:
+    if value is None:
+        return None
+    text = str(value).strip()
+    return text or None
+
+
+def _coerce_float(value: object) -> float | None:
+    if value is None:
+        return None
+    if isinstance(value, (int, float)):
+        return float(value)
+    try:
+        return float(str(value))
+    except ValueError:
+        return None
+
+
+def _coerce_bool(value: object) -> bool | None:
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, str):
+        lowered = value.strip().lower()
+        if lowered in {"1", "true", "yes", "y"}:
+            return True
+        if lowered in {"0", "false", "no", "n"}:
+            return False
+    return None
+
+
+def _coerce_mapping(value: object) -> dict[str, str] | None:
+    if not isinstance(value, dict):
+        return None
+    result: dict[str, str] = {}
+    for key, item in value.items():
+        result[str(key)] = str(item)
+    return result
+
+
+def _append_query_params(url: str, params: dict[str, object]) -> str:
+    parsed = urlparse(url)
+    existing = dict(parse_qsl(parsed.query))
+    for key, value in params.items():
+        existing[str(key)] = str(value)
+    query = urlencode(existing)
+    return urlunparse(parsed._replace(query=query))
+
+
+def _resolve_step_url(
+    step: WorkflowStep,
+    config: dict[str, object] | None,
+) -> str | None:
+    from_config = _coerce_str(config.get("url")) if config else None
+    if from_config:
+        return from_config
+    kind = step.kind.lower()
+    if kind == "ingest":
+        return _coerce_str(os.getenv("WORKFLOW_INGEST_URL"))
+    if kind == "export":
+        return _coerce_str(os.getenv("WORKFLOW_EXPORT_URL"))
+    if kind == "webhook":
+        return _coerce_str(os.getenv("WORKFLOW_WEBHOOK_URL"))
+    if kind == "http":
+        return _coerce_str(os.getenv("WORKFLOW_HTTP_URL"))
+    return None
+
+
+def _default_step_method(step: WorkflowStep) -> str:
+    if step.kind.lower() == "export":
+        return "GET"
+    return "POST"
+
+
+def _execute_http_step(step: WorkflowStep) -> dict[str, object]:
+    config = step.config or {}
+    url = _resolve_step_url(step, config)
+    if not url:
+        raise ValueError(f"Missing URL for workflow step {step.id}")
+    params = config.get("params")
+    if isinstance(params, dict):
+        url = _append_query_params(url, params)
+    method = _coerce_str(config.get("method")) or _default_step_method(step)
+    headers = _coerce_mapping(config.get("headers")) or {}
+    api_key = _coerce_str(config.get("api_key")) or _coerce_str(
+        os.getenv("WORKFLOW_API_KEY")
+    )
+    if api_key:
+        header_name = _coerce_str(config.get("api_key_header")) or "x-api-key"
+        headers[header_name] = api_key
+    body = config.get("payload")
+    if body is None:
+        body = config.get("body")
+    data: bytes | None = None
+    if body is not None and method.upper() not in {"GET", "HEAD"}:
+        if isinstance(body, (dict, list)):
+            data = json.dumps(body).encode("utf-8")
+            headers.setdefault("Content-Type", "application/json")
+        else:
+            data = str(body).encode("utf-8")
+    timeout = _step_timeout(step)
+    request = UrlRequest(url, data=data, method=method.upper())
+    for key, value in headers.items():
+        request.add_header(key, value)
+    started = time.monotonic()
+    try:
+        with urlopen(request, timeout=timeout) as response:
+            status_code = int(response.status)
+            elapsed_ms = int((time.monotonic() - started) * 1000)
+            return {"status_code": status_code, "elapsed_ms": elapsed_ms, "url": url}
+    except HTTPError as exc:
+        elapsed_ms = int((time.monotonic() - started) * 1000)
+        raise RuntimeError(f"HTTP {exc.code} ({elapsed_ms}ms)") from exc
+    except URLError as exc:
+        raise RuntimeError(f"HTTP request failed: {exc.reason}") from exc
+
+
+def _execute_step_once(step: WorkflowStep) -> dict[str, object]:
+    kind = step.kind.lower()
+    if kind == "delay":
+        config = step.config or {}
+        seconds = _coerce_float(config.get("seconds"))
+        if seconds is None:
+            seconds = _coerce_float(config.get("delay_seconds"))
+        seconds = seconds or 0.0
+        if seconds > 0:
+            time.sleep(seconds)
+        return {"delay_seconds": seconds}
+    if kind in {"webhook", "http", "ingest", "export"}:
+        return _execute_http_step(step)
+    if kind == "noop":
+        return {"status": "noop"}
+    raise ValueError(f"Unsupported workflow step kind: {step.kind}")
+
+
+def _step_retry_delay(step: WorkflowStep) -> float:
+    config = step.config or {}
+    delay = _coerce_float(config.get("retry_delay_seconds"))
+    if delay is not None:
+        return delay
+    return 0.0
+
+
+def _execute_step(step: WorkflowStep) -> dict[str, object]:
+    retries = step.retries or 0
+    attempts = 0
+    delay = _step_retry_delay(step)
+    while True:
+        attempts += 1
+        started_at = _now_iso()
+        try:
+            output = _execute_step_once(step)
+            finished_at = _now_iso()
+            return {
+                "id": step.id,
+                "name": step.name,
+                "kind": step.kind,
+                "status": "completed",
+                "attempts": attempts,
+                "started_at": started_at,
+                "finished_at": finished_at,
+                "output": output,
+            }
+        except Exception as exc:
+            error = str(exc)
+            finished_at = _now_iso()
+            if attempts <= retries:
+                if delay > 0:
+                    time.sleep(delay)
+                continue
+            return {
+                "id": step.id,
+                "name": step.name,
+                "kind": step.kind,
+                "status": "failed",
+                "attempts": attempts,
+                "started_at": started_at,
+                "finished_at": finished_at,
+                "error": error,
+            }
+
+
+def _find_workflow(
+    workflows: Iterable[WorkflowSpec],
+    workflow_id: str,
+) -> WorkflowSpec | None:
+    return next(
+        (workflow for workflow in workflows if workflow.id == workflow_id),
+        None,
+    )
+
+
+def _find_run(runs: Iterable[WorkflowRun], run_id: str) -> WorkflowRun | None:
+    return next((run for run in runs if run.id == run_id), None)
+
+
+def _update_run(
+    *,
+    base_uri: str,
+    run: WorkflowRun,
+    status: str | None = None,
+    started_at: str | None = None,
+    finished_at: str | None = None,
+    error: str | None = None,
+    output: dict[str, object] | None = None,
+) -> WorkflowRun:
+    updated = WorkflowRun(
+        id=run.id,
+        workflow_id=run.workflow_id,
+        status=status or run.status,
+        started_at=started_at or run.started_at,
+        finished_at=finished_at or run.finished_at,
+        error=error if error is not None else run.error,
+        output=output if output is not None else run.output,
+        triggered_by=run.triggered_by,
+    )
+    update_workflow_run(base_uri=base_uri, run=updated)
+    return updated
+
+
+def _execute_workflow_run(
+    *,
+    base_uri: str,
+    workflow: WorkflowSpec,
+    run: WorkflowRun,
+) -> WorkflowRun:
+    if run.status in {"completed", "failed"}:
+        return run
+    running = _update_run(
+        base_uri=base_uri,
+        run=run,
+        status="running",
+        started_at=_now_iso(),
+        finished_at=None,
+        error=None,
+    )
+    step_results: list[dict[str, object]] = []
+    error: str | None = None
+    for step in workflow.steps:
+        result = _execute_step(step)
+        step_results.append(result)
+        if result.get("status") != "completed":
+            error = str(result.get("error") or "Step failed")
+            break
+    status = "completed" if error is None else "failed"
+    finished = _update_run(
+        base_uri=base_uri,
+        run=running,
+        status=status,
+        finished_at=_now_iso(),
+        error=error,
+        output={"steps": step_results},
+    )
+    if status == "failed" and error:
+        _publish_dlq(run=finished, workflow=workflow, error=error)
+    return finished
+
+
+def _runner_authorized(request: Request, payload: dict[str, object]) -> None:
+    token = _runner_token()
+    if token:
+        payload_token = _coerce_str(payload.get("token"))
+        if payload_token != token:
+            raise HTTPException(status_code=403, detail="Forbidden")
+        return
+    _authorize(request)
+
+
 @app.get("/health", response_model=HealthResponse)
 async def health() -> HealthResponse:
     return HealthResponse(
@@ -319,6 +813,62 @@ async def list_runs(
     return [_run_response(run) for run in runs]
 
 
+@app.post("/workflows/schedule/tick", response_model=ScheduleTickResponse)
+async def schedule_tick(
+    request: Request,
+    dry_run: bool = False,
+) -> ScheduleTickResponse:
+    _authorize(request)
+    base_uri = _get_config().graph_root_uri()
+    workflows = load_workflows(base_uri)
+    runs = load_workflow_runs(base_uri)
+    now = datetime.now(timezone.utc)
+    active = {run.workflow_id for run in runs if run.status in {"queued", "running"}}
+    last_run: dict[str, datetime] = {}
+    for run in runs:
+        parsed = _parse_iso(run.started_at)
+        if parsed is None:
+            continue
+        existing = last_run.get(run.workflow_id)
+        if existing is None or parsed > existing:
+            last_run[run.workflow_id] = parsed
+
+    triggered: list[str] = []
+    skipped = 0
+    for workflow in workflows:
+        if not workflow.enabled or not workflow.schedule:
+            continue
+        if workflow.id in active:
+            skipped += 1
+            continue
+        due = _schedule_due(
+            workflow.schedule,
+            last_run=last_run.get(workflow.id),
+            now=now,
+        )
+        if not due:
+            continue
+        if dry_run:
+            triggered.append(workflow.id)
+            continue
+        run = register_workflow_run(
+            base_uri=base_uri,
+            workflow_id=workflow.id,
+            status="queued",
+            triggered_by="schedule",
+        )
+        if _run_mode() == "queue" and _queue_topic():
+            _enqueue_run(run=run, workflow=workflow, reason="schedule")
+        else:
+            run = _execute_workflow_run(base_uri=base_uri, workflow=workflow, run=run)
+        triggered.append(run.id)
+    return ScheduleTickResponse(
+        triggered=len(triggered),
+        skipped=skipped,
+        run_ids=triggered,
+    )
+
+
 @app.post(
     "/workflows/{workflow_id}/runs",
     response_model=WorkflowRunResponse,
@@ -330,9 +880,14 @@ async def create_run(
     payload: WorkflowRunRequest,
 ) -> WorkflowRunResponse:
     _authorize(request)
+    base_uri = _get_config().graph_root_uri()
+    workflows = load_workflows(base_uri)
+    workflow = _find_workflow(workflows, workflow_id)
+    if workflow is None:
+        raise HTTPException(status_code=404, detail="Workflow not found")
     status = payload.status or "queued"
     run = register_workflow_run(
-        base_uri=_get_config().graph_root_uri(),
+        base_uri=base_uri,
         workflow_id=workflow_id,
         status=status,
         finished_at=payload.finished_at,
@@ -340,4 +895,40 @@ async def create_run(
         output=payload.output,
         triggered_by=payload.triggered_by,
     )
+    execute = payload.execute if payload.execute is not None else True
+    if execute:
+        if _run_mode() == "queue" and _queue_topic():
+            _enqueue_run(run=run, workflow=workflow, reason="manual")
+        else:
+            run = _execute_workflow_run(base_uri=base_uri, workflow=workflow, run=run)
     return _run_response(run)
+
+
+@app.post("/workflows/runner", response_model=WorkflowRunResponse)
+async def workflow_runner(
+    request: Request,
+    body: dict[str, Any],
+) -> WorkflowRunResponse:
+    envelope = parse_pubsub_push(body)
+    try:
+        payload = json.loads(envelope.message.data.decode("utf-8"))
+    except json.JSONDecodeError as exc:
+        raise HTTPException(status_code=400, detail="Invalid payload") from exc
+    if not isinstance(payload, dict):
+        raise HTTPException(status_code=400, detail="Invalid payload")
+    _runner_authorized(request, payload)
+    workflow_id = _coerce_str(payload.get("workflow_id"))
+    run_id = _coerce_str(payload.get("run_id"))
+    if not workflow_id or not run_id:
+        raise HTTPException(status_code=400, detail="Missing workflow_id or run_id")
+    base_uri = _get_config().graph_root_uri()
+    workflows = load_workflows(base_uri)
+    runs = load_workflow_runs(base_uri)
+    workflow = _find_workflow(workflows, workflow_id)
+    if workflow is None:
+        raise HTTPException(status_code=404, detail="Workflow not found")
+    run = _find_run(runs, run_id)
+    if run is None:
+        raise HTTPException(status_code=404, detail="Run not found")
+    updated = _execute_workflow_run(base_uri=base_uri, workflow=workflow, run=run)
+    return _run_response(updated)

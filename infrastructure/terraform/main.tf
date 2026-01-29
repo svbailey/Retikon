@@ -44,6 +44,14 @@ resource "google_pubsub_topic" "stream_ingest" {
   name = var.stream_ingest_topic_name
 }
 
+resource "google_pubsub_topic" "workflow_queue" {
+  name = var.workflow_queue_topic_name
+}
+
+resource "google_pubsub_topic" "workflow_dlq" {
+  name = var.workflow_dlq_topic_name
+}
+
 resource "google_pubsub_subscription" "ingest_dlq" {
   name  = var.ingest_dlq_subscription_name
   topic = google_pubsub_topic.ingest_dlq.name
@@ -74,6 +82,23 @@ resource "google_pubsub_subscription" "stream_ingest" {
   }
 }
 
+resource "google_pubsub_subscription" "workflow_queue" {
+  name  = var.workflow_queue_subscription_name
+  topic = google_pubsub_topic.workflow_queue.name
+
+  ack_deadline_seconds       = 60
+  message_retention_duration = "604800s"
+
+  dead_letter_policy {
+    dead_letter_topic     = google_pubsub_topic.workflow_dlq.id
+    max_delivery_attempts = var.workflow_max_delivery_attempts
+  }
+
+  push_config {
+    push_endpoint = "${google_cloud_run_service.workflow.status[0].url}/workflows/runner"
+  }
+}
+
 resource "google_service_account" "ingestion" {
   account_id   = var.ingestion_service_account_name
   display_name = "Retikon Ingestion Service Account"
@@ -87,6 +112,11 @@ resource "google_service_account" "query" {
 resource "google_service_account" "audit" {
   account_id   = var.audit_service_account_name
   display_name = "Retikon Audit Service Account"
+}
+
+resource "google_service_account" "workflow" {
+  account_id   = var.workflow_service_account_name
+  display_name = "Retikon Workflow Service Account"
 }
 
 resource "google_service_account" "dev_console" {
@@ -179,6 +209,18 @@ resource "google_pubsub_topic_iam_member" "stream_ingest_publisher" {
   member = "serviceAccount:${google_service_account.stream_ingest.email}"
 }
 
+resource "google_pubsub_topic_iam_member" "workflow_queue_publisher" {
+  topic  = google_pubsub_topic.workflow_queue.name
+  role   = "roles/pubsub.publisher"
+  member = "serviceAccount:${google_service_account.workflow.email}"
+}
+
+resource "google_pubsub_topic_iam_member" "workflow_dlq_publisher" {
+  topic  = google_pubsub_topic.workflow_dlq.name
+  role   = "roles/pubsub.publisher"
+  member = "serviceAccount:${google_service_account.workflow.email}"
+}
+
 resource "google_pubsub_topic_iam_member" "eventarc_transport_publisher" {
   topic  = google_pubsub_topic.ingest_transport.name
   role   = "roles/pubsub.publisher"
@@ -201,6 +243,12 @@ resource "google_storage_bucket_iam_member" "audit_graph_view" {
   bucket = google_storage_bucket.graph.name
   role   = "roles/storage.objectViewer"
   member = "serviceAccount:${google_service_account.audit.email}"
+}
+
+resource "google_storage_bucket_iam_member" "workflow_graph_admin" {
+  bucket = google_storage_bucket.graph.name
+  role   = "roles/storage.objectAdmin"
+  member = "serviceAccount:${google_service_account.workflow.email}"
 }
 
 resource "google_storage_bucket_iam_member" "dev_console_raw_view" {
@@ -300,6 +348,12 @@ resource "google_secret_manager_secret_iam_member" "audit_api_key_access" {
   secret_id = google_secret_manager_secret.query_api_key.secret_id
   role      = "roles/secretmanager.secretAccessor"
   member    = "serviceAccount:${google_service_account.audit.email}"
+}
+
+resource "google_secret_manager_secret_iam_member" "workflow_api_key_access" {
+  secret_id = google_secret_manager_secret.query_api_key.secret_id
+  role      = "roles/secretmanager.secretAccessor"
+  member    = "serviceAccount:${google_service_account.workflow.email}"
 }
 
 resource "google_cloud_run_service" "ingestion" {
@@ -923,6 +977,128 @@ resource "google_cloud_run_service" "audit" {
   autogenerate_revision_name = true
 }
 
+resource "google_cloud_run_service" "workflow" {
+  name     = "${var.workflow_service_name}-${var.env}"
+  location = var.region
+
+  metadata {
+    annotations = {
+      "run.googleapis.com/ingress" = "all"
+    }
+  }
+
+  template {
+    metadata {
+      annotations = {
+        "autoscaling.knative.dev/maxScale" = tostring(var.workflow_max_scale)
+        "autoscaling.knative.dev/minScale" = tostring(var.workflow_min_scale)
+      }
+    }
+
+    spec {
+      service_account_name = google_service_account.workflow.email
+      container_concurrency = var.workflow_concurrency
+      timeout_seconds      = var.workflow_timeout_seconds
+
+      containers {
+        image = var.workflow_image
+
+        resources {
+          limits = {
+            cpu    = var.workflow_cpu
+            memory = var.workflow_memory
+          }
+        }
+
+        env {
+          name  = "APP_MODULE"
+          value = "gcp_adapter.workflow_service:app"
+        }
+        env {
+          name  = "ENV"
+          value = var.env
+        }
+        env {
+          name  = "LOG_LEVEL"
+          value = var.log_level
+        }
+        env {
+          name  = "RAW_BUCKET"
+          value = google_storage_bucket.raw.name
+        }
+        env {
+          name  = "GRAPH_BUCKET"
+          value = google_storage_bucket.graph.name
+        }
+        env {
+          name  = "GRAPH_PREFIX"
+          value = var.graph_prefix
+        }
+        env {
+          name  = "MAX_RAW_BYTES"
+          value = tostring(var.max_raw_bytes)
+        }
+        env {
+          name  = "MAX_VIDEO_SECONDS"
+          value = tostring(var.max_video_seconds)
+        }
+        env {
+          name  = "MAX_AUDIO_SECONDS"
+          value = tostring(var.max_audio_seconds)
+        }
+        env {
+          name  = "MAX_FRAMES_PER_VIDEO"
+          value = tostring(var.max_frames_per_video)
+        }
+        env {
+          name  = "CHUNK_TARGET_TOKENS"
+          value = tostring(var.chunk_target_tokens)
+        }
+        env {
+          name  = "CHUNK_OVERLAP_TOKENS"
+          value = tostring(var.chunk_overlap_tokens)
+        }
+        env {
+          name  = "WORKFLOW_REQUIRE_ADMIN"
+          value = var.workflow_require_admin ? "1" : "0"
+        }
+        env {
+          name  = "WORKFLOW_RUN_MODE"
+          value = var.workflow_run_mode
+        }
+        env {
+          name  = "WORKFLOW_QUEUE_TOPIC"
+          value = "projects/${var.project_id}/topics/${var.workflow_queue_topic_name}"
+        }
+        env {
+          name  = "WORKFLOW_DLQ_TOPIC"
+          value = "projects/${var.project_id}/topics/${var.workflow_dlq_topic_name}"
+        }
+        env {
+          name = "WORKFLOW_API_KEY"
+          value_from {
+            secret_key_ref {
+              name = google_secret_manager_secret.query_api_key.secret_id
+              key  = "latest"
+            }
+          }
+        }
+        env {
+          name = "WORKFLOW_RUNNER_TOKEN"
+          value_from {
+            secret_key_ref {
+              name = google_secret_manager_secret.query_api_key.secret_id
+              key  = "latest"
+            }
+          }
+        }
+      }
+    }
+  }
+
+  autogenerate_revision_name = true
+}
+
 resource "google_cloud_run_service" "dev_console" {
   name     = "${var.dev_console_service_name}-${var.env}"
   location = var.region
@@ -1332,6 +1508,13 @@ resource "google_cloud_run_service_iam_member" "audit_invoker" {
   member   = "allUsers"
 }
 
+resource "google_cloud_run_service_iam_member" "workflow_invoker" {
+  location = google_cloud_run_service.workflow.location
+  service  = google_cloud_run_service.workflow.name
+  role     = "roles/run.invoker"
+  member   = "allUsers"
+}
+
 resource "google_cloud_run_service_iam_member" "dev_console_invoker" {
   location = google_cloud_run_service.dev_console.location
   service  = google_cloud_run_service.dev_console.name
@@ -1569,6 +1752,24 @@ resource "google_cloud_scheduler_job" "compaction" {
     oauth_token {
       service_account_email = google_service_account.compaction.email
     }
+  }
+}
+
+resource "google_cloud_scheduler_job" "workflow_tick" {
+  name      = "retikon-workflow-schedule-${var.env}"
+  schedule  = var.workflow_schedule
+  time_zone = var.workflow_schedule_timezone
+
+  http_target {
+    http_method = "POST"
+    uri         = "${google_cloud_run_service.workflow.status[0].url}/workflows/schedule/tick"
+
+    headers = {
+      "Content-Type" = "application/json"
+      "x-api-key"    = local.resolved_query_api_key
+    }
+
+    body = base64encode("{}")
   }
 }
 

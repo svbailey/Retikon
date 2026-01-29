@@ -10,6 +10,7 @@ from retikon_core.workflows import (
     register_workflow,
     register_workflow_run,
     update_workflow,
+    update_workflow_run,
 )
 from retikon_core.workflows.types import WorkflowSpec, WorkflowStep
 
@@ -78,3 +79,30 @@ def test_workflow_runs(tmp_path):
     assert runs
     assert runs[0].id == run.id
     assert runs[0].workflow_id == workflow.id
+
+
+@pytest.mark.core
+def test_workflow_run_update(tmp_path):
+    workflow = register_workflow(
+        base_uri=tmp_path.as_posix(),
+        name="Job",
+        steps=[],
+    )
+    run = register_workflow_run(
+        base_uri=tmp_path.as_posix(),
+        workflow_id=workflow.id,
+        status="queued",
+    )
+    updated = run.__class__(
+        id=run.id,
+        workflow_id=run.workflow_id,
+        status="completed",
+        started_at=run.started_at,
+        finished_at=datetime.now(timezone.utc).isoformat(),
+        error=None,
+        output={"steps": []},
+        triggered_by="test",
+    )
+    update_workflow_run(base_uri=tmp_path.as_posix(), run=updated)
+    runs = list_workflow_runs(tmp_path.as_posix())
+    assert runs[0].status == "completed"
