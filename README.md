@@ -101,6 +101,7 @@ least-privilege GCS access as defined in the build kit doc.
 - Node.js 18+ (Dev Console)
 - ffmpeg + ffprobe
 - poppler-utils (pdftoppm for PDF image extraction; optional but recommended)
+- Optional ML deps for real embeddings/transcription: `pip install -r requirements-ml.txt`
 
 ## Environment variables
 

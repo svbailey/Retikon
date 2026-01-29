@@ -18,6 +18,12 @@ Create `.env` with the required variables (see `README.md`).
 
 ### Real models (optional)
 
+Install the optional ML dependencies first:
+
+```bash
+pip install -r requirements-ml.txt
+```
+
 Set these for real model runs (CPU-only default):
 
 - `USE_REAL_MODELS=1`

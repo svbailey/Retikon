@@ -1,0 +1,8 @@
+openai-whisper
+sentence-transformers
+soundfile
+torch
+torchaudio
+transformers
+onnx
+onnxruntime

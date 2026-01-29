@@ -28,6 +28,8 @@ Core:
 - Default storage is local (filesystem).
 - Optional object-store support is allowed in Core via extras (S3-compatible,
   GCS, Azure) but Core must remain cloud-agnostic and unmanaged.
+- Heavy ML dependencies are optional (requirements-ml.txt) so Core can run
+  without installing torch/transformers/whisper.
 
 Pro:
 - May depend on GCP SDKs and adapters.
