@@ -86,7 +86,10 @@ def _load_tokenizer():
     if _use_simple_tokenizer():
         return _SimpleTokenizer()
 
-    from transformers import AutoTokenizer
+    try:
+        from transformers import AutoTokenizer
+    except ImportError:
+        return _SimpleTokenizer()
 
     cache_dir = _tokenizer_cache_dir()
     return AutoTokenizer.from_pretrained(
