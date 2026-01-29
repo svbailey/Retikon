@@ -18,6 +18,10 @@
 - **Advanced feedback loops**: Captures usage signals so quality can improve.
 - **Cost controls + autoscaling profiles**: Keeps spend predictable so enterprise ops are viable.
 
+### Sprint 00 - v3.1 Carryover Closeout (BYOC + GPU)
+- **BYOC adapter maturity**: Implements real K8s providers so Pro can run BYOC reliably.
+- **GPU tier deployment**: Enables GPU query services so tiered performance is available.
+
 ### Sprint 01 - Connector SDK + Registry (Core)
 - **Connector interfaces + registry loader**: Standardizes connector metadata so config is consistent.
 - **CLI commands**: Lists/validates connectors so users can trust configuration.

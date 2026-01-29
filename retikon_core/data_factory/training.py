@@ -4,7 +4,7 @@ import json
 import uuid
 from dataclasses import asdict, dataclass
 from datetime import datetime, timezone
-from typing import Iterable, Protocol
+from typing import Any, Iterable, Protocol
 
 import fsspec
 
@@ -280,7 +280,7 @@ def enqueue_training_job(
     return publisher.publish(topic=topic, data=data)
 
 
-def _normalize_labels(labels: Iterable[str] | None) -> tuple[str, ...] | None:
+def _normalize_labels(labels: Iterable[object] | None) -> tuple[str, ...] | None:
     if not labels:
         return None
     cleaned = [str(label).strip() for label in labels if str(label).strip()]
@@ -339,7 +339,7 @@ def _coerce_dict(value: object) -> dict[str, object] | None:
     return {str(key): item for key, item in value.items()}
 
 
-def _coerce_int(value: object) -> int:
+def _coerce_int(value: Any) -> int:
     if value is None:
         return 0
     try:
@@ -348,7 +348,7 @@ def _coerce_int(value: object) -> int:
         return 0
 
 
-def _coerce_float(value: object) -> float:
+def _coerce_float(value: Any) -> float:
     if value is None:
         return 0.0
     try:

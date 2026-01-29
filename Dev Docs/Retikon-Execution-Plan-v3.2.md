@@ -187,6 +187,19 @@ Pro:
 ## Sprint Backlog (v3.2)
 Cadence: 2-week sprints
 
+Sprint 0 - v3.1 Carryover Closeout (BYOC + GPU)
+- Owner: Platform Eng (Infra) + DevOps
+- Estimate: 1 week, 2 eng
+- Scope (Pro):
+  - BYOC adapter maturity (K8s):
+    - Implement real providers in `k8s_adapter/` (object store, queue, secrets, state).
+    - Add smoke tests: `tests/pro/test_k8s_adapter_smoke.py`.
+    - Validate BYOC deployment path in staging.
+  - GPU tier deployment:
+    - Enable GPU service deploy via `infrastructure/terraform/`.
+    - Set `query_gpu_enabled=true` in the deployment environment.
+    - Confirm CPU + GPU tiers are both available in Pro.
+
 Sprint 1 - Connector SDK + Registry (Core foundation)
 - Owner: Platform Eng (Data)
 - Estimate: 2 weeks, 3 eng

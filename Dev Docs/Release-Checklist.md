@@ -1,5 +1,13 @@
 # Release Checklist
 
+## v3.1 (Closeout pending)
+
+- [x] Core + Pro test suites green in CI (`python -m pytest tests/core` and `python -m pytest tests/pro`).
+- [x] Lint + typecheck green in CI (`python -m ruff check .` and `python -m mypy retikon_core gcp_adapter`).
+- [x] Staging smoke checks recorded for key services (ingest/query/audit/workflow/data-factory/privacy/chaos).
+- [x] v3.1 deferrals documented (BYOC + GPU) and mapped to v3.2 Sprint 00.
+- [ ] Release artifacts tagged and pushed (if applicable).
+
 ## v3.0 (Draft)
 
 - [x] All sprint exit criteria satisfied (Sprints 1-10).
@@ -27,6 +35,16 @@
 
 ## Notes
 
+- v3.1 local checks run (2026-01-29): `python -m ruff check .`, `python -m mypy retikon_core gcp_adapter`,
+  `python -m pytest tests/core` (106 passed, 7 skipped), `python -m pytest tests/pro` (39 passed).
+- v3.1 staging smoke checks (2026-01-29):
+  - query: `/health` 200
+  - audit: `/health` 200
+  - workflow: `/health` 200
+  - data-factory: `/health` 200
+  - privacy: `/health` 200
+  - chaos: `/health` 200
+  - ingestion: service is `internal-and-cloud-load-balancing` (not externally reachable); `/health` not checked from public endpoint.
 - Local `make lint` and `make test` run on 2026-01-26.
 - Local `python -m ruff check .` and `python -m pytest -q` run on 2026-01-27 (CI pending).
 - CI run `main` workflow_dispatch passed (run `21362050792`, 2026-01-26).
