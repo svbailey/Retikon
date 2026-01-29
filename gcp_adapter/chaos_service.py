@@ -1,10 +1,8 @@
 import os
-import time
 import uuid
 from datetime import datetime, timezone
 
 from fastapi import FastAPI, HTTPException, Request
-from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
 from retikon_core.auth import AuthContext, authorize_api_key
@@ -24,6 +22,11 @@ from retikon_core.chaos import (
 from retikon_core.config import get_config
 from retikon_core.errors import AuthError
 from retikon_core.logging import configure_logging, get_logger
+from retikon_core.services.fastapi_scaffolding import (
+    HealthResponse,
+    apply_cors_middleware,
+    build_health_response,
+)
 
 SERVICE_NAME = "retikon-chaos"
 
@@ -35,14 +38,7 @@ configure_logging(
 logger = get_logger(__name__)
 
 app = FastAPI()
-
-
-class HealthResponse(BaseModel):
-    status: str
-    service: str
-    version: str
-    commit: str
-    timestamp: str
+apply_cors_middleware(app)
 
 
 class ChaosStepPayload(BaseModel):
@@ -115,27 +111,6 @@ class ChaosRunResponse(BaseModel):
     error: str | None
     summary: dict[str, object] | None
     triggered_by: str | None
-
-
-def _cors_origins() -> list[str]:
-    raw = os.getenv("CORS_ALLOW_ORIGINS", "")
-    if raw:
-        return [origin.strip() for origin in raw.split(",") if origin.strip()]
-    env = os.getenv("ENV", "dev").lower()
-    if env in {"dev", "local", "test"}:
-        return ["*"]
-    return []
-
-
-_cors = _cors_origins()
-if _cors:
-    app.add_middleware(
-        CORSMiddleware,
-        allow_origins=_cors,
-        allow_credentials=False,
-        allow_methods=["*"],
-        allow_headers=["*"],
-    )
 
 
 def _api_key_required() -> bool:
@@ -232,13 +207,7 @@ def _run_response(run: ChaosRun) -> ChaosRunResponse:
 
 @app.get("/health", response_model=HealthResponse)
 async def health() -> HealthResponse:
-    return HealthResponse(
-        status="ok",
-        service=SERVICE_NAME,
-        version=os.getenv("RETIKON_VERSION", "dev"),
-        commit=os.getenv("GIT_COMMIT", "unknown"),
-        timestamp=time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
-    )
+    return build_health_response(SERVICE_NAME)
 
 
 @app.get("/chaos/policies", response_model=list[ChaosPolicyResponse])

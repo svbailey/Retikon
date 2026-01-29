@@ -6,8 +6,6 @@ from dataclasses import dataclass
 from datetime import datetime, timezone
 
 from fastapi import FastAPI, Header, HTTPException, Request
-from fastapi.middleware.cors import CORSMiddleware
-from pydantic import BaseModel
 
 from retikon_core.audit import record_audit_log
 from retikon_core.auth import (
@@ -21,6 +19,12 @@ from retikon_core.errors import AuthError
 from retikon_core.logging import configure_logging, get_logger
 from retikon_core.metering import record_usage
 from retikon_core.query_engine import download_snapshot, get_secure_connection
+from retikon_core.services.fastapi_scaffolding import (
+    HealthResponse,
+    add_correlation_id_middleware,
+    apply_cors_middleware,
+    build_health_response,
+)
 from retikon_core.services.query_config import QueryServiceConfig
 from retikon_core.services.query_service_core import (
     QueryRequest,
@@ -88,48 +92,8 @@ class SnapshotState:
 STATE = SnapshotState()
 
 
-class HealthResponse(BaseModel):
-    status: str
-    service: str
-    version: str
-    commit: str
-    timestamp: str
-
-
-def _correlation_id(header_value: str | None) -> str:
-    if header_value:
-        return header_value
-    return str(uuid.uuid4())
-
-
-def _cors_origins() -> list[str]:
-    raw = os.getenv("CORS_ALLOW_ORIGINS", "")
-    if raw:
-        return [origin.strip() for origin in raw.split(",") if origin.strip()]
-    env = os.getenv("ENV", "dev").lower()
-    if env in {"dev", "local", "test"}:
-        return ["*"]
-    return []
-
-
-_cors = _cors_origins()
-if _cors:
-    app.add_middleware(
-        CORSMiddleware,
-        allow_origins=_cors,
-        allow_credentials=False,
-        allow_methods=["*"],
-        allow_headers=["*"],
-    )
-
-
-@app.middleware("http")
-async def add_correlation_id(request: Request, call_next):
-    corr = _correlation_id(request.headers.get("x-correlation-id"))
-    request.state.correlation_id = corr
-    response = await call_next(request)
-    response.headers["x-correlation-id"] = corr
-    return response
+apply_cors_middleware(app)
+add_correlation_id_middleware(app)
 
 
 def _api_key_required() -> bool:
@@ -248,15 +212,7 @@ def _warm_query_models() -> None:
 
 @app.get("/health", response_model=HealthResponse)
 async def health() -> HealthResponse:
-    version = os.getenv("RETIKON_VERSION", "dev")
-    commit = os.getenv("GIT_COMMIT", "unknown")
-    return HealthResponse(
-        status="ok",
-        service=SERVICE_NAME,
-        version=version,
-        commit=commit,
-        timestamp=time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
-    )
+    return build_health_response(SERVICE_NAME)
 
 
 @app.post("/query", response_model=QueryResponse)

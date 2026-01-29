@@ -12,13 +12,16 @@ import fsspec
 import google.auth
 import pyarrow.parquet as pq
 from fastapi import FastAPI, File, Form, HTTPException, Request, UploadFile
-from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
 from google.auth.transport.requests import AuthorizedSession
 from google.cloud import firestore, storage
 
 from retikon_core.ingestion.idempotency import build_doc_id
 from retikon_core.logging import configure_logging, get_logger
+from retikon_core.services.fastapi_scaffolding import (
+    apply_cors_middleware,
+    build_health_response,
+)
 from retikon_core.storage.paths import graph_root, manifest_uri
 
 SERVICE_NAME = "retikon-dev-console"
@@ -31,6 +34,7 @@ configure_logging(
 logger = get_logger(__name__)
 
 app = FastAPI()
+apply_cors_middleware(app)
 
 DEFAULT_RAW_PREFIX = "raw"
 UPLOAD_FILE = File(...)
@@ -41,27 +45,6 @@ CATEGORY_FORM = Form(...)
 class ObjectRef:
     bucket: str
     name: str
-
-
-def _cors_origins() -> list[str]:
-    raw = os.getenv("CORS_ALLOW_ORIGINS", "")
-    if raw:
-        return [origin.strip() for origin in raw.split(",") if origin.strip()]
-    env = os.getenv("ENV", "dev").lower()
-    if env in {"dev", "local", "test"}:
-        return ["*"]
-    return []
-
-
-_cors = _cors_origins()
-if _cors:
-    app.add_middleware(
-        CORSMiddleware,
-        allow_origins=_cors,
-        allow_credentials=False,
-        allow_methods=["*"],
-        allow_headers=["*"],
-    )
 
 
 def _require_api_key(request: Request) -> None:
@@ -190,13 +173,7 @@ def _firestore_client() -> firestore.Client:
 
 @app.get("/health")
 async def health() -> dict[str, str]:
-    return {
-        "status": "ok",
-        "service": SERVICE_NAME,
-        "version": os.getenv("RETIKON_VERSION", "dev"),
-        "commit": os.getenv("GIT_COMMIT", "unknown"),
-        "timestamp": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
-    }
+    return build_health_response(SERVICE_NAME).model_dump()
 
 
 @app.post("/dev/upload")

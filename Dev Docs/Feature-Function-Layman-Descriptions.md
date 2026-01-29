@@ -203,9 +203,6 @@ Internal helpers are included because they are still part of the codebase, but t
 ### `local_adapter/query_service.py`
 - Functions
   - `lifespan`: Function that sets up startup and shutdown hooks, so local development workflows run.
-  - `_correlation_id`: Internal helper that correlation ID, so local development workflows run.
-  - `_cors_origins`: Internal helper that cors origins, so local development workflows run.
-  - `add_correlation_id`: Function that add correlation ID, so local development workflows run.
   - `_api_key_required`: Internal helper that aPI key required, so local development workflows run.
   - `_get_api_key`: Internal helper that gets API key, so local development workflows run.
   - `_authorize`: Internal helper that authorizes it, so local development workflows run.
@@ -895,6 +892,16 @@ Internal helpers are included because they are still part of the codebase, but t
   - `QueryHit`: Data structure or helper class for query hits, so outputs are consistent.
   - `QueryResponse`: Data structure or helper class for query responses, so outputs are consistent.
 
+### `retikon_core/services/fastapi_scaffolding.py`
+- Functions
+  - `cors_origins`: Builds the allowed origins list, so CORS behavior is consistent.
+  - `apply_cors_middleware`: Attaches CORS middleware, so APIs can be called safely from browsers.
+  - `correlation_id`: Generates or reuses a correlation ID, so requests can be traced end-to-end.
+  - `add_correlation_id_middleware`: Adds correlation IDs to requests and responses, so logs are easier to follow.
+  - `build_health_response`: Builds a standard health payload, so health checks are consistent.
+- Classes
+  - `HealthResponse`: Data structure or helper class for health responses, so health checks are consistent.
+
 ### `retikon_core/services/query_config.py`
 - Classes
   - `QueryServiceConfig`: Data structure or helper class for query service settings, so local and Pro stay consistent.
@@ -1105,7 +1112,6 @@ Internal helpers are included because they are still part of the codebase, but t
 ### `gcp_adapter/audit_service.py`
 - Functions
   - `lifespan`: Function that sets up startup and shutdown hooks, so audit access and exports are available.
-  - `_cors_origins`: Internal helper that cors origins, so audit access and exports are available.
   - `_api_key_required`: Internal helper that aPI key required, so audit access and exports are available.
   - `_require_admin`: Internal helper that require admin, so audit access and exports are available.
   - `_audit_api_key`: Internal helper that audit API key, so audit access and exports are available.
@@ -1138,7 +1144,6 @@ Internal helpers are included because they are still part of the codebase, but t
 
 ### `gcp_adapter/dev_console_service.py`
 - Functions
-  - `_cors_origins`: Internal helper that cors origins, so the dev console can upload and inspect data.
   - `_require_api_key`: Internal helper that require API key, so the dev console can upload and inspect data.
   - `_project_id`: Internal helper that project ID, so the dev console can upload and inspect data.
   - `_graph_settings`: Internal helper that graph settings, so the dev console can upload and inspect data.
@@ -1178,7 +1183,6 @@ Internal helpers are included because they are still part of the codebase, but t
 
 ### `gcp_adapter/edge_gateway_service.py`
 - Functions
-  - `_cors_origins`: Internal helper that cors origins, so edge gateways can buffer and upload safely.
   - `_buffer_dir`: Internal helper that builds the buffer directory, so edge gateways can buffer and upload safely.
   - `_buffer_max_bytes`: Internal helper that buffer max bytes, so edge gateways can buffer and upload safely.
   - `_buffer_ttl_seconds`: Internal helper that buffer ttl seconds, so edge gateways can buffer and upload safely.
@@ -1209,7 +1213,6 @@ Internal helpers are included because they are still part of the codebase, but t
 
 ### `gcp_adapter/fleet_service.py`
 - Functions
-  - `_cors_origins`: Internal helper that cors origins, so the system works as expected.
   - `_api_key_required`: Internal helper that aPI key required, so the system works as expected.
   - `_require_admin`: Internal helper that require admin, so the system works as expected.
   - `_fleet_api_key`: Internal helper that fleet API key, so the system works as expected.
@@ -1247,7 +1250,6 @@ Internal helpers are included because they are still part of the codebase, but t
 
 ### `gcp_adapter/ingestion_service.py`
 - Functions
-  - `_correlation_id`: Internal helper that correlation ID, so ingestion runs securely in the managed service.
   - `_require_ingest_auth`: Internal helper that require ingest auth, so ingestion runs securely in the managed service.
   - `_ingest_api_key`: Internal helper that ingests API key, so ingestion runs securely in the managed service.
   - `_authorize_ingest`: Internal helper that authorizes ingest, so ingestion runs securely in the managed service.
@@ -1258,7 +1260,6 @@ Internal helpers are included because they are still part of the codebase, but t
   - `_audit_logging_enabled`: Internal helper that checks whether audit logging is enabled, so ingestion runs securely in the managed service.
   - `_schema_version`: Internal helper that schema version, so ingestion runs securely in the managed service.
   - `_default_scope`: Internal helper that default scope, so ingestion runs securely in the managed service.
-  - `add_correlation_id`: Function that add correlation ID, so ingestion runs securely in the managed service.
   - `health`: Reports service health, so ingestion runs securely in the managed service.
   - `ingest`: Accepts content to ingest and starts processing, so ingestion runs securely in the managed service.
   - `_coerce_cloudevent`: Internal helper that converts cloudevent, so ingestion runs securely in the managed service.
@@ -1271,7 +1272,6 @@ Internal helpers are included because they are still part of the codebase, but t
 
 ### `gcp_adapter/privacy_service.py`
 - Functions
-  - `_cors_origins`: Internal helper that cors origins, so privacy policies can be managed.
   - `_api_key_required`: Internal helper that aPI key required, so privacy policies can be managed.
   - `_require_admin`: Internal helper that require admin, so privacy policies can be managed.
   - `_privacy_api_key`: Internal helper that privacy API key, so privacy policies can be managed.
@@ -1300,9 +1300,6 @@ Internal helpers are included because they are still part of the codebase, but t
 ### `gcp_adapter/query_service.py`
 - Functions
   - `lifespan`: Function that sets up startup and shutdown hooks, so queries run securely in the managed service.
-  - `_correlation_id`: Internal helper that correlation ID, so queries run securely in the managed service.
-  - `_cors_origins`: Internal helper that cors origins, so queries run securely in the managed service.
-  - `add_correlation_id`: Function that add correlation ID, so queries run securely in the managed service.
   - `_api_key_required`: Internal helper that aPI key required, so queries run securely in the managed service.
   - `_get_api_key`: Internal helper that gets API key, so queries run securely in the managed service.
   - `_graph_root_uri`: Internal helper that builds the graph root URI, so queries run securely in the managed service.
@@ -1342,8 +1339,6 @@ Internal helpers are included because they are still part of the codebase, but t
 
 ### `gcp_adapter/stream_ingest_service.py`
 - Functions
-  - `_correlation_id`: Internal helper that correlation ID, so streaming ingestion is reliable.
-  - `add_correlation_id`: Function that add correlation ID, so streaming ingestion is reliable.
   - `_stream_topic`: Internal helper that streams topic, so streaming ingestion is reliable.
   - `_batch_max`: Internal helper that batch max, so streaming ingestion is reliable.
   - `_batch_latency_ms`: Internal helper that batch latency ms, so streaming ingestion is reliable.
@@ -1367,8 +1362,6 @@ Internal helpers are included because they are still part of the codebase, but t
 
 ### `gcp_adapter/webhook_service.py`
 - Functions
-  - `_correlation_id`: Internal helper that correlation ID, so webhooks and alerts are managed.
-  - `add_correlation_id`: Function that add correlation ID, so webhooks and alerts are managed.
   - `health`: Reports service health, so webhooks and alerts are managed.
   - `list_webhooks`: Function that lists webhooks, so webhooks and alerts are managed.
   - `create_webhook`: Function that creates webhook, so webhooks and alerts are managed.

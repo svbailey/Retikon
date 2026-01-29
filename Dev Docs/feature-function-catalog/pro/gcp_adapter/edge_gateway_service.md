@@ -3,7 +3,6 @@
 Edition: Pro
 
 ## Functions
-- `_cors_origins`: Internal helper that cors origins, so edge gateways can buffer and upload safely.
 - `_buffer_dir`: Internal helper that builds the buffer directory, so edge gateways can buffer and upload safely.
 - `_buffer_max_bytes`: Internal helper that buffer max bytes, so edge gateways can buffer and upload safely.
 - `_buffer_ttl_seconds`: Internal helper that buffer ttl seconds, so edge gateways can buffer and upload safely.

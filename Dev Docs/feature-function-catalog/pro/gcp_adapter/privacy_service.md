@@ -3,7 +3,6 @@
 Edition: Pro
 
 ## Functions
-- `_cors_origins`: Internal helper that cors origins, so privacy policies can be managed.
 - `_api_key_required`: Internal helper that aPI key required, so privacy policies can be managed.
 - `_require_admin`: Internal helper that require admin, so privacy policies can be managed.
 - `_privacy_api_key`: Internal helper that privacy API key, so privacy policies can be managed.

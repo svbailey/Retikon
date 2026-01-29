@@ -1,5 +1,4 @@
 import os
-import time
 import uuid
 from dataclasses import replace
 from datetime import datetime, timezone
@@ -13,6 +12,11 @@ from retikon_core.alerts import evaluate_rules, load_alerts, register_alert
 from retikon_core.alerts.types import AlertDestination, AlertRule
 from retikon_core.config import get_config
 from retikon_core.logging import configure_logging, get_logger
+from retikon_core.services.fastapi_scaffolding import (
+    HealthResponse,
+    add_correlation_id_middleware,
+    build_health_response,
+)
 from retikon_core.webhooks.delivery import (
     DeliveryOptions,
     DeliveryResult,
@@ -35,14 +39,7 @@ configure_logging(
 logger = get_logger(__name__)
 
 app = FastAPI()
-
-
-class HealthResponse(BaseModel):
-    status: str
-    service: str
-    version: str
-    commit: str
-    timestamp: str
+add_correlation_id_middleware(app)
 
 
 class WebhookCreateRequest(BaseModel):
@@ -116,32 +113,9 @@ class EventDeliveryResponse(BaseModel):
     log_uri: str | None = None
 
 
-def _correlation_id(header_value: str | None) -> str:
-    if header_value:
-        return header_value
-    return str(uuid.uuid4())
-
-
-@app.middleware("http")
-async def add_correlation_id(request: Request, call_next):
-    corr = _correlation_id(request.headers.get("x-correlation-id"))
-    request.state.correlation_id = corr
-    response = await call_next(request)
-    response.headers["x-correlation-id"] = corr
-    return response
-
-
 @app.get("/health", response_model=HealthResponse)
 async def health() -> HealthResponse:
-    version = os.getenv("RETIKON_VERSION", "dev")
-    commit = os.getenv("GIT_COMMIT", "unknown")
-    return HealthResponse(
-        status="ok",
-        service=SERVICE_NAME,
-        version=version,
-        commit=commit,
-        timestamp=time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
-    )
+    return build_health_response(SERVICE_NAME)
 
 
 @app.get("/webhooks", response_model=list[WebhookResponse])

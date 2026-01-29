@@ -11,7 +11,6 @@ from typing import AsyncIterator, Iterable, Iterator
 import duckdb
 import fsspec
 from fastapi import FastAPI, HTTPException, Request
-from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
 
 from retikon_core.auth import AuthContext, authorize_api_key
@@ -24,6 +23,10 @@ from retikon_core.privacy import (
     redact_text_for_context,
 )
 from retikon_core.query_engine.warm_start import get_secure_connection
+from retikon_core.services.fastapi_scaffolding import (
+    apply_cors_middleware,
+    build_health_response,
+)
 from retikon_core.storage.paths import graph_root, join_uri
 
 SERVICE_NAME = "retikon-audit"
@@ -56,27 +59,7 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
 
 
 app = FastAPI(lifespan=lifespan)
-
-
-def _cors_origins() -> list[str]:
-    raw = os.getenv("CORS_ALLOW_ORIGINS", "")
-    if raw:
-        return [origin.strip() for origin in raw.split(",") if origin.strip()]
-    env = os.getenv("ENV", "dev").lower()
-    if env in {"dev", "local", "test"}:
-        return ["*"]
-    return []
-
-
-_cors = _cors_origins()
-if _cors:
-    app.add_middleware(
-        CORSMiddleware,
-        allow_origins=_cors,
-        allow_credentials=False,
-        allow_methods=["*"],
-        allow_headers=["*"],
-    )
+apply_cors_middleware(app)
 
 
 def _api_key_required() -> bool:
@@ -398,13 +381,7 @@ def _privacy_policies(base_uri: str) -> list[PrivacyPolicy]:
 
 @app.get("/health")
 async def health() -> dict[str, str]:
-    return {
-        "status": "ok",
-        "service": SERVICE_NAME,
-        "version": os.getenv("RETIKON_VERSION", "dev"),
-        "commit": os.getenv("GIT_COMMIT", "unknown"),
-        "timestamp": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
-    }
+    return build_health_response(SERVICE_NAME).model_dump()
 
 
 @app.get("/audit/logs")

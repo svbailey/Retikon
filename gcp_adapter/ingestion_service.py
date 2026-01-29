@@ -31,6 +31,11 @@ from retikon_core.ingestion import process_event
 from retikon_core.ingestion.router import pipeline_version
 from retikon_core.logging import configure_logging, get_logger
 from retikon_core.metering import record_usage
+from retikon_core.services.fastapi_scaffolding import (
+    HealthResponse,
+    add_correlation_id_middleware,
+    build_health_response,
+)
 from retikon_core.tenancy.types import TenantScope
 
 SERVICE_NAME = "retikon-ingestion"
@@ -43,27 +48,14 @@ configure_logging(
 logger = get_logger(__name__)
 
 app = FastAPI()
+add_correlation_id_middleware(app)
 
 _dlq_publisher: PubSubDlqPublisher | None = None
-
-
-class HealthResponse(BaseModel):
-    status: str
-    service: str
-    version: str
-    commit: str
-    timestamp: str
 
 
 class IngestResponse(BaseModel):
     status: str
     trace_id: str
-
-
-def _correlation_id(header_value: str | None) -> str:
-    if header_value:
-        return header_value
-    return str(uuid.uuid4())
 
 
 def _require_ingest_auth() -> bool:
@@ -130,26 +122,9 @@ def _default_scope(config: Config) -> TenantScope:
     )
 
 
-@app.middleware("http")
-async def add_correlation_id(request: Request, call_next):
-    corr = _correlation_id(request.headers.get("x-correlation-id"))
-    request.state.correlation_id = corr
-    response = await call_next(request)
-    response.headers["x-correlation-id"] = corr
-    return response
-
-
 @app.get("/health", response_model=HealthResponse)
 async def health() -> HealthResponse:
-    version = os.getenv("RETIKON_VERSION", "dev")
-    commit = os.getenv("GIT_COMMIT", "unknown")
-    return HealthResponse(
-        status="ok",
-        service=SERVICE_NAME,
-        version=version,
-        commit=commit,
-        timestamp=time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
-    )
+    return build_health_response(SERVICE_NAME)
 
 
 @app.post("/ingest", response_model=IngestResponse, status_code=202)

@@ -10,7 +10,6 @@ from urllib.request import Request as UrlRequest
 from urllib.request import urlopen
 
 from fastapi import FastAPI, HTTPException, Request
-from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
 from gcp_adapter.queue_pubsub import PubSubPublisher, parse_pubsub_push
@@ -18,6 +17,11 @@ from retikon_core.auth import AuthContext, authorize_api_key
 from retikon_core.config import get_config
 from retikon_core.errors import AuthError
 from retikon_core.logging import configure_logging, get_logger
+from retikon_core.services.fastapi_scaffolding import (
+    HealthResponse,
+    apply_cors_middleware,
+    build_health_response,
+)
 from retikon_core.workflows import (
     WorkflowRun,
     WorkflowSpec,
@@ -41,14 +45,7 @@ configure_logging(
 logger = get_logger(__name__)
 
 app = FastAPI()
-
-
-class HealthResponse(BaseModel):
-    status: str
-    service: str
-    version: str
-    commit: str
-    timestamp: str
+apply_cors_middleware(app)
 
 
 class WorkflowStepPayload(BaseModel):
@@ -120,27 +117,6 @@ class ScheduleTickResponse(BaseModel):
     triggered: int
     skipped: int
     run_ids: list[str]
-
-
-def _cors_origins() -> list[str]:
-    raw = os.getenv("CORS_ALLOW_ORIGINS", "")
-    if raw:
-        return [origin.strip() for origin in raw.split(",") if origin.strip()]
-    env = os.getenv("ENV", "dev").lower()
-    if env in {"dev", "local", "test"}:
-        return ["*"]
-    return []
-
-
-_cors = _cors_origins()
-if _cors:
-    app.add_middleware(
-        CORSMiddleware,
-        allow_origins=_cors,
-        allow_credentials=False,
-        allow_methods=["*"],
-        allow_headers=["*"],
-    )
 
 
 def _api_key_required() -> bool:
@@ -709,13 +685,7 @@ def _runner_authorized(request: Request, payload: dict[str, object]) -> None:
 
 @app.get("/health", response_model=HealthResponse)
 async def health() -> HealthResponse:
-    return HealthResponse(
-        status="ok",
-        service=SERVICE_NAME,
-        version=os.getenv("RETIKON_VERSION", "dev"),
-        commit=os.getenv("GIT_COMMIT", "unknown"),
-        timestamp=time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
-    )
+    return build_health_response(SERVICE_NAME)
 
 
 @app.get("/workflows", response_model=list[WorkflowResponse])

@@ -3,8 +3,6 @@
 Edition: Pro
 
 ## Functions
-- `_correlation_id`: Internal helper that correlation ID, so webhooks and alerts are managed.
-- `add_correlation_id`: Function that add correlation ID, so webhooks and alerts are managed.
 - `health`: Reports service health, so webhooks and alerts are managed.
 - `list_webhooks`: Function that lists webhooks, so webhooks and alerts are managed.
 - `create_webhook`: Function that creates webhook, so webhooks and alerts are managed.

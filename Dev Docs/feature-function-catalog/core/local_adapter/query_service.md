@@ -4,9 +4,6 @@ Edition: Core
 
 ## Functions
 - `lifespan`: Function that sets up startup and shutdown hooks, so local development workflows run.
-- `_correlation_id`: Internal helper that correlation ID, so local development workflows run.
-- `_cors_origins`: Internal helper that cors origins, so local development workflows run.
-- `add_correlation_id`: Function that add correlation ID, so local development workflows run.
 - `_api_key_required`: Internal helper that aPI key required, so local development workflows run.
 - `_get_api_key`: Internal helper that gets API key, so local development workflows run.
 - `_authorize`: Internal helper that authorizes it, so local development workflows run.

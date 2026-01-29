@@ -3,8 +3,6 @@
 Edition: Pro
 
 ## Functions
-- `_correlation_id`: Internal helper that correlation ID, so streaming ingestion is reliable.
-- `add_correlation_id`: Function that add correlation ID, so streaming ingestion is reliable.
 - `_stream_topic`: Internal helper that streams topic, so streaming ingestion is reliable.
 - `_batch_max`: Internal helper that batch max, so streaming ingestion is reliable.
 - `_batch_latency_ms`: Internal helper that batch latency ms, so streaming ingestion is reliable.

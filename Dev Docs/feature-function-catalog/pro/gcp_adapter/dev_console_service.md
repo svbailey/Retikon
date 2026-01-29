@@ -3,7 +3,6 @@
 Edition: Pro
 
 ## Functions
-- `_cors_origins`: Internal helper that cors origins, so the dev console can upload and inspect data.
 - `_require_api_key`: Internal helper that require API key, so the dev console can upload and inspect data.
 - `_project_id`: Internal helper that project ID, so the dev console can upload and inspect data.
 - `_graph_settings`: Internal helper that graph settings, so the dev console can upload and inspect data.

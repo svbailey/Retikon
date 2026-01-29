@@ -4,7 +4,6 @@ Edition: Pro
 
 ## Functions
 - `lifespan`: Function that sets up startup and shutdown hooks, so audit access and exports are available.
-- `_cors_origins`: Internal helper that cors origins, so audit access and exports are available.
 - `_api_key_required`: Internal helper that aPI key required, so audit access and exports are available.
 - `_require_admin`: Internal helper that require admin, so audit access and exports are available.
 - `_audit_api_key`: Internal helper that audit API key, so audit access and exports are available.

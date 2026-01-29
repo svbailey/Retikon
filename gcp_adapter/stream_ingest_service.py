@@ -2,7 +2,6 @@ import asyncio
 import contextlib
 import json
 import os
-import time
 import uuid
 from datetime import timedelta
 from typing import Any
@@ -27,6 +26,11 @@ from retikon_core.ingestion.streaming import (
     stream_event_from_dict,
 )
 from retikon_core.logging import configure_logging, get_logger
+from retikon_core.services.fastapi_scaffolding import (
+    HealthResponse,
+    add_correlation_id_middleware,
+    build_health_response,
+)
 
 SERVICE_NAME = "retikon-stream-ingest"
 
@@ -38,17 +42,10 @@ configure_logging(
 logger = get_logger(__name__)
 
 app = FastAPI()
+add_correlation_id_middleware(app)
 
 _dlq_publisher: PubSubDlqPublisher | None = None
 _flush_task: asyncio.Task | None = None
-
-
-class HealthResponse(BaseModel):
-    status: str
-    service: str
-    version: str
-    commit: str
-    timestamp: str
 
 
 class StreamIngestResponse(BaseModel):
@@ -67,21 +64,6 @@ class StreamStatusResponse(BaseModel):
     batch_latency_ms: int
     backlog_max: int
     queue_topic: str
-
-
-def _correlation_id(header_value: str | None) -> str:
-    if header_value:
-        return header_value
-    return str(uuid.uuid4())
-
-
-@app.middleware("http")
-async def add_correlation_id(request: Request, call_next):
-    corr = _correlation_id(request.headers.get("x-correlation-id"))
-    request.state.correlation_id = corr
-    response = await call_next(request)
-    response.headers["x-correlation-id"] = corr
-    return response
 
 
 def _stream_topic() -> str:
@@ -166,15 +148,7 @@ async def _stop_flush_loop() -> None:
 
 @app.get("/health", response_model=HealthResponse)
 async def health() -> HealthResponse:
-    version = os.getenv("RETIKON_VERSION", "dev")
-    commit = os.getenv("GIT_COMMIT", "unknown")
-    return HealthResponse(
-        status="ok",
-        service=SERVICE_NAME,
-        version=version,
-        commit=commit,
-        timestamp=time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
-    )
+    return build_health_response(SERVICE_NAME)
 
 
 @app.get("/ingest/stream/status", response_model=StreamStatusResponse)

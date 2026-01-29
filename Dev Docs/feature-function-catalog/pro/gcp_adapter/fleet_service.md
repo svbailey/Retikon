@@ -3,7 +3,6 @@
 Edition: Pro
 
 ## Functions
-- `_cors_origins`: Internal helper that cors origins, so the system works as expected.
 - `_api_key_required`: Internal helper that aPI key required, so the system works as expected.
 - `_require_admin`: Internal helper that require admin, so the system works as expected.
 - `_fleet_api_key`: Internal helper that fleet API key, so the system works as expected.

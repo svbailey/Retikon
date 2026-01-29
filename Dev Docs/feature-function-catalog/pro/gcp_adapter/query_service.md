@@ -4,9 +4,6 @@ Edition: Pro
 
 ## Functions
 - `lifespan`: Function that sets up startup and shutdown hooks, so queries run securely in the managed service.
-- `_correlation_id`: Internal helper that correlation ID, so queries run securely in the managed service.
-- `_cors_origins`: Internal helper that cors origins, so queries run securely in the managed service.
-- `add_correlation_id`: Function that add correlation ID, so queries run securely in the managed service.
 - `_api_key_required`: Internal helper that aPI key required, so queries run securely in the managed service.
 - `_get_api_key`: Internal helper that gets API key, so queries run securely in the managed service.
 - `_graph_root_uri`: Internal helper that builds the graph root URI, so queries run securely in the managed service.

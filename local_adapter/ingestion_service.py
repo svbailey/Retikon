@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import mimetypes
 import os
-import time
 import uuid
 from pathlib import Path
 
@@ -21,6 +20,10 @@ from retikon_core.ingestion.router import (
 from retikon_core.ingestion.storage_event import StorageEvent
 from retikon_core.ingestion.types import IngestSource
 from retikon_core.logging import configure_logging, get_logger
+from retikon_core.services.fastapi_scaffolding import (
+    HealthResponse,
+    build_health_response,
+)
 
 SERVICE_NAME = "retikon-local-ingestion"
 
@@ -32,13 +35,6 @@ configure_logging(
 logger = get_logger(__name__)
 
 app = FastAPI()
-
-
-class HealthResponse(BaseModel):
-    status: str
-    service: str
-    version: str
-    timestamp: str
 
 
 class IngestRequest(BaseModel):
@@ -80,12 +76,7 @@ def _prefix_for_modality(modality: str) -> str:
 
 @app.get("/health", response_model=HealthResponse)
 async def health() -> HealthResponse:
-    return HealthResponse(
-        status="ok",
-        service=SERVICE_NAME,
-        version=os.getenv("RETIKON_VERSION", "dev"),
-        timestamp=time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
-    )
+    return build_health_response(SERVICE_NAME)
 
 
 @app.post("/ingest", response_model=IngestResponse)

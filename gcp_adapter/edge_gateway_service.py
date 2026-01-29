@@ -1,19 +1,21 @@
 from __future__ import annotations
 
 import os
-import time
 import uuid
 from dataclasses import dataclass
 from typing import Annotated
 
 import fsspec
 from fastapi import FastAPI, File, Form, HTTPException, UploadFile
-from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
 from retikon_core.edge.buffer import BufferItem, EdgeBuffer
 from retikon_core.edge.policies import AdaptiveBatchPolicy, BackpressurePolicy
 from retikon_core.logging import configure_logging, get_logger
+from retikon_core.services.fastapi_scaffolding import (
+    apply_cors_middleware,
+    build_health_response,
+)
 
 SERVICE_NAME = "retikon-edge-gateway"
 
@@ -25,6 +27,7 @@ configure_logging(
 logger = get_logger(__name__)
 
 app = FastAPI()
+apply_cors_middleware(app)
 
 
 class UploadResponse(BaseModel):
@@ -74,27 +77,6 @@ class GatewayState:
     buffer: EdgeBuffer
     batch_policy: AdaptiveBatchPolicy
     backpressure: BackpressurePolicy
-
-
-def _cors_origins() -> list[str]:
-    raw = os.getenv("CORS_ALLOW_ORIGINS", "")
-    if raw:
-        return [origin.strip() for origin in raw.split(",") if origin.strip()]
-    env = os.getenv("ENV", "dev").lower()
-    if env in {"dev", "local", "test"}:
-        return ["*"]
-    return []
-
-
-_cors = _cors_origins()
-if _cors:
-    app.add_middleware(
-        CORSMiddleware,
-        allow_origins=_cors,
-        allow_credentials=False,
-        allow_methods=["*"],
-        allow_headers=["*"],
-    )
 
 
 def _buffer_dir() -> str:
@@ -250,13 +232,7 @@ def _replay_item(item: BufferItem) -> bool:
 
 @app.get("/health")
 async def health() -> dict[str, str]:
-    return {
-        "status": "ok",
-        "service": SERVICE_NAME,
-        "version": os.getenv("RETIKON_VERSION", "dev"),
-        "commit": os.getenv("GIT_COMMIT", "unknown"),
-        "timestamp": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
-    }
+    return build_health_response(SERVICE_NAME).model_dump()
 
 
 @app.get("/edge/config", response_model=ConfigResponse)

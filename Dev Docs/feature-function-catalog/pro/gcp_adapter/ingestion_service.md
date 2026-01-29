@@ -3,7 +3,6 @@
 Edition: Pro
 
 ## Functions
-- `_correlation_id`: Internal helper that correlation ID, so ingestion runs securely in the managed service.
 - `_require_ingest_auth`: Internal helper that require ingest auth, so ingestion runs securely in the managed service.
 - `_ingest_api_key`: Internal helper that ingests API key, so ingestion runs securely in the managed service.
 - `_authorize_ingest`: Internal helper that authorizes ingest, so ingestion runs securely in the managed service.
@@ -14,7 +13,6 @@ Edition: Pro
 - `_audit_logging_enabled`: Internal helper that checks whether audit logging is enabled, so ingestion runs securely in the managed service.
 - `_schema_version`: Internal helper that schema version, so ingestion runs securely in the managed service.
 - `_default_scope`: Internal helper that default scope, so ingestion runs securely in the managed service.
-- `add_correlation_id`: Function that add correlation ID, so ingestion runs securely in the managed service.
 - `health`: Reports service health, so ingestion runs securely in the managed service.
 - `ingest`: Accepts content to ingest and starts processing, so ingestion runs securely in the managed service.
 - `_coerce_cloudevent`: Internal helper that converts cloudevent, so ingestion runs securely in the managed service.
