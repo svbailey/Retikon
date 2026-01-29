@@ -28,7 +28,7 @@ def cors_origins(
         return [origin.strip() for origin in raw_value.split(",") if origin.strip()]
     if default_allow_all:
         return ["*"]
-    env_value = (env or os.getenv("ENV", "dev")).lower()
+    env_value = (env if env is not None else os.getenv("ENV") or "dev").lower()
     if env_value in {"dev", "local", "test"}:
         return ["*"]
     return []
@@ -83,10 +83,16 @@ def build_health_response(
     version: str | None = None,
     commit: str | None = None,
 ) -> HealthResponse:
+    version_value = (
+        version if version is not None else os.getenv("RETIKON_VERSION") or "dev"
+    )
+    commit_value = (
+        commit if commit is not None else os.getenv("GIT_COMMIT") or "unknown"
+    )
     return HealthResponse(
         status=status,
         service=service_name,
-        version=version or os.getenv("RETIKON_VERSION", "dev"),
-        commit=commit or os.getenv("GIT_COMMIT", "unknown"),
+        version=version_value,
+        commit=commit_value,
         timestamp=time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
     )
