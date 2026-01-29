@@ -78,7 +78,7 @@ Retikon is an open-core platform:
 
 ## GraphAr layout (strict)
 
-- Root prefix: `<graph-root-uri>/retikon_v2/` (gs:// in GCS, local path in local)
+- Root prefix: `<graph-root-uri>/retikon_v2/` (gs:// in GCS, s3:// in S3, file:// for local)
 - Vertices: `vertices/<Type>/{core,text,vector}/part-<uuid>.parquet`
 - Edges: `edges/<Type>/adj_list/part-<uuid>.parquet`
 - IDs: UUIDv4 strings for all vertices and edges.

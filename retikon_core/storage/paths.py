@@ -15,7 +15,18 @@ def _join_parts(parts: Iterable[str]) -> str:
 
 
 def graph_root(bucket: str, prefix: str) -> str:
-    base = f"gs://{_strip_slashes(bucket)}"
+    parsed = urlparse(bucket)
+    if parsed.scheme:
+        if parsed.scheme == "file":
+            base = f"file://{parsed.path}"
+        elif parsed.netloc:
+            base = f"{parsed.scheme}://{parsed.netloc}"
+            if parsed.path and parsed.path != "/":
+                base = f"{base}/{_strip_slashes(parsed.path)}"
+        else:
+            base = bucket.rstrip("/")
+    else:
+        base = f"gs://{_strip_slashes(bucket)}"
     if not prefix:
         return base
     return f"{base}/{_strip_slashes(prefix)}"

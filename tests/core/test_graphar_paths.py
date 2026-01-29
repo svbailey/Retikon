@@ -27,3 +27,13 @@ def test_graph_paths():
         manifest_path
         == "gs://retikon-graph/retikon_v2/manifests/run-001/manifest.json"
     )
+
+
+def test_graph_root_accepts_scheme():
+    base = graph_root("s3://retikon-graph", "retikon_v2")
+    assert base == "s3://retikon-graph/retikon_v2"
+
+
+def test_graph_root_accepts_file_scheme():
+    base = graph_root("file:///tmp/retikon-graph", "retikon_v2")
+    assert base == "file:///tmp/retikon-graph/retikon_v2"
