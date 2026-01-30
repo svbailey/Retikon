@@ -9,6 +9,7 @@ from fastapi import FastAPI, Header, HTTPException, Request
 from google.cloud import firestore
 from pydantic import BaseModel
 
+from gcp_adapter.auth import authorize_request
 from gcp_adapter.dlq_pubsub import PubSubDlqPublisher
 from gcp_adapter.eventarc import parse_cloudevent
 from gcp_adapter.idempotency_firestore import FirestoreIdempotency
@@ -17,16 +18,10 @@ from retikon_core.auth import (
     ACTION_INGEST,
     AuthContext,
     abac_allowed,
-    authorize_api_key,
     is_action_allowed,
 )
 from retikon_core.config import Config, get_config
-from retikon_core.errors import (
-    AuthError,
-    PermanentError,
-    RecoverableError,
-    ValidationError,
-)
+from retikon_core.errors import PermanentError, RecoverableError, ValidationError
 from retikon_core.ingestion import process_event
 from retikon_core.ingestion.router import pipeline_version
 from retikon_core.logging import configure_logging, get_logger
@@ -67,17 +62,13 @@ def _ingest_api_key() -> str | None:
 
 
 def _authorize_ingest(request: Request, config: Config) -> AuthContext | None:
-    api_key = _ingest_api_key()
-    raw_key = request.headers.get("x-api-key")
-    try:
-        return authorize_api_key(
-            base_uri=config.graph_root_uri(),
-            raw_key=raw_key,
-            fallback_key=api_key,
-            require=_require_ingest_auth(),
-        )
-    except AuthError as exc:
-        raise HTTPException(status_code=401, detail="Unauthorized") from exc
+    return authorize_request(
+        request=request,
+        base_uri=config.graph_root_uri(),
+        fallback_key=_ingest_api_key(),
+        require_api_key=_require_ingest_auth(),
+        require_admin=False,
+    )
 
 
 def _rbac_enabled() -> bool:

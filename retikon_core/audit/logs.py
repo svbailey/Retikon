@@ -59,9 +59,9 @@ def record_audit_log(
 ) -> WriteResult:
     resolved_scope = _resolve_scope(auth_context, scope)
     if actor_type is None:
-        actor_type = "api_key" if auth_context else "anonymous"
+        actor_type = auth_context.actor_type if auth_context else "anonymous"
     if actor_id is None and auth_context is not None:
-        actor_id = auth_context.api_key_id
+        actor_id = auth_context.actor_id or auth_context.api_key_id
 
     event = AuditLogRecord(
         id=str(uuid.uuid4()),

@@ -52,6 +52,14 @@ def build_attributes(auth_context: AuthContext | None, action: str) -> dict[str,
     if not auth_context:
         return attrs
     attrs["api_key_id"] = auth_context.api_key_id
+    attrs["actor_type"] = auth_context.actor_type
+    attrs["actor_id"] = auth_context.actor_id or auth_context.api_key_id
+    if auth_context.email:
+        attrs["email"] = auth_context.email
+    if auth_context.roles:
+        attrs["roles"] = list(auth_context.roles)
+    if auth_context.groups:
+        attrs["groups"] = list(auth_context.groups)
     if auth_context.scope:
         attrs["org_id"] = auth_context.scope.org_id
         attrs["site_id"] = auth_context.scope.site_id

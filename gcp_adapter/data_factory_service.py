@@ -8,6 +8,7 @@ from typing import Any
 from fastapi import FastAPI, HTTPException, Request
 from pydantic import BaseModel
 
+from gcp_adapter.auth import authorize_request
 from gcp_adapter.office_conversion import (
     conversion_backend,
     conversion_mode,
@@ -23,7 +24,7 @@ from gcp_adapter.office_conversion import (
     write_conversion_output,
 )
 from gcp_adapter.queue_pubsub import PubSubPublisher, parse_pubsub_push
-from retikon_core.auth import AuthContext, authorize_api_key
+from retikon_core.auth import AuthContext
 from retikon_core.config import get_config
 from retikon_core.connectors import (
     list_connectors,
@@ -46,7 +47,7 @@ from retikon_core.data_factory import (
     register_model,
     register_training_job,
 )
-from retikon_core.errors import AuthError, PermanentError, RecoverableError
+from retikon_core.errors import PermanentError, RecoverableError
 from retikon_core.logging import configure_logging, get_logger
 from retikon_core.services.fastapi_scaffolding import (
     HealthResponse,
@@ -317,19 +318,13 @@ def _execute_training_job_inline(job: TrainingJob) -> TrainingJob:
     )
 
 def _authorize(request: Request) -> AuthContext | None:
-    raw_key = request.headers.get("x-api-key")
-    try:
-        context = authorize_api_key(
-            base_uri=_get_config().graph_root_uri(),
-            raw_key=raw_key,
-            fallback_key=_data_factory_api_key(),
-            require=_api_key_required(),
-        )
-    except AuthError as exc:
-        raise HTTPException(status_code=401, detail="Unauthorized") from exc
-    if _require_admin() and (context is None or not context.is_admin):
-        raise HTTPException(status_code=403, detail="Forbidden")
-    return context
+    return authorize_request(
+        request=request,
+        base_uri=_get_config().graph_root_uri(),
+        fallback_key=_data_factory_api_key(),
+        require_api_key=_api_key_required(),
+        require_admin=_require_admin(),
+    )
 
 
 def _get_config():

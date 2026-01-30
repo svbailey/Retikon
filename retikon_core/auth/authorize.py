@@ -21,7 +21,13 @@ def authorize_api_key(
         return None
 
     if fallback_key and secrets.compare_digest(raw_key, fallback_key):
-        return AuthContext(api_key_id="legacy", scope=None, is_admin=True)
+        return AuthContext(
+            api_key_id="legacy",
+            scope=None,
+            is_admin=True,
+            actor_type="api_key",
+            actor_id="legacy",
+        )
 
     keys = load_api_keys(base_uri)
     match = find_api_key(raw_key, keys)
@@ -34,4 +40,10 @@ def authorize_api_key(
         stream_id=match.stream_id,
     )
     scope_value: TenantScope | None = None if scope.is_empty() else scope
-    return AuthContext(api_key_id=match.id, scope=scope_value, is_admin=match.is_admin)
+    return AuthContext(
+        api_key_id=match.id,
+        scope=scope_value,
+        is_admin=match.is_admin,
+        actor_type="api_key",
+        actor_id=match.id,
+    )

@@ -4,9 +4,9 @@ import uuid
 from fastapi import FastAPI, HTTPException, Request
 from pydantic import BaseModel, Field
 
-from retikon_core.auth import AuthContext, authorize_api_key
+from gcp_adapter.auth import authorize_request
+from retikon_core.auth import AuthContext
 from retikon_core.config import get_config
-from retikon_core.errors import AuthError
 from retikon_core.fleet import (
     DeviceRecord,
     device_hardening,
@@ -118,19 +118,13 @@ def _fleet_api_key() -> str | None:
 
 
 def _authorize(request: Request) -> AuthContext | None:
-    raw_key = request.headers.get("x-api-key")
-    try:
-        context = authorize_api_key(
-            base_uri=_get_config().graph_root_uri(),
-            raw_key=raw_key,
-            fallback_key=_fleet_api_key(),
-            require=_api_key_required(),
-        )
-    except AuthError as exc:
-        raise HTTPException(status_code=401, detail="Unauthorized") from exc
-    if _require_admin() and (context is None or not context.is_admin):
-        raise HTTPException(status_code=403, detail="Forbidden")
-    return context
+    return authorize_request(
+        request=request,
+        base_uri=_get_config().graph_root_uri(),
+        fallback_key=_fleet_api_key(),
+        require_api_key=_api_key_required(),
+        require_admin=_require_admin(),
+    )
 
 
 def _get_config():

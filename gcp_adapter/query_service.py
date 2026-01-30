@@ -7,15 +7,14 @@ from datetime import datetime, timezone
 
 from fastapi import FastAPI, Header, HTTPException, Request
 
+from gcp_adapter.auth import authorize_request
 from retikon_core.audit import record_audit_log
 from retikon_core.auth import (
     ACTION_QUERY,
     AuthContext,
     abac_allowed,
-    authorize_api_key,
     is_action_allowed,
 )
-from retikon_core.errors import AuthError
 from retikon_core.logging import configure_logging, get_logger
 from retikon_core.metering import record_usage
 from retikon_core.query_engine import download_snapshot, get_secure_connection
@@ -111,18 +110,13 @@ def _graph_root_uri() -> str:
 
 
 def _authorize(request: Request) -> AuthContext | None:
-    api_key = _get_api_key()
-    raw_key = request.headers.get("x-api-key")
-    try:
-        context = authorize_api_key(
-            base_uri=_graph_root_uri(),
-            raw_key=raw_key,
-            fallback_key=api_key,
-            require=_api_key_required(),
-        )
-    except AuthError as exc:
-        raise HTTPException(status_code=401, detail="Unauthorized") from exc
-    return context
+    return authorize_request(
+        request=request,
+        base_uri=_graph_root_uri(),
+        fallback_key=_get_api_key(),
+        require_api_key=_api_key_required(),
+        require_admin=False,
+    )
 
 
 def _rbac_enabled() -> bool:

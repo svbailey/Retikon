@@ -79,11 +79,15 @@ def is_action_allowed(
     if auth_context.is_admin:
         return True
 
-    bindings = load_role_bindings(base_uri)
-    roles = bindings.get(auth_context.api_key_id)
+    roles: list[str] | None = None
+    if auth_context.roles:
+        roles = list(auth_context.roles)
     if not roles:
-        default_role = _default_role()
-        roles = [default_role] if default_role else []
+        bindings = load_role_bindings(base_uri)
+        roles = bindings.get(auth_context.api_key_id)
+        if not roles:
+            default_role = _default_role()
+            roles = [default_role] if default_role else []
 
     permissions = _permissions_for_roles(roles)
     if "*" in permissions:

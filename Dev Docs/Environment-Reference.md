@@ -66,6 +66,24 @@ Defaults shown match current code where applicable.
 
 ## Pro (GCP) auth + governance
 
+- `AUTH_MODE=api_key|jwt|dual`
+- `AUTH_ISSUER`
+- `AUTH_AUDIENCE`
+- `AUTH_JWKS_URI`
+- `AUTH_JWT_ALGORITHMS` (defaults to `RS256`)
+- `AUTH_JWT_HS256_SECRET` (local/test only)
+- `AUTH_JWT_PUBLIC_KEY` (optional RSA/EC public key)
+- `AUTH_REQUIRED_CLAIMS` (defaults to `sub`)
+- `AUTH_CLAIM_SUB` (defaults to `sub`)
+- `AUTH_CLAIM_EMAIL` (defaults to `email`)
+- `AUTH_CLAIM_ROLES` (defaults to `roles`)
+- `AUTH_CLAIM_GROUPS` (defaults to `groups`)
+- `AUTH_CLAIM_ORG_ID` (defaults to `org_id`)
+- `AUTH_CLAIM_SITE_ID` (defaults to `site_id`)
+- `AUTH_CLAIM_STREAM_ID` (defaults to `stream_id`)
+- `AUTH_ADMIN_ROLES` (defaults to `admin`)
+- `AUTH_ADMIN_GROUPS` (defaults to `admins`)
+- `AUTH_JWT_LEEWAY_SECONDS` (clock skew)
 - `QUERY_API_KEY` (dev; prod uses Secret Manager)
 - `INGEST_API_KEY` (optional for ingestion auth)
 - `AUDIT_API_KEY` (defaults to `QUERY_API_KEY`)
