@@ -1,0 +1,294 @@
+swagger: "2.0"
+info:
+  title: "${api_title}"
+  description: "Retikon API Gateway"
+  version: "${api_version}"
+schemes:
+  - https
+produces:
+  - application/json
+securityDefinitions:
+  jwt:
+    type: "oauth2"
+    flow: "implicit"
+    authorizationUrl: ""
+    x-google-issuer: "${jwt_issuer}"
+    x-google-jwks_uri: "${jwt_jwks_uri}"
+    x-google-audiences: "${jwt_audience}"
+security:
+  - jwt: []
+paths:
+  /query:
+    post:
+      x-google-backend:
+        address: "${query_url}"
+        path_translation: APPEND_PATH_TO_ADDRESS
+      responses:
+        "200":
+          description: "OK"
+    options:
+      security: []
+      x-google-backend:
+        address: "${query_url}"
+        path_translation: APPEND_PATH_TO_ADDRESS
+      responses:
+        "200":
+          description: "OK"
+  /query/{proxy+}:
+    parameters:
+      - name: proxy
+        in: path
+        required: true
+        type: string
+    get:
+      x-google-backend:
+        address: "${query_url}"
+        path_translation: APPEND_PATH_TO_ADDRESS
+      responses:
+        "200":
+          description: "OK"
+    post:
+      x-google-backend:
+        address: "${query_url}"
+        path_translation: APPEND_PATH_TO_ADDRESS
+      responses:
+        "200":
+          description: "OK"
+    put:
+      x-google-backend:
+        address: "${query_url}"
+        path_translation: APPEND_PATH_TO_ADDRESS
+      responses:
+        "200":
+          description: "OK"
+    patch:
+      x-google-backend:
+        address: "${query_url}"
+        path_translation: APPEND_PATH_TO_ADDRESS
+      responses:
+        "200":
+          description: "OK"
+    delete:
+      x-google-backend:
+        address: "${query_url}"
+        path_translation: APPEND_PATH_TO_ADDRESS
+      responses:
+        "200":
+          description: "OK"
+    options:
+      security: []
+      x-google-backend:
+        address: "${query_url}"
+        path_translation: APPEND_PATH_TO_ADDRESS
+      responses:
+        "200":
+          description: "OK"
+  /audit:
+    get:
+      x-google-backend:
+        address: "${audit_url}"
+        path_translation: APPEND_PATH_TO_ADDRESS
+      responses:
+        "200":
+          description: "OK"
+    options:
+      security: []
+      x-google-backend:
+        address: "${audit_url}"
+        path_translation: APPEND_PATH_TO_ADDRESS
+      responses:
+        "200":
+          description: "OK"
+  /audit/{proxy+}:
+    parameters:
+      - name: proxy
+        in: path
+        required: true
+        type: string
+    get:
+      x-google-backend:
+        address: "${audit_url}"
+        path_translation: APPEND_PATH_TO_ADDRESS
+      responses:
+        "200":
+          description: "OK"
+    post:
+      x-google-backend:
+        address: "${audit_url}"
+        path_translation: APPEND_PATH_TO_ADDRESS
+      responses:
+        "200":
+          description: "OK"
+    put:
+      x-google-backend:
+        address: "${audit_url}"
+        path_translation: APPEND_PATH_TO_ADDRESS
+      responses:
+        "200":
+          description: "OK"
+    patch:
+      x-google-backend:
+        address: "${audit_url}"
+        path_translation: APPEND_PATH_TO_ADDRESS
+      responses:
+        "200":
+          description: "OK"
+    delete:
+      x-google-backend:
+        address: "${audit_url}"
+        path_translation: APPEND_PATH_TO_ADDRESS
+      responses:
+        "200":
+          description: "OK"
+    options:
+      security: []
+      x-google-backend:
+        address: "${audit_url}"
+        path_translation: APPEND_PATH_TO_ADDRESS
+      responses:
+        "200":
+          description: "OK"
+  /workflows:
+    get:
+      x-google-backend:
+        address: "${workflow_url}"
+        path_translation: APPEND_PATH_TO_ADDRESS
+      responses:
+        "200":
+          description: "OK"
+    post:
+      x-google-backend:
+        address: "${workflow_url}"
+        path_translation: APPEND_PATH_TO_ADDRESS
+      responses:
+        "200":
+          description: "OK"
+    options:
+      security: []
+      x-google-backend:
+        address: "${workflow_url}"
+        path_translation: APPEND_PATH_TO_ADDRESS
+      responses:
+        "200":
+          description: "OK"
+  /workflows/{proxy+}:
+    parameters:
+      - name: proxy
+        in: path
+        required: true
+        type: string
+    get:
+      x-google-backend:
+        address: "${workflow_url}"
+        path_translation: APPEND_PATH_TO_ADDRESS
+      responses:
+        "200":
+          description: "OK"
+    post:
+      x-google-backend:
+        address: "${workflow_url}"
+        path_translation: APPEND_PATH_TO_ADDRESS
+      responses:
+        "200":
+          description: "OK"
+    put:
+      x-google-backend:
+        address: "${workflow_url}"
+        path_translation: APPEND_PATH_TO_ADDRESS
+      responses:
+        "200":
+          description: "OK"
+    patch:
+      x-google-backend:
+        address: "${workflow_url}"
+        path_translation: APPEND_PATH_TO_ADDRESS
+      responses:
+        "200":
+          description: "OK"
+    delete:
+      x-google-backend:
+        address: "${workflow_url}"
+        path_translation: APPEND_PATH_TO_ADDRESS
+      responses:
+        "200":
+          description: "OK"
+    options:
+      security: []
+      x-google-backend:
+        address: "${workflow_url}"
+        path_translation: APPEND_PATH_TO_ADDRESS
+      responses:
+        "200":
+          description: "OK"
+  /chaos:
+    get:
+      x-google-backend:
+        address: "${chaos_url}"
+        path_translation: APPEND_PATH_TO_ADDRESS
+      responses:
+        "200":
+          description: "OK"
+    post:
+      x-google-backend:
+        address: "${chaos_url}"
+        path_translation: APPEND_PATH_TO_ADDRESS
+      responses:
+        "200":
+          description: "OK"
+    options:
+      security: []
+      x-google-backend:
+        address: "${chaos_url}"
+        path_translation: APPEND_PATH_TO_ADDRESS
+      responses:
+        "200":
+          description: "OK"
+  /chaos/{proxy+}:
+    parameters:
+      - name: proxy
+        in: path
+        required: true
+        type: string
+    get:
+      x-google-backend:
+        address: "${chaos_url}"
+        path_translation: APPEND_PATH_TO_ADDRESS
+      responses:
+        "200":
+          description: "OK"
+    post:
+      x-google-backend:
+        address: "${chaos_url}"
+        path_translation: APPEND_PATH_TO_ADDRESS
+      responses:
+        "200":
+          description: "OK"
+    put:
+      x-google-backend:
+        address: "${chaos_url}"
+        path_translation: APPEND_PATH_TO_ADDRESS
+      responses:
+        "200":
+          description: "OK"
+    patch:
+      x-google-backend:
+        address: "${chaos_url}"
+        path_translation: APPEND_PATH_TO_ADDRESS
+      responses:
+        "200":
+          description: "OK"
+    delete:
+      x-google-backend:
+        address: "${chaos_url}"
+        path_translation: APPEND_PATH_TO_ADDRESS
+      responses:
+        "200":
+          description: "OK"
+    options:
+      security: []
+      x-google-backend:
+        address: "${chaos_url}"
+        path_translation: APPEND_PATH_TO_ADDRESS
+      responses:
+        "200":
+          description: "OK"

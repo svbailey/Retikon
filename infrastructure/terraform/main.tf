@@ -2,6 +2,23 @@ data "google_project" "project" {}
 
 data "google_storage_project_service_account" "gcs" {}
 
+locals {
+  api_gateway_openapi = templatefile(
+    "${path.module}/apigateway/retikon-gateway.yaml.tmpl",
+    {
+      api_title    = "Retikon API Gateway"
+      api_version  = "1.0.0"
+      jwt_issuer   = var.auth_issuer
+      jwt_audience = var.auth_audience
+      jwt_jwks_uri = var.auth_jwks_uri
+      query_url    = google_cloud_run_service.query.status[0].url
+      audit_url    = google_cloud_run_service.audit.status[0].url
+      workflow_url = google_cloud_run_service.workflow.status[0].url
+      chaos_url    = google_cloud_run_service.chaos.status[0].url
+    }
+  )
+}
+
 resource "google_storage_bucket" "raw" {
   name                        = var.raw_bucket_name
   location                    = var.region
@@ -391,7 +408,7 @@ resource "google_cloud_run_service" "ingestion" {
     }
 
     spec {
-      service_account_name = google_service_account.ingestion.email
+      service_account_name  = google_service_account.ingestion.email
       container_concurrency = var.ingestion_concurrency
 
       containers {
@@ -411,6 +428,70 @@ resource "google_cloud_run_service" "ingestion" {
         env {
           name  = "LOG_LEVEL"
           value = var.log_level
+        }
+        env {
+          name  = "AUTH_MODE"
+          value = var.auth_mode
+        }
+        env {
+          name  = "AUTH_ISSUER"
+          value = var.auth_issuer
+        }
+        env {
+          name  = "AUTH_AUDIENCE"
+          value = var.auth_audience
+        }
+        env {
+          name  = "AUTH_JWKS_URI"
+          value = var.auth_jwks_uri
+        }
+        env {
+          name  = "AUTH_JWT_ALGORITHMS"
+          value = var.auth_jwt_algorithms
+        }
+        env {
+          name  = "AUTH_REQUIRED_CLAIMS"
+          value = var.auth_required_claims
+        }
+        env {
+          name  = "AUTH_CLAIM_SUB"
+          value = var.auth_claim_sub
+        }
+        env {
+          name  = "AUTH_CLAIM_EMAIL"
+          value = var.auth_claim_email
+        }
+        env {
+          name  = "AUTH_CLAIM_ROLES"
+          value = var.auth_claim_roles
+        }
+        env {
+          name  = "AUTH_CLAIM_GROUPS"
+          value = var.auth_claim_groups
+        }
+        env {
+          name  = "AUTH_CLAIM_ORG_ID"
+          value = var.auth_claim_org_id
+        }
+        env {
+          name  = "AUTH_CLAIM_SITE_ID"
+          value = var.auth_claim_site_id
+        }
+        env {
+          name  = "AUTH_CLAIM_STREAM_ID"
+          value = var.auth_claim_stream_id
+        }
+        env {
+          name  = "AUTH_ADMIN_ROLES"
+          value = var.auth_admin_roles
+        }
+        env {
+          name  = "AUTH_ADMIN_GROUPS"
+          value = var.auth_admin_groups
+        }
+        env {
+          name  = "AUTH_JWT_LEEWAY_SECONDS"
+          value = tostring(var.auth_jwt_leeway_seconds)
         }
         env {
           name  = "STORAGE_BACKEND"
@@ -576,9 +657,9 @@ resource "google_cloud_run_service" "query" {
     }
 
     spec {
-      service_account_name = google_service_account.query.email
+      service_account_name  = google_service_account.query.email
       container_concurrency = var.query_concurrency
-      timeout_seconds      = var.query_timeout_seconds
+      timeout_seconds       = var.query_timeout_seconds
 
       containers {
         image = var.query_image
@@ -597,6 +678,70 @@ resource "google_cloud_run_service" "query" {
         env {
           name  = "LOG_LEVEL"
           value = var.log_level
+        }
+        env {
+          name  = "AUTH_MODE"
+          value = var.auth_mode
+        }
+        env {
+          name  = "AUTH_ISSUER"
+          value = var.auth_issuer
+        }
+        env {
+          name  = "AUTH_AUDIENCE"
+          value = var.auth_audience
+        }
+        env {
+          name  = "AUTH_JWKS_URI"
+          value = var.auth_jwks_uri
+        }
+        env {
+          name  = "AUTH_JWT_ALGORITHMS"
+          value = var.auth_jwt_algorithms
+        }
+        env {
+          name  = "AUTH_REQUIRED_CLAIMS"
+          value = var.auth_required_claims
+        }
+        env {
+          name  = "AUTH_CLAIM_SUB"
+          value = var.auth_claim_sub
+        }
+        env {
+          name  = "AUTH_CLAIM_EMAIL"
+          value = var.auth_claim_email
+        }
+        env {
+          name  = "AUTH_CLAIM_ROLES"
+          value = var.auth_claim_roles
+        }
+        env {
+          name  = "AUTH_CLAIM_GROUPS"
+          value = var.auth_claim_groups
+        }
+        env {
+          name  = "AUTH_CLAIM_ORG_ID"
+          value = var.auth_claim_org_id
+        }
+        env {
+          name  = "AUTH_CLAIM_SITE_ID"
+          value = var.auth_claim_site_id
+        }
+        env {
+          name  = "AUTH_CLAIM_STREAM_ID"
+          value = var.auth_claim_stream_id
+        }
+        env {
+          name  = "AUTH_ADMIN_ROLES"
+          value = var.auth_admin_roles
+        }
+        env {
+          name  = "AUTH_ADMIN_GROUPS"
+          value = var.auth_admin_groups
+        }
+        env {
+          name  = "AUTH_JWT_LEEWAY_SECONDS"
+          value = tostring(var.auth_jwt_leeway_seconds)
         }
         env {
           name  = "STORAGE_BACKEND"
@@ -746,24 +891,24 @@ resource "google_cloud_run_service" "query_gpu" {
 
   metadata {
     annotations = {
-      "run.googleapis.com/ingress"                        = "all"
-      "run.googleapis.com/accelerator"                    = var.query_gpu_accelerator_type
+      "run.googleapis.com/ingress"     = "all"
+      "run.googleapis.com/accelerator" = var.query_gpu_accelerator_type
     }
   }
 
   template {
     metadata {
       annotations = {
-        "autoscaling.knative.dev/maxScale" = tostring(var.query_gpu_max_scale)
-        "autoscaling.knative.dev/minScale" = tostring(var.query_gpu_min_scale)
+        "autoscaling.knative.dev/maxScale"                 = tostring(var.query_gpu_max_scale)
+        "autoscaling.knative.dev/minScale"                 = tostring(var.query_gpu_min_scale)
         "run.googleapis.com/gpu-zonal-redundancy-disabled" = "true"
       }
     }
 
     spec {
-      service_account_name = google_service_account.query.email
+      service_account_name  = google_service_account.query.email
       container_concurrency = var.query_gpu_concurrency
-      timeout_seconds      = var.query_gpu_timeout_seconds
+      timeout_seconds       = var.query_gpu_timeout_seconds
 
       containers {
         image = var.query_gpu_image != "" ? var.query_gpu_image : var.query_image
@@ -783,6 +928,70 @@ resource "google_cloud_run_service" "query_gpu" {
         env {
           name  = "LOG_LEVEL"
           value = var.log_level
+        }
+        env {
+          name  = "AUTH_MODE"
+          value = var.auth_mode
+        }
+        env {
+          name  = "AUTH_ISSUER"
+          value = var.auth_issuer
+        }
+        env {
+          name  = "AUTH_AUDIENCE"
+          value = var.auth_audience
+        }
+        env {
+          name  = "AUTH_JWKS_URI"
+          value = var.auth_jwks_uri
+        }
+        env {
+          name  = "AUTH_JWT_ALGORITHMS"
+          value = var.auth_jwt_algorithms
+        }
+        env {
+          name  = "AUTH_REQUIRED_CLAIMS"
+          value = var.auth_required_claims
+        }
+        env {
+          name  = "AUTH_CLAIM_SUB"
+          value = var.auth_claim_sub
+        }
+        env {
+          name  = "AUTH_CLAIM_EMAIL"
+          value = var.auth_claim_email
+        }
+        env {
+          name  = "AUTH_CLAIM_ROLES"
+          value = var.auth_claim_roles
+        }
+        env {
+          name  = "AUTH_CLAIM_GROUPS"
+          value = var.auth_claim_groups
+        }
+        env {
+          name  = "AUTH_CLAIM_ORG_ID"
+          value = var.auth_claim_org_id
+        }
+        env {
+          name  = "AUTH_CLAIM_SITE_ID"
+          value = var.auth_claim_site_id
+        }
+        env {
+          name  = "AUTH_CLAIM_STREAM_ID"
+          value = var.auth_claim_stream_id
+        }
+        env {
+          name  = "AUTH_ADMIN_ROLES"
+          value = var.auth_admin_roles
+        }
+        env {
+          name  = "AUTH_ADMIN_GROUPS"
+          value = var.auth_admin_groups
+        }
+        env {
+          name  = "AUTH_JWT_LEEWAY_SECONDS"
+          value = tostring(var.auth_jwt_leeway_seconds)
         }
         env {
           name  = "STORAGE_BACKEND"
@@ -948,9 +1157,9 @@ resource "google_cloud_run_service" "audit" {
     }
 
     spec {
-      service_account_name = google_service_account.audit.email
+      service_account_name  = google_service_account.audit.email
       container_concurrency = var.audit_concurrency
-      timeout_seconds      = var.audit_timeout_seconds
+      timeout_seconds       = var.audit_timeout_seconds
 
       containers {
         image = var.audit_image
@@ -973,6 +1182,70 @@ resource "google_cloud_run_service" "audit" {
         env {
           name  = "LOG_LEVEL"
           value = var.log_level
+        }
+        env {
+          name  = "AUTH_MODE"
+          value = var.auth_mode
+        }
+        env {
+          name  = "AUTH_ISSUER"
+          value = var.auth_issuer
+        }
+        env {
+          name  = "AUTH_AUDIENCE"
+          value = var.auth_audience
+        }
+        env {
+          name  = "AUTH_JWKS_URI"
+          value = var.auth_jwks_uri
+        }
+        env {
+          name  = "AUTH_JWT_ALGORITHMS"
+          value = var.auth_jwt_algorithms
+        }
+        env {
+          name  = "AUTH_REQUIRED_CLAIMS"
+          value = var.auth_required_claims
+        }
+        env {
+          name  = "AUTH_CLAIM_SUB"
+          value = var.auth_claim_sub
+        }
+        env {
+          name  = "AUTH_CLAIM_EMAIL"
+          value = var.auth_claim_email
+        }
+        env {
+          name  = "AUTH_CLAIM_ROLES"
+          value = var.auth_claim_roles
+        }
+        env {
+          name  = "AUTH_CLAIM_GROUPS"
+          value = var.auth_claim_groups
+        }
+        env {
+          name  = "AUTH_CLAIM_ORG_ID"
+          value = var.auth_claim_org_id
+        }
+        env {
+          name  = "AUTH_CLAIM_SITE_ID"
+          value = var.auth_claim_site_id
+        }
+        env {
+          name  = "AUTH_CLAIM_STREAM_ID"
+          value = var.auth_claim_stream_id
+        }
+        env {
+          name  = "AUTH_ADMIN_ROLES"
+          value = var.auth_admin_roles
+        }
+        env {
+          name  = "AUTH_ADMIN_GROUPS"
+          value = var.auth_admin_groups
+        }
+        env {
+          name  = "AUTH_JWT_LEEWAY_SECONDS"
+          value = tostring(var.auth_jwt_leeway_seconds)
         }
         env {
           name  = "STORAGE_BACKEND"
@@ -1041,9 +1314,9 @@ resource "google_cloud_run_service" "workflow" {
     }
 
     spec {
-      service_account_name = google_service_account.workflow.email
+      service_account_name  = google_service_account.workflow.email
       container_concurrency = var.workflow_concurrency
-      timeout_seconds      = var.workflow_timeout_seconds
+      timeout_seconds       = var.workflow_timeout_seconds
 
       containers {
         image = var.workflow_image
@@ -1066,6 +1339,70 @@ resource "google_cloud_run_service" "workflow" {
         env {
           name  = "LOG_LEVEL"
           value = var.log_level
+        }
+        env {
+          name  = "AUTH_MODE"
+          value = var.auth_mode
+        }
+        env {
+          name  = "AUTH_ISSUER"
+          value = var.auth_issuer
+        }
+        env {
+          name  = "AUTH_AUDIENCE"
+          value = var.auth_audience
+        }
+        env {
+          name  = "AUTH_JWKS_URI"
+          value = var.auth_jwks_uri
+        }
+        env {
+          name  = "AUTH_JWT_ALGORITHMS"
+          value = var.auth_jwt_algorithms
+        }
+        env {
+          name  = "AUTH_REQUIRED_CLAIMS"
+          value = var.auth_required_claims
+        }
+        env {
+          name  = "AUTH_CLAIM_SUB"
+          value = var.auth_claim_sub
+        }
+        env {
+          name  = "AUTH_CLAIM_EMAIL"
+          value = var.auth_claim_email
+        }
+        env {
+          name  = "AUTH_CLAIM_ROLES"
+          value = var.auth_claim_roles
+        }
+        env {
+          name  = "AUTH_CLAIM_GROUPS"
+          value = var.auth_claim_groups
+        }
+        env {
+          name  = "AUTH_CLAIM_ORG_ID"
+          value = var.auth_claim_org_id
+        }
+        env {
+          name  = "AUTH_CLAIM_SITE_ID"
+          value = var.auth_claim_site_id
+        }
+        env {
+          name  = "AUTH_CLAIM_STREAM_ID"
+          value = var.auth_claim_stream_id
+        }
+        env {
+          name  = "AUTH_ADMIN_ROLES"
+          value = var.auth_admin_roles
+        }
+        env {
+          name  = "AUTH_ADMIN_GROUPS"
+          value = var.auth_admin_groups
+        }
+        env {
+          name  = "AUTH_JWT_LEEWAY_SECONDS"
+          value = tostring(var.auth_jwt_leeway_seconds)
         }
         env {
           name  = "STORAGE_BACKEND"
@@ -1167,9 +1504,9 @@ resource "google_cloud_run_service" "chaos" {
     }
 
     spec {
-      service_account_name = google_service_account.chaos.email
+      service_account_name  = google_service_account.chaos.email
       container_concurrency = var.chaos_concurrency
-      timeout_seconds      = var.chaos_timeout_seconds
+      timeout_seconds       = var.chaos_timeout_seconds
 
       containers {
         image = var.chaos_image
@@ -1271,7 +1608,7 @@ resource "google_cloud_run_service" "dev_console" {
     }
 
     spec {
-      service_account_name = google_service_account.dev_console.email
+      service_account_name  = google_service_account.dev_console.email
       container_concurrency = var.dev_console_concurrency
 
       containers {
@@ -1378,7 +1715,7 @@ resource "google_cloud_run_service" "edge_gateway" {
     }
 
     spec {
-      service_account_name = google_service_account.edge_gateway.email
+      service_account_name  = google_service_account.edge_gateway.email
       container_concurrency = var.edge_gateway_concurrency
 
       containers {
@@ -1480,7 +1817,7 @@ resource "google_cloud_run_service" "stream_ingest" {
     }
 
     spec {
-      service_account_name = google_service_account.stream_ingest.email
+      service_account_name  = google_service_account.stream_ingest.email
       container_concurrency = var.stream_ingest_concurrency
 
       containers {
@@ -1652,6 +1989,37 @@ resource "google_cloud_run_service" "stream_ingest" {
   autogenerate_revision_name = true
 }
 
+resource "google_api_gateway_api" "retikon" {
+  count    = var.enable_api_gateway ? 1 : 0
+  provider = google-beta
+
+  api_id = var.api_gateway_name
+}
+
+resource "google_api_gateway_api_config" "retikon" {
+  count    = var.enable_api_gateway ? 1 : 0
+  provider = google-beta
+
+  api           = google_api_gateway_api.retikon[0].id
+  api_config_id = var.api_gateway_config_name
+
+  openapi_documents {
+    document {
+      path     = "retikon-gateway.yaml"
+      contents = base64encode(local.api_gateway_openapi)
+    }
+  }
+}
+
+resource "google_api_gateway_gateway" "retikon" {
+  count    = var.enable_api_gateway ? 1 : 0
+  provider = google-beta
+
+  gateway_id = var.api_gateway_name
+  api_config = google_api_gateway_api_config.retikon[0].id
+  region     = var.api_gateway_region != "" ? var.api_gateway_region : var.region
+}
+
 resource "google_cloud_run_service_iam_member" "query_invoker" {
   location = google_cloud_run_service.query.location
   service  = google_cloud_run_service.query.name
@@ -1772,7 +2140,7 @@ resource "google_cloud_run_v2_job" "index_builder" {
       timeout         = "900s"
 
       containers {
-        image = var.index_image
+        image   = var.index_image
         command = ["python"]
         args    = ["-m", "retikon_core.query_engine.index_builder"]
 
@@ -1845,7 +2213,7 @@ resource "google_cloud_run_v2_job" "compaction" {
       timeout         = "900s"
 
       containers {
-        image = var.compaction_image
+        image   = var.compaction_image
         command = ["python"]
         args    = ["-m", "gcp_adapter.compaction_service"]
 
@@ -2056,7 +2424,7 @@ resource "google_monitoring_notification_channel" "email" {
 resource "google_monitoring_dashboard" "ops" {
   dashboard_json = jsonencode(
     {
-      displayName  = var.monitoring_dashboard_name
+      displayName = var.monitoring_dashboard_name
       mosaicLayout = {
         columns = 12
         tiles = [
@@ -2066,7 +2434,7 @@ resource "google_monitoring_dashboard" "ops" {
             width  = 4
             height = 4
             widget = {
-              title   = "Ingestion 5xx rate (req/s)"
+              title = "Ingestion 5xx rate (req/s)"
               xyChart = {
                 dataSets = [
                   {
@@ -2075,9 +2443,9 @@ resource "google_monitoring_dashboard" "ops" {
                       timeSeriesFilter = {
                         filter = "resource.type=\"cloud_run_revision\" AND resource.labels.service_name=\"${google_cloud_run_service.ingestion.name}\" AND metric.type=\"run.googleapis.com/request_count\" AND metric.labels.response_code_class=\"5xx\""
                         aggregation = {
-                          alignmentPeriod     = "60s"
-                          perSeriesAligner    = "ALIGN_RATE"
-                          crossSeriesReducer  = "REDUCE_SUM"
+                          alignmentPeriod    = "60s"
+                          perSeriesAligner   = "ALIGN_RATE"
+                          crossSeriesReducer = "REDUCE_SUM"
                         }
                       }
                     }
@@ -2096,7 +2464,7 @@ resource "google_monitoring_dashboard" "ops" {
             width  = 4
             height = 4
             widget = {
-              title   = "Query p95 latency (s)"
+              title = "Query p95 latency (s)"
               xyChart = {
                 dataSets = [
                   {
@@ -2105,9 +2473,9 @@ resource "google_monitoring_dashboard" "ops" {
                       timeSeriesFilter = {
                         filter = "resource.type=\"cloud_run_revision\" AND resource.labels.service_name=\"${google_cloud_run_service.query.name}\" AND metric.type=\"run.googleapis.com/request_latencies\""
                         aggregation = {
-                          alignmentPeriod     = "60s"
-                          perSeriesAligner    = "ALIGN_PERCENTILE_95"
-                          crossSeriesReducer  = "REDUCE_MAX"
+                          alignmentPeriod    = "60s"
+                          perSeriesAligner   = "ALIGN_PERCENTILE_95"
+                          crossSeriesReducer = "REDUCE_MAX"
                         }
                       }
                     }
@@ -2126,7 +2494,7 @@ resource "google_monitoring_dashboard" "ops" {
             width  = 4
             height = 4
             widget = {
-              title   = "DLQ backlog"
+              title = "DLQ backlog"
               xyChart = {
                 dataSets = [
                   {
@@ -2135,9 +2503,9 @@ resource "google_monitoring_dashboard" "ops" {
                       timeSeriesFilter = {
                         filter = "resource.type=\"pubsub_subscription\" AND resource.labels.subscription_id=\"${var.ingest_dlq_subscription_name}\" AND metric.type=\"pubsub.googleapis.com/subscription/num_undelivered_messages\""
                         aggregation = {
-                          alignmentPeriod     = "60s"
-                          perSeriesAligner    = "ALIGN_MAX"
-                          crossSeriesReducer  = "REDUCE_MAX"
+                          alignmentPeriod    = "60s"
+                          perSeriesAligner   = "ALIGN_MAX"
+                          crossSeriesReducer = "REDUCE_MAX"
                         }
                       }
                     }
@@ -2173,7 +2541,7 @@ resource "google_cloud_run_v2_job" "ingest_smoke" {
       timeout         = "300s"
 
       containers {
-        image = var.smoke_image
+        image   = var.smoke_image
         command = ["sh", "-c"]
         args = [
           <<-EOT

@@ -199,6 +199,64 @@ Graph exploration:
 - Query by text or image.
 - Open Graph Explorer to inspect related events.
 
+## 10) Authentication (JWT + API key fallback)
+
+Production default:
+- User-facing APIs require JWTs (`AUTH_MODE=jwt`).
+- API keys are reserved for internal automation (backfill, batch jobs).
+
+### JWT claims contract
+Required in production (recommended `AUTH_REQUIRED_CLAIMS`):
+- `sub` (string, user or service principal id)
+- `iss` (issuer)
+- `aud` (audience)
+- `exp` (epoch seconds)
+- `iat` (epoch seconds)
+- `org_id` (tenant)
+
+Recommended:
+- `email` (string)
+- `roles` (array of strings, e.g. `admin|operator|ingestor|reader`)
+- `groups` (array of strings)
+- `site_id` (string, optional)
+- `stream_id` (string, optional)
+
+Example JWT payload:
+```json
+{
+  "sub": "user-123",
+  "email": "user@example.com",
+  "roles": ["reader"],
+  "groups": ["analytics"],
+  "org_id": "org-1",
+  "site_id": "site-1",
+  "stream_id": "stream-3",
+  "iss": "https://issuer.example",
+  "aud": "retikon",
+  "iat": 1737915731,
+  "exp": 1737919331
+}
+```
+
+### Header usage
+```
+Authorization: Bearer <JWT>
+```
+
+### Mapping to Retikon auth
+- `roles` map to RBAC roles; `AUTH_ADMIN_ROLES` controls admin elevation.
+- `groups` can be used for ABAC policies; `AUTH_ADMIN_GROUPS` can elevate admin.
+- `org_id/site_id/stream_id` map to tenant scope.
+- If `AUTH_MODE=dual`, JWT is preferred when both JWT and API key are present.
+
+### Auth env vars (summary)
+- `AUTH_MODE=api_key|jwt|dual`
+- `AUTH_ISSUER`, `AUTH_AUDIENCE`, `AUTH_JWKS_URI`
+- `AUTH_REQUIRED_CLAIMS` (comma-separated)
+- `AUTH_CLAIM_SUB`, `AUTH_CLAIM_EMAIL`, `AUTH_CLAIM_ROLES`, `AUTH_CLAIM_GROUPS`
+- `AUTH_CLAIM_ORG_ID`, `AUTH_CLAIM_SITE_ID`, `AUTH_CLAIM_STREAM_ID`
+- `AUTH_ADMIN_ROLES`, `AUTH_ADMIN_GROUPS`, `AUTH_JWT_LEEWAY_SECONDS`
+
 ## 10) SDK Quickstarts
 
 ### Python

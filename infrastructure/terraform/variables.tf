@@ -763,6 +763,106 @@ variable "log_level" {
   default = "INFO"
 }
 
+variable "auth_mode" {
+  type    = string
+  default = "api_key"
+}
+
+variable "auth_issuer" {
+  type    = string
+  default = ""
+}
+
+variable "auth_audience" {
+  type    = string
+  default = ""
+}
+
+variable "auth_jwks_uri" {
+  type    = string
+  default = ""
+}
+
+variable "auth_jwt_algorithms" {
+  type    = string
+  default = "RS256"
+}
+
+variable "auth_required_claims" {
+  type    = string
+  default = "sub"
+}
+
+variable "auth_claim_sub" {
+  type    = string
+  default = "sub"
+}
+
+variable "auth_claim_email" {
+  type    = string
+  default = "email"
+}
+
+variable "auth_claim_roles" {
+  type    = string
+  default = "roles"
+}
+
+variable "auth_claim_groups" {
+  type    = string
+  default = "groups"
+}
+
+variable "auth_claim_org_id" {
+  type    = string
+  default = "org_id"
+}
+
+variable "auth_claim_site_id" {
+  type    = string
+  default = "site_id"
+}
+
+variable "auth_claim_stream_id" {
+  type    = string
+  default = "stream_id"
+}
+
+variable "auth_admin_roles" {
+  type    = string
+  default = "admin"
+}
+
+variable "auth_admin_groups" {
+  type    = string
+  default = "admins"
+}
+
+variable "auth_jwt_leeway_seconds" {
+  type    = number
+  default = 0
+}
+
+variable "enable_api_gateway" {
+  type    = bool
+  default = false
+}
+
+variable "api_gateway_name" {
+  type    = string
+  default = "retikon-gateway"
+}
+
+variable "api_gateway_config_name" {
+  type    = string
+  default = "retikon-gateway-config"
+}
+
+variable "api_gateway_region" {
+  type    = string
+  default = ""
+}
+
 variable "use_real_models" {
   type    = bool
   default = true

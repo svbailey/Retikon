@@ -58,6 +58,10 @@ output "chaos_service_url" {
   value = google_cloud_run_service.chaos.status[0].url
 }
 
+output "api_gateway_hostname" {
+  value = var.enable_api_gateway ? google_api_gateway_gateway.retikon[0].default_hostname : null
+}
+
 output "dev_console_service_url" {
   value = google_cloud_run_service.dev_console.status[0].url
 }

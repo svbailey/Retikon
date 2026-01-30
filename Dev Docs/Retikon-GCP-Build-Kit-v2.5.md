@@ -639,7 +639,7 @@ deliverables with testing and exit criteria.
 - Media formats use a permissive whitelist aligned with ffmpeg support.
 - Hard caps: video 300 seconds, audio 20 minutes, raw download limit 500 MB
   (configurable).
-- Query auth uses `X-API-Key`.
+- Query auth supports JWT via API Gateway (`AUTH_MODE=jwt`) with API-key fallback for internal automation.
 - Scoring uses similarity in the 0..1 range (higher is better).
 - Frontend: minimal React Dev Console in Sprint 5.
 - Embedding dimensions: text 768 (BGE base), image 512 (CLIP ViT-B/32), audio
@@ -1255,10 +1255,10 @@ E5, E6, E9, E10
     - `top_k` max enforced.
     - reject large base64 payloads and oversized JSON bodies.
 
-- E9 Query auth (X-API-Key)
+- E9 Query auth (JWT + API key fallback)
   - Add middleware in `gcp_adapter/query_service.py`.
-  - Store API key in Secret Manager, wire via env.
-  - Local dev override via `.env` (non-prod only).
+  - JWT validation via API Gateway + in-service verification (defense-in-depth).
+  - API keys remain for internal automation and local dev.
   - Unit tests: missing key -> 401, wrong key -> 401, correct -> 200.
 
 - E10 Minimal React Dev Console
