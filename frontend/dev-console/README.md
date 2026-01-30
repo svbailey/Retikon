@@ -49,7 +49,7 @@ export VITE_REGION="us-central1"
 ## Smoke test
 
 1. Start the query service locally or deploy it to Cloud Run.
-2. Open the Dev Console, switch to the Settings tab, and paste the API key.
+2. Open the Dev Console, switch to the Settings tab, and paste the JWT.
 3. (Optional) override the Dev API URL, Local Ingest URL, and Query API URL in Settings.
 4. Upload an asset and check ingest status.
 5. Load the manifest and keyframes preview.

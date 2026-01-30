@@ -22,15 +22,15 @@ def _env_timeout() -> int:
     return DEFAULT_TIMEOUT_S
 
 
-def _env_api_key() -> str | None:
-    return os.getenv("QUERY_API_KEY") or os.getenv("INGEST_API_KEY")
+def _env_auth_token() -> str | None:
+    return os.getenv("RETIKON_AUTH_TOKEN") or os.getenv("RETIKON_JWT")
 
 
 @dataclass(frozen=True)
 class RetikonClient:
     ingest_url: str | None = None
     query_url: str | None = None
-    api_key: str | None = None
+    auth_token: str | None = None
     timeout: int | None = None
 
     def __post_init__(self) -> None:
@@ -44,17 +44,17 @@ class RetikonClient:
             or os.getenv("RETIKON_QUERY_URL")
             or DEFAULT_QUERY_URL
         )
-        api_key = self.api_key or _env_api_key()
+        auth_token = self.auth_token or _env_auth_token()
         timeout = self.timeout if self.timeout is not None else _env_timeout()
         object.__setattr__(self, "ingest_url", ingest_url)
         object.__setattr__(self, "query_url", query_url)
-        object.__setattr__(self, "api_key", api_key)
+        object.__setattr__(self, "auth_token", auth_token)
         object.__setattr__(self, "timeout", timeout)
 
     def _headers(self) -> dict[str, str]:
         headers = {"Content-Type": "application/json"}
-        if self.api_key:
-            headers["X-API-Key"] = self.api_key
+        if self.auth_token:
+            headers["Authorization"] = f"Bearer {self.auth_token}"
         return headers
 
     def _request(

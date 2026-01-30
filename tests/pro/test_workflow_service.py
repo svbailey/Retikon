@@ -9,7 +9,7 @@ from fastapi.testclient import TestClient
 from retikon_core.config import get_config
 
 
-def test_workflow_service_inline(monkeypatch, tmp_path):
+def test_workflow_service_inline(monkeypatch, tmp_path, jwt_headers):
     monkeypatch.setenv("ENV", "dev")
     monkeypatch.setenv("STORAGE_BACKEND", "local")
     monkeypatch.setenv("LOCAL_GRAPH_ROOT", tmp_path.as_posix())
@@ -20,7 +20,7 @@ def test_workflow_service_inline(monkeypatch, tmp_path):
 
     importlib.reload(service)
 
-    client = TestClient(service.app)
+    client = TestClient(service.app, headers=jwt_headers)
 
     resp = client.get("/workflows")
     assert resp.status_code == 200
@@ -70,7 +70,7 @@ def test_workflow_service_inline(monkeypatch, tmp_path):
     assert payload["output"]["steps"][0]["attempts"] == 2
 
 
-def test_workflow_service_queue(monkeypatch, tmp_path):
+def test_workflow_service_queue(monkeypatch, tmp_path, jwt_headers):
     monkeypatch.setenv("ENV", "dev")
     monkeypatch.setenv("STORAGE_BACKEND", "local")
     monkeypatch.setenv("LOCAL_GRAPH_ROOT", tmp_path.as_posix())
@@ -100,7 +100,7 @@ def test_workflow_service_queue(monkeypatch, tmp_path):
     dummy = DummyPublisher()
     monkeypatch.setattr(service, "_queue_publisher_instance", lambda: dummy)
 
-    client = TestClient(service.app)
+    client = TestClient(service.app, headers=jwt_headers)
 
     resp = client.post(
         "/workflows",

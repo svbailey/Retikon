@@ -36,14 +36,14 @@ def _seed_audit_data(base_uri: str) -> None:
     )
 
 
-def test_audit_logs_endpoint(monkeypatch, tmp_path):
+def test_audit_logs_endpoint(monkeypatch, tmp_path, jwt_headers):
     base_uri = tmp_path.as_posix()
     _seed_audit_data(base_uri)
 
     monkeypatch.setenv("ENV", "dev")
     monkeypatch.setenv("GRAPH_URI", base_uri)
 
-    client = TestClient(app)
+    client = TestClient(app, headers=jwt_headers)
     resp = client.get("/audit/logs?limit=5")
     assert resp.status_code == 200
     payload = resp.json()
@@ -51,14 +51,14 @@ def test_audit_logs_endpoint(monkeypatch, tmp_path):
     assert payload["rows"][0]["action"] == "query:read"
 
 
-def test_access_export(monkeypatch, tmp_path):
+def test_access_export(monkeypatch, tmp_path, jwt_headers):
     base_uri = tmp_path.as_posix()
     _seed_audit_data(base_uri)
 
     monkeypatch.setenv("ENV", "dev")
     monkeypatch.setenv("GRAPH_URI", base_uri)
 
-    client = TestClient(app)
+    client = TestClient(app, headers=jwt_headers)
     resp = client.get("/access/export?format=jsonl")
     assert resp.status_code == 200
     content = resp.text

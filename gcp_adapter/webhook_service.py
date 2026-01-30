@@ -7,7 +7,9 @@ from typing import Any
 from fastapi import FastAPI, Header, HTTPException, Request
 from pydantic import BaseModel, Field
 
+from gcp_adapter.auth import authorize_request
 from gcp_adapter.pubsub_event_publisher import PubSubEventPublisher
+from retikon_core.auth import AuthContext
 from retikon_core.alerts import evaluate_rules, load_alerts, register_alert
 from retikon_core.alerts.types import AlertDestination, AlertRule
 from retikon_core.config import get_config
@@ -113,6 +115,16 @@ class EventDeliveryResponse(BaseModel):
     log_uri: str | None = None
 
 
+def _require_admin() -> bool:
+    env = os.getenv("ENV", "dev").lower()
+    default = "0" if env in {"dev", "local", "test"} else "1"
+    return os.getenv("WEBHOOK_REQUIRE_ADMIN", default) == "1"
+
+
+def _authorize(request: Request) -> AuthContext | None:
+    return authorize_request(request=request, require_admin=_require_admin())
+
+
 @app.get("/health", response_model=HealthResponse)
 async def health() -> HealthResponse:
     return build_health_response(SERVICE_NAME)
@@ -120,6 +132,7 @@ async def health() -> HealthResponse:
 
 @app.get("/webhooks", response_model=list[WebhookResponse])
 async def list_webhooks(request: Request) -> list[WebhookResponse]:
+    _authorize(request)
     config = _get_config()
     webhooks = load_webhooks(config.graph_root_uri())
     return [_webhook_response(hook) for hook in webhooks]
@@ -130,6 +143,7 @@ async def create_webhook(
     request: Request,
     payload: WebhookCreateRequest,
 ) -> WebhookResponse:
+    _authorize(request)
     config = _get_config()
     webhook = register_webhook(
         base_uri=config.graph_root_uri(),
@@ -154,6 +168,7 @@ async def create_webhook(
 
 @app.get("/alerts", response_model=list[AlertResponse])
 async def list_alerts(request: Request) -> list[AlertResponse]:
+    _authorize(request)
     config = _get_config()
     rules = load_alerts(config.graph_root_uri())
     return [_alert_response(rule) for rule in rules]
@@ -161,6 +176,7 @@ async def list_alerts(request: Request) -> list[AlertResponse]:
 
 @app.post("/alerts", response_model=AlertResponse, status_code=201)
 async def create_alert(request: Request, payload: AlertCreateRequest) -> AlertResponse:
+    _authorize(request)
     config = _get_config()
     destinations = tuple(
         AlertDestination(
@@ -197,6 +213,7 @@ async def dispatch_event(
     payload: EventRequest,
     x_request_id: str | None = Header(default=None),
 ) -> EventDeliveryResponse:
+    _authorize(request)
     config = _get_config()
     event_id = str(uuid.uuid4())
     event = WebhookEvent(

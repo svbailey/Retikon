@@ -14,11 +14,11 @@ Date: 2026-01-28
 - [x] Buckets exist (raw/graph/dev-console)
 - [x] Firestore default DB enabled
 - [x] Pub/Sub topics/subscriptions exist
-- [x] Secret Manager API key exists
+- [x] JWT issuer/audience/JWKS configured
 
 ## 3) Security posture
 - [x] Ingestion ingress internal-only in prod
-- [x] Query API requires key (Secret Manager wired)
+- [x] Query API requires JWT (gateway + in-service validation)
 
 ## 4) Tier-3 GCP smoke
 - [x] Upload → ingest → Firestore COMPLETED

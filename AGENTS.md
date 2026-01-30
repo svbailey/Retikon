@@ -85,7 +85,7 @@ Both extension and content type must match the modality.
 
 ## Query Service Rules
 
-- Auth: `X-API-Key` required for `/query`.
+- Auth: `Authorization: Bearer <JWT>` required for `/query`.
 - Scoring: `sim = 1.0 - cosine_distance`, clamp to [0.0, 1.0].
 - Use HNSW via DuckDB `vss` extension for indexes.
 

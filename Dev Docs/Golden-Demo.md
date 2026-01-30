@@ -23,7 +23,7 @@ scripts/run_index_builder.sh
 
 ```bash
 curl -X POST "$QUERY_URL/admin/reload-snapshot" \
-  -H "X-API-Key: $QUERY_API_KEY"
+  -H "Authorization: Bearer $RETIKON_AUTH_TOKEN"
 ```
 
 5. Run a text query:
@@ -31,7 +31,7 @@ curl -X POST "$QUERY_URL/admin/reload-snapshot" \
 ```bash
 curl -X POST "$QUERY_URL/query" \
   -H "Content-Type: application/json" \
-  -H "X-API-Key: $QUERY_API_KEY" \
+  -H "Authorization: Bearer $RETIKON_AUTH_TOKEN" \
   -d '{"top_k":5,"query_text":"demo"}'
 ```
 

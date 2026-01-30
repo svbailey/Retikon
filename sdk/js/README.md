@@ -10,6 +10,7 @@ import { RetikonClient } from "@retikon/core-sdk";
 const client = new RetikonClient({
   ingestUrl: "http://localhost:8081",
   queryUrl: "http://localhost:8080",
+  authToken: "JWT",
 });
 
 const ingest = await client.ingest({ path: "/data/sample.csv", contentType: "text/csv" });
@@ -23,7 +24,7 @@ Defaults can also come from environment variables (Node):
 
 - `RETIKON_INGEST_URL`
 - `RETIKON_QUERY_URL`
-- `QUERY_API_KEY` or `INGEST_API_KEY`
+- `RETIKON_AUTH_TOKEN` (or `RETIKON_JWT`)
 - `RETIKON_TIMEOUT_S` (seconds) or `RETIKON_TIMEOUT_MS`
 
 ## Notes

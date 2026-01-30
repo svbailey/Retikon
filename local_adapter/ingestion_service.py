@@ -5,11 +5,12 @@ import os
 import uuid
 from pathlib import Path
 
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Request
 from pydantic import BaseModel
 
+from retikon_core.auth.jwt import auth_context_from_claims, decode_jwt
 from retikon_core.config import get_config
-from retikon_core.errors import PermanentError
+from retikon_core.errors import AuthError, PermanentError
 from retikon_core.ingestion.router import (
     _check_size,
     _ensure_allowed,
@@ -74,13 +75,54 @@ def _prefix_for_modality(modality: str) -> str:
     raise PermanentError(f"Unsupported modality: {modality}")
 
 
+def _extract_bearer_tokens(request: Request) -> list[str]:
+    tokens: list[str] = []
+    for header_name in (
+        "authorization",
+        "x-forwarded-authorization",
+        "x-original-authorization",
+    ):
+        header = request.headers.get(header_name)
+        token = _parse_bearer_token(header)
+        if token and token not in tokens:
+            tokens.append(token)
+    return tokens
+
+
+def _parse_bearer_token(header: str | None) -> str | None:
+    if not header:
+        return None
+    parts = header.split()
+    if len(parts) != 2 or parts[0].lower() != "bearer":
+        return None
+    token = parts[1].strip()
+    return token or None
+
+
+def _authorize(request: Request) -> None:
+    tokens = _extract_bearer_tokens(request)
+    if not tokens:
+        raise HTTPException(status_code=401, detail="Unauthorized")
+    last_exc: AuthError | None = None
+    for token in tokens:
+        try:
+            claims = decode_jwt(token)
+            auth_context_from_claims(claims)
+            return
+        except AuthError as exc:
+            last_exc = exc
+            continue
+    raise HTTPException(status_code=401, detail="Unauthorized") from last_exc
+
+
 @app.get("/health", response_model=HealthResponse)
 async def health() -> HealthResponse:
     return build_health_response(SERVICE_NAME)
 
 
 @app.post("/ingest", response_model=IngestResponse)
-async def ingest(payload: IngestRequest) -> IngestResponse:
+async def ingest(payload: IngestRequest, request: Request) -> IngestResponse:
+    _authorize(request)
     config = get_config()
     trace_id = str(uuid.uuid4())
 

@@ -8,13 +8,13 @@ import gcp_adapter.query_service as query_service
 import retikon_core.query_engine.query_runner as query_runner
 
 
-def _client() -> TestClient:
+def _client(headers: dict[str, str]) -> TestClient:
     snapshot_uri = os.getenv("SNAPSHOT_URI", "/tmp/retikon-test.duckdb")
     query_service.STATE.local_path = snapshot_uri
-    return TestClient(query_service.app)
+    return TestClient(query_service.app, headers=headers)
 
 
-def test_query_mode_text_limits_modalities(monkeypatch):
+def test_query_mode_text_limits_modalities(monkeypatch, jwt_headers):
     captured = {}
 
     def fake_run_query(
@@ -31,14 +31,14 @@ def test_query_mode_text_limits_modalities(monkeypatch):
 
     monkeypatch.setattr(query_service, "run_query", fake_run_query)
 
-    client = _client()
+    client = _client(jwt_headers)
     resp = client.post("/query", json={"query_text": "hello", "mode": "text"})
     assert resp.status_code == 200
     assert set(captured["modalities"]) == {"document", "transcript"}
 
 
-def test_query_modalities_reject_unknown():
-    client = _client()
+def test_query_modalities_reject_unknown(jwt_headers):
+    client = _client(jwt_headers)
     resp = client.post(
         "/query",
         json={"query_text": "hello", "modalities": ["document", "unknown"]},
@@ -46,8 +46,8 @@ def test_query_modalities_reject_unknown():
     assert resp.status_code == 400
 
 
-def test_query_rejects_unknown_search_type():
-    client = _client()
+def test_query_rejects_unknown_search_type(jwt_headers):
+    client = _client(jwt_headers)
     resp = client.post(
         "/query",
         json={"query_text": "hello", "search_type": "bogus"},
@@ -55,8 +55,8 @@ def test_query_rejects_unknown_search_type():
     assert resp.status_code == 400
 
 
-def test_query_keyword_search():
-    client = _client()
+def test_query_keyword_search(jwt_headers):
+    client = _client(jwt_headers)
     resp = client.post(
         "/query",
         json={"query_text": "hello", "search_type": "keyword"},
@@ -64,8 +64,8 @@ def test_query_keyword_search():
     assert resp.status_code == 200
 
 
-def test_query_metadata_search():
-    client = _client()
+def test_query_metadata_search(jwt_headers):
+    client = _client(jwt_headers)
     resp = client.post(
         "/query",
         json={
@@ -76,10 +76,10 @@ def test_query_metadata_search():
     assert resp.status_code == 200
 
 
-def test_query_image_requires_image_modality():
+def test_query_image_requires_image_modality(jwt_headers):
     payload = Path("tests/fixtures/sample.jpg").read_bytes()
     encoded = base64.b64encode(payload).decode("ascii")
-    client = _client()
+    client = _client(jwt_headers)
     resp = client.post(
         "/query",
         json={"query_text": "hello", "image_base64": encoded, "mode": "text"},

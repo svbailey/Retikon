@@ -18,7 +18,6 @@ DEFAULT_GRAPH_BUCKET = "retikon-graph-simitor-dev"
 DEFAULT_GRAPH_PREFIX = "retikon_v2"
 DEFAULT_QUERY_URL = "https://retikon-query-dev-yt27ougp4q-uc.a.run.app/query"
 DEFAULT_DLQ_TOPIC = "retikon-ingest-dlq"
-DEFAULT_SECRET = "retikon-query-api-key"
 
 
 def _run(cmd: list[str]) -> str:
@@ -37,7 +36,7 @@ class SmokeContext:
     graph_bucket: str
     graph_prefix: str
     query_url: str
-    secret_name: str
+    auth_token: str
     keep: bool
     dlq_topic: str
     start_time: float
@@ -67,23 +66,7 @@ def _object_meta(bucket: str, object_name: str) -> dict:
     )
 
 
-def _access_secret(project: str, name: str) -> str:
-    return _run(
-        [
-            "gcloud",
-            "secrets",
-            "versions",
-            "access",
-            "latest",
-            "--secret",
-            name,
-            "--project",
-            project,
-        ]
-    )
-
-
-def _query(query_url: str, api_key: str) -> tuple[dict, int]:
+def _query(query_url: str, auth_token: str) -> tuple[dict, int]:
     payload = json.dumps({"query_text": "retikon smoke", "top_k": 3}).encode("utf-8")
     start = time.monotonic()
     req = subprocess.Popen(
@@ -94,7 +77,7 @@ def _query(query_url: str, api_key: str) -> tuple[dict, int]:
             "POST",
             query_url,
             "-H",
-            f"X-API-Key: {api_key}",
+            f"Authorization: Bearer {auth_token}",
             "-H",
             "Content-Type: application/json",
             "-d",
@@ -203,9 +186,11 @@ def main() -> int:
     graph_bucket = _env("GRAPH_BUCKET", DEFAULT_GRAPH_BUCKET)
     graph_prefix = _env("GRAPH_PREFIX", DEFAULT_GRAPH_PREFIX)
     query_url = _env("QUERY_URL", DEFAULT_QUERY_URL)
-    secret_name = _env("QUERY_API_SECRET", DEFAULT_SECRET)
+    auth_token = os.getenv("RETIKON_AUTH_TOKEN") or os.getenv("RETIKON_JWT")
     keep = os.getenv("KEEP_SMOKE_ARTIFACTS", "0") == "1"
     dlq_topic = _env("DLQ_TOPIC", DEFAULT_DLQ_TOPIC)
+    if not auth_token:
+        raise SystemExit("RETIKON_AUTH_TOKEN is required for query validation")
 
     stamp = time.strftime("%Y%m%d-%H%M%S", time.gmtime())
     object_name = f"raw/docs/tier3-{stamp}.csv"
@@ -216,7 +201,7 @@ def main() -> int:
         graph_bucket=graph_bucket,
         graph_prefix=graph_prefix,
         query_url=query_url,
-        secret_name=secret_name,
+        auth_token=auth_token,
         keep=keep,
         dlq_topic=dlq_topic,
         start_time=time.time(),
@@ -241,8 +226,7 @@ def main() -> int:
     if data:
         manifest_uri = data.get("manifest_uri")
 
-    api_key = _access_secret(ctx.project, ctx.secret_name)
-    query_result, query_latency_ms = _query(ctx.query_url, api_key)
+    query_result, query_latency_ms = _query(ctx.query_url, ctx.auth_token)
     dlq_message_id = _publish_dlq(ctx)
 
     summary = {

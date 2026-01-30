@@ -53,20 +53,9 @@ class IngestResponse(BaseModel):
     trace_id: str
 
 
-def _require_ingest_auth() -> bool:
-    return os.getenv("INGEST_REQUIRE_API_KEY", "0") == "1"
-
-
-def _ingest_api_key() -> str | None:
-    return os.getenv("INGEST_API_KEY") or os.getenv("QUERY_API_KEY")
-
-
 def _authorize_ingest(request: Request, config: Config) -> AuthContext | None:
     return authorize_request(
         request=request,
-        base_uri=config.graph_root_uri(),
-        fallback_key=_ingest_api_key(),
-        require_api_key=_require_ingest_auth(),
         require_admin=False,
     )
 

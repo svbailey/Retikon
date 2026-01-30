@@ -84,7 +84,7 @@ async def _worker(
 
 async def run_load_test(
     url: str,
-    api_key: str | None,
+    auth_token: str | None,
     qps: float,
     duration: float,
     concurrency: int,
@@ -94,8 +94,8 @@ async def run_load_test(
     total_requests = max(1, int(qps * duration))
     queue: asyncio.Queue[int | None] = asyncio.Queue()
     headers = {"Content-Type": "application/json"}
-    if api_key:
-        headers["X-API-Key"] = api_key
+    if auth_token:
+        headers["Authorization"] = f"Bearer {auth_token}"
 
     results: list[float] = []
     status_counts: dict[int, int] = {}
@@ -152,7 +152,15 @@ async def run_load_test(
 def main() -> None:
     parser = argparse.ArgumentParser(description="Load test the query service.")
     parser.add_argument("--url", default=os.getenv("QUERY_URL"))
-    parser.add_argument("--api-key", default=os.getenv("QUERY_API_KEY"))
+    parser.add_argument(
+        "--auth-token",
+        default=os.getenv("RETIKON_AUTH_TOKEN") or os.getenv("RETIKON_JWT"),
+    )
+    parser.add_argument(
+        "--api-key",
+        default=os.getenv("QUERY_API_KEY"),
+        help=argparse.SUPPRESS,
+    )
     parser.add_argument("--qps", type=float, default=5.0)
     parser.add_argument("--duration", type=float, default=30.0)
     parser.add_argument("--concurrency", type=int, default=10)
@@ -184,7 +192,7 @@ def main() -> None:
     summary = asyncio.run(
         run_load_test(
             url=args.url,
-            api_key=args.api_key,
+            auth_token=args.auth_token or args.api_key,
             qps=args.qps,
             duration=args.duration,
             concurrency=args.concurrency,

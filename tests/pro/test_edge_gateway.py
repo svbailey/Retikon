@@ -6,7 +6,7 @@ from pathlib import Path
 from fastapi.testclient import TestClient
 
 
-def _make_client(tmp_path, monkeypatch, force_buffer: bool):
+def _make_client(tmp_path, monkeypatch, force_buffer: bool, jwt_headers):
     raw_dir = tmp_path / "raw"
     buffer_dir = tmp_path / "buffer"
     monkeypatch.setenv("EDGE_RAW_URI", raw_dir.as_posix())
@@ -16,11 +16,13 @@ def _make_client(tmp_path, monkeypatch, force_buffer: bool):
     import gcp_adapter.edge_gateway_service as service
 
     importlib.reload(service)
-    return TestClient(service.app), service, raw_dir
+    return TestClient(service.app, headers=jwt_headers), service, raw_dir
 
 
-def test_edge_gateway_upload_writes_file(tmp_path, monkeypatch):
-    client, _service, raw_dir = _make_client(tmp_path, monkeypatch, force_buffer=False)
+def test_edge_gateway_upload_writes_file(tmp_path, monkeypatch, jwt_headers):
+    client, _service, raw_dir = _make_client(
+        tmp_path, monkeypatch, force_buffer=False, jwt_headers=jwt_headers
+    )
 
     resp = client.post(
         "/edge/upload",
@@ -35,8 +37,10 @@ def test_edge_gateway_upload_writes_file(tmp_path, monkeypatch):
     assert Path(uri).exists()
 
 
-def test_edge_gateway_buffer_and_replay(tmp_path, monkeypatch):
-    client, service, raw_dir = _make_client(tmp_path, monkeypatch, force_buffer=True)
+def test_edge_gateway_buffer_and_replay(tmp_path, monkeypatch, jwt_headers):
+    client, service, raw_dir = _make_client(
+        tmp_path, monkeypatch, force_buffer=True, jwt_headers=jwt_headers
+    )
 
     resp = client.post(
         "/edge/upload",

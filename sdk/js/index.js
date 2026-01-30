@@ -19,9 +19,9 @@ function resolveTimeoutMs(explicit) {
   return DEFAULT_TIMEOUT_MS;
 }
 
-function resolveApiKey(explicit) {
+function resolveAuthToken(explicit) {
   if (explicit !== undefined && explicit !== null) return explicit;
-  return ENV.QUERY_API_KEY || ENV.INGEST_API_KEY || null;
+  return ENV.RETIKON_AUTH_TOKEN || ENV.RETIKON_JWT || null;
 }
 
 export class RetikonClient {
@@ -32,14 +32,14 @@ export class RetikonClient {
     options.queryUrl ?? ENV.RETIKON_QUERY_URL ?? DEFAULT_QUERY_URL;
     this.ingestUrl = ingestUrl;
     this.queryUrl = queryUrl;
-    this.apiKey = resolveApiKey(options.apiKey);
+    this.authToken = resolveAuthToken(options.authToken);
     this.timeoutMs = resolveTimeoutMs(options.timeoutMs);
   }
 
   _headers() {
     const headers = { "Content-Type": "application/json" };
-    if (this.apiKey) {
-      headers["X-API-Key"] = this.apiKey;
+    if (this.authToken) {
+      headers.Authorization = `Bearer ${this.authToken}`;
     }
     return headers;
   }

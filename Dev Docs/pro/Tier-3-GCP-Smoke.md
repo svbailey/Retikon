@@ -8,7 +8,8 @@ Purpose: verify real GCP ingestion + query flow end-to-end with cleanup.
 - Region: us-central1 (or set `GOOGLE_CLOUD_REGION`)
 - ADC configured: `gcloud auth application-default login`
 - Required buckets and services already exist
-- Query API key stored in Secret Manager: `retikon-query-api-key`
+- JWT issuer/audience/JWKS configured for the environment
+- `RETIKON_AUTH_TOKEN` exported for the query call
 
 ### CI (Workload Identity Federation)
 
@@ -47,7 +48,7 @@ python scripts/gcp_smoke_test.py
 - If ingestion HTTP endpoints return 404, check ingress policy (internal-only).
 - If Firestore status stays `PROCESSING`, check ingestion logs and Eventarc.
 - If manifest missing, check graph bucket permissions and index writes.
-- If query fails, check `retikon-query-dev` logs and API key.
+- If query fails, check `retikon-query-dev` logs and JWT configuration.
 
 ## Cleanup
 

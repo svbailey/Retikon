@@ -66,9 +66,8 @@ Defaults shown match current code where applicable.
 
 ## Pro (GCP) auth + governance
 
-- `AUTH_MODE=api_key|jwt|dual`
-- `AUTH_ISSUER`
-- `AUTH_AUDIENCE`
+- `AUTH_ISSUER` (comma-separated allowed)
+- `AUTH_AUDIENCE` (comma-separated allowed)
 - `AUTH_JWKS_URI`
 - `AUTH_JWT_ALGORITHMS` (defaults to `RS256`)
 - `AUTH_JWT_HS256_SECRET` (local/test only)
@@ -84,9 +83,6 @@ Defaults shown match current code where applicable.
 - `AUTH_ADMIN_ROLES` (defaults to `admin`)
 - `AUTH_ADMIN_GROUPS` (defaults to `admins`)
 - `AUTH_JWT_LEEWAY_SECONDS` (clock skew)
-- `QUERY_API_KEY` (dev; prod uses Secret Manager)
-- `INGEST_API_KEY` (optional for ingestion auth)
-- `AUDIT_API_KEY` (defaults to `QUERY_API_KEY`)
 - `AUDIT_REQUIRE_ADMIN=0|1`
 - `AUDIT_BATCH_SIZE` (defaults to `1`)
 - `AUDIT_BATCH_FLUSH_SECONDS` (defaults to `5`)
@@ -114,6 +110,7 @@ Defaults shown match current code where applicable.
 - `RETIKON_QUERY_URL` (default query base URL)
 - `RETIKON_TIMEOUT_S` (default request timeout in seconds)
 - `RETIKON_TIMEOUT_MS` (JS SDK timeout override, milliseconds)
+- `RETIKON_AUTH_TOKEN` (JWT for CLI/SDK calls)
 
 ## Pro ingestion + ops
 
@@ -126,6 +123,5 @@ Defaults shown match current code where applicable.
 ## Notes
 
 - Core local development uses `.env` and defaults in `retikon_cli`.
-- Pro deployments should use Secret Manager for API keys in production.
 - For non-GCS object stores, set `STORAGE_BACKEND=remote` and provide full URI
   schemes in `RAW_BUCKET`/`GRAPH_BUCKET` (e.g., `s3://bucket`).

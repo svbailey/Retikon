@@ -22,12 +22,12 @@ def _load_service(monkeypatch, tmp_path):
     return service
 
 
-def test_document_conversion_inline(monkeypatch, tmp_path):
+def test_document_conversion_inline(monkeypatch, tmp_path, jwt_headers):
     monkeypatch.setenv("OFFICE_CONVERSION_BACKEND", "stub")
     monkeypatch.setenv("OFFICE_CONVERSION_MODE", "inline")
     service = _load_service(monkeypatch, tmp_path)
 
-    client = TestClient(service.app)
+    client = TestClient(service.app, headers=jwt_headers)
     payload = {
         "filename": "example.doc",
         "content_base64": base64.b64encode(b"test").decode("utf-8"),
@@ -50,7 +50,7 @@ def test_document_conversion_inline(monkeypatch, tmp_path):
     assert Path(job["output_uri"]).exists()
 
 
-def test_document_conversion_queue_worker_and_dlq(monkeypatch, tmp_path):
+def test_document_conversion_queue_worker_and_dlq(monkeypatch, tmp_path, jwt_headers):
     published = []
 
     class FakePublisher:
@@ -67,7 +67,7 @@ def test_document_conversion_queue_worker_and_dlq(monkeypatch, tmp_path):
 
     monkeypatch.setattr(office_conversion, "PubSubPublisher", FakePublisher)
 
-    client = TestClient(service.app)
+    client = TestClient(service.app, headers=jwt_headers)
     payload = {
         "filename": "example.ppt",
         "content_base64": base64.b64encode(b"test").decode("utf-8"),

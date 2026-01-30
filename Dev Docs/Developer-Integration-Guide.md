@@ -199,12 +199,11 @@ Graph exploration:
 - Query by text or image.
 - Open Graph Explorer to inspect related events.
 
-## 10) Authentication (JWT at gateway, API keys internal)
+## 10) Authentication (JWT everywhere)
 
 Production default:
-- API Gateway is JWT-only for user-facing traffic.
-- API keys are reserved for internal automation (backfill, batch jobs) and are not accepted at the gateway.
-- Services may run `AUTH_MODE=dual` internally to support automation while keeping the gateway strict.
+- API Gateway enforces JWT for all user-facing traffic.
+- Services validate JWTs directly for defense-in-depth.
 
 ### JWT claims contract
 Required in production (recommended `AUTH_REQUIRED_CLAIMS`):
@@ -248,20 +247,22 @@ in proxy headers or attach user claims. Enable `AUTH_GATEWAY_USERINFO=1` to
 accept `X-Forwarded-Authorization` / `X-Original-Authorization` or
 `X-Endpoint-API-UserInfo` from the gateway.
 
+### Local dev JWTs
+- Set `AUTH_JWT_HS256_SECRET` and `AUTH_JWT_ALGORITHMS=HS256`.
+- Mint an HS256 JWT and pass it via `Authorization: Bearer <JWT>`.
+
 ### Internal invokers (Cloud Run IAM)
 - Non-gateway services should be locked to explicit service accounts (no `allUsers`).
 - Pub/Sub push and Cloud Scheduler should use OIDC tokens with a service account.
 - Grant `roles/iam.serviceAccountTokenCreator` to the Pub/Sub and Scheduler service agents for that service account.
-- Keep API keys for internal automation when `AUTH_MODE=dual`.
+- If you rely on GCP OIDC tokens, allow their issuer/audience in `AUTH_ISSUER`/`AUTH_AUDIENCE` (comma-separated).
 
 ### Mapping to Retikon auth
 - `roles` map to RBAC roles; `AUTH_ADMIN_ROLES` controls admin elevation.
 - `groups` can be used for ABAC policies; `AUTH_ADMIN_GROUPS` can elevate admin.
 - `org_id/site_id/stream_id` map to tenant scope.
-- If `AUTH_MODE=dual`, JWT is preferred when both JWT and API key are present (internal calls only).
 
 ### Auth env vars (summary)
-- `AUTH_MODE=api_key|jwt|dual`
 - `AUTH_ISSUER`, `AUTH_AUDIENCE`, `AUTH_JWKS_URI`
 - `AUTH_REQUIRED_CLAIMS` (comma-separated)
 - `AUTH_CLAIM_SUB`, `AUTH_CLAIM_EMAIL`, `AUTH_CLAIM_ROLES`, `AUTH_CLAIM_GROUPS`
@@ -281,7 +282,7 @@ For Firebase/Identity Platform ID tokens:
 ```
 from retikon_sdk import RetikonClient
 
-client = RetikonClient(api_key="...")
+client = RetikonClient(auth_token="JWT")
 results = client.query(query_text="forklift in zone 3")
 print(results["results"])
 ```
@@ -290,7 +291,7 @@ print(results["results"])
 ```
 import { RetikonClient } from "@retikon/core-sdk";
 
-const client = new RetikonClient({ apiKey: "..." });
+const client = new RetikonClient({ authToken: "JWT" });
 const results = await client.query({ queryText: "forklift in zone 3" });
 console.log(results.results);
 ```
@@ -302,8 +303,7 @@ console.log(results.results);
 
 ## 12) Security Best Practices
 - Validate webhook signatures.
-- Use scoped API keys.
-- Do not log raw media payloads or API keys.
+- Do not log raw media payloads or JWTs.
 - Rotate webhook secrets regularly.
 
 ## 13) Performance Tips
@@ -319,7 +319,6 @@ console.log(results.results);
 ## 15) Troubleshooting
 - Check DLQ backlog for ingestion failures.
 - Validate content-type + extension mismatches.
-- Ensure `QUERY_API_KEY` is set for non-dev environments.
 
 ## 16) Glossary
 - MediaAsset: root vertex for an ingested file.

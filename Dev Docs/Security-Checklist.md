@@ -8,8 +8,8 @@
 
 ## Secrets
 
-- [x] `QUERY_API_KEY` stored in Secret Manager for prod.
-- [x] Secret access limited to query service account.
+- [x] JWT issuer/audience/JWKS configured for prod.
+- [x] Auth config limited to required service accounts.
 - [x] Rotation plan documented and tested.
 
 ## Network and data

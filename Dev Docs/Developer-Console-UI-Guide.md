@@ -215,17 +215,17 @@ Layman summary: "See what you are using and what it costs."
 ## 13) Admin / Settings
 
 Purpose:
-- Manage users, API keys, and policies.
+- Manage users, JWT mappings, and policies.
 
 Key UI elements:
 - User list and roles.
-- API key management with scopes.
+- JWT role/group mapping and scope review.
 - Audit log viewer.
 - Privacy policies (Pro).
 
 Interactions:
 - Invite users.
-- Rotate API keys.
+- Rotate IdP keys / JWKS configuration.
 
 Layman summary: "Manage who can access what." 
 

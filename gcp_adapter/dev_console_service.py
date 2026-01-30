@@ -50,16 +50,14 @@ class ObjectRef:
     name: str
 
 
-def _require_api_key(request: Request) -> None:
+def _require_admin() -> bool:
     env = os.getenv("ENV", "dev").lower()
-    key = os.getenv("DEV_CONSOLE_API_KEY") or os.getenv("QUERY_API_KEY")
-    if not key:
-        if env in {"dev", "local", "test"}:
-            return
-        raise HTTPException(status_code=500, detail="DEV_CONSOLE_API_KEY missing")
-    header_key = request.headers.get("x-api-key")
-    if not header_key or header_key != key:
-        raise HTTPException(status_code=401, detail="Unauthorized")
+    default = "0" if env in {"dev", "local", "test"} else "1"
+    return os.getenv("DEV_CONSOLE_REQUIRE_ADMIN", default) == "1"
+
+
+def _authorize(request: Request) -> AuthContext | None:
+    return authorize_request(request=request, require_admin=_require_admin())
 
 
 def _project_id() -> str:
@@ -187,6 +185,17 @@ def _firestore_client() -> firestore.Client:
     return firestore.Client()
 
 
+def _forward_auth_headers(request: Request) -> dict[str, str]:
+    header = (
+        request.headers.get("authorization")
+        or request.headers.get("x-forwarded-authorization")
+        or request.headers.get("x-original-authorization")
+    )
+    if not header:
+        return {}
+    return {"authorization": header}
+
+
 @app.get("/health")
 async def health() -> dict[str, str]:
     return build_health_response(SERVICE_NAME).model_dump()
@@ -198,7 +207,7 @@ async def upload_file(
     file: UploadFile = UPLOAD_FILE,
     category: str = CATEGORY_FORM,
 ) -> dict[str, object]:
-    _require_api_key(request)
+    _authorize(request)
     raw_prefix = _raw_prefix().strip("/")
     bucket_name = _raw_bucket()
     run_id = time.strftime("%Y%m%d-%H%M%S") + f"-{uuid.uuid4().hex[:6]}"
@@ -228,7 +237,7 @@ async def ingest_status(
     request: Request,
     uri: str,
 ) -> dict[str, object]:
-    _require_api_key(request)
+    _authorize(request)
     ref = _parse_gs_uri(uri)
     client = _storage_client()
     blob = client.bucket(ref.bucket).blob(ref.name)
@@ -255,7 +264,7 @@ async def manifest(
     run_id: str | None = None,
     manifest_uri_value: str | None = None,
 ) -> dict[str, object]:
-    _require_api_key(request)
+    _authorize(request)
     if not run_id and not manifest_uri_value:
         raise HTTPException(status_code=400, detail="run_id or manifest_uri required")
     if manifest_uri_value:
@@ -279,7 +288,7 @@ async def parquet_preview(
     path: str,
     limit: int = 5,
 ) -> dict[str, object]:
-    _require_api_key(request)
+    _authorize(request)
     _ensure_graph_uri(path)
     return _preview_parquet(path, max(1, min(limit, 25)))
 
@@ -289,7 +298,7 @@ async def fetch_object(
     request: Request,
     uri: str,
 ) -> StreamingResponse:
-    _require_api_key(request)
+    _authorize(request)
     _ensure_raw_uri(uri)
     ref = _parse_gs_uri(uri)
     client = _storage_client()
@@ -311,7 +320,7 @@ async def fetch_graph_object(
     request: Request,
     uri: str,
 ) -> StreamingResponse:
-    _require_api_key(request)
+    _authorize(request)
     _ensure_graph_uri(uri)
     ref = _parse_gs_uri(uri)
     client = _storage_client()
@@ -330,7 +339,7 @@ async def fetch_graph_object(
 
 @app.get("/dev/snapshot-status")
 async def snapshot_status(request: Request) -> dict[str, object]:
-    _require_api_key(request)
+    _authorize(request)
     snapshot_uri = os.getenv("SNAPSHOT_URI")
     if not snapshot_uri:
         raise HTTPException(status_code=500, detail="Missing SNAPSHOT_URI")
@@ -346,7 +355,7 @@ async def snapshot_status(request: Request) -> dict[str, object]:
 
 @app.post("/dev/index-build")
 async def index_build(request: Request) -> dict[str, object]:
-    _require_api_key(request)
+    _authorize(request)
     job_name = os.getenv("INDEX_JOB_NAME")
     region = os.getenv("INDEX_JOB_REGION", os.getenv("REGION", "us-central1"))
     if not job_name:
@@ -371,12 +380,11 @@ async def index_build(request: Request) -> dict[str, object]:
 
 @app.post("/dev/snapshot-reload")
 async def snapshot_reload(request: Request) -> dict[str, object]:
-    _require_api_key(request)
+    _authorize(request)
     base_url = _query_service_url()
-    api_key = os.getenv("DEV_CONSOLE_API_KEY") or os.getenv("QUERY_API_KEY")
-    headers = {"x-api-key": api_key or ""}
+    headers = _forward_auth_headers(request)
     token = _fetch_id_token(base_url)
-    if token:
+    if token and "authorization" not in headers:
         headers["authorization"] = f"Bearer {token}"
     resp = requests.post(
         f"{base_url}/admin/reload-snapshot",
@@ -389,7 +397,7 @@ async def snapshot_reload(request: Request) -> dict[str, object]:
 
 @app.get("/dev/index-status")
 async def index_status(request: Request) -> dict[str, object]:
-    _require_api_key(request)
+    _authorize(request)
     job_name = os.getenv("INDEX_JOB_NAME")
     region = os.getenv("INDEX_JOB_REGION", os.getenv("REGION", "us-central1"))
     if not job_name:
@@ -413,3 +421,5 @@ async def index_status(request: Request) -> dict[str, object]:
         "completion_status": latest.get("completionStatus"),
         "completion_time": latest.get("completionTimestamp"),
     }
+from gcp_adapter.auth import authorize_request
+from retikon_core.auth import AuthContext

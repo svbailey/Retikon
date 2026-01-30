@@ -93,22 +93,10 @@ This runbook covers routine checks and incident response for Retikon services.
 - Admin gating:
   - `CHAOS_REQUIRE_ADMIN=1` in prod (default behavior).
 
-## Secret rotation (query API key)
+## JWT key rotation
 
-- Generate a new API key (example):
-  - `python - <<'PY'`
-  - `import secrets; print(secrets.token_urlsafe(32))`
-  - `PY`
-- Add a new secret version:
-  - `printf '%s' "$NEW_KEY" | gcloud secrets versions add retikon-query-api-key --data-file=- --project $PROJECT_ID`
-- Roll the query service to a new revision so it picks up the latest secret:
-  - `gcloud run services update retikon-query-dev --region $REGION --project $PROJECT_ID --update-env-vars RETIKON_VERSION=$(date +%Y%m%d%H%M%S)`
+- Rotate signing keys at your IdP and publish updated JWKS.
+- Roll Cloud Run services if JWKS caching needs refresh (or shorten cache TTLs).
 - Validate:
-  - `curl -X POST "$QUERY_URL/query" -H "X-API-Key: $NEW_KEY" -H "Content-Type: application/json" -d '{"top_k":1,"query_text":"demo"}'`
-- Update any local tooling (Dev Console, load tests) with the new key.
-
-## Secret rotation (audit API key)
-
-- By default, audit uses the same Secret Manager key as `QUERY_API_KEY`.
-- If you split keys later, rotate the audit key the same way and roll the audit
-  service to pick up the new secret.
+  - `curl -X POST "$QUERY_URL/query" -H "Authorization: Bearer $RETIKON_AUTH_TOKEN" -H "Content-Type: application/json" -d '{"top_k":1,"query_text":"demo"}'`
+- Update any local tooling (Dev Console, load tests) with a fresh JWT.

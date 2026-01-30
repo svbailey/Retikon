@@ -122,7 +122,7 @@ def test_webhook_delivery_retries(monkeypatch):
     assert result.attempts == 2
 
 
-def test_webhook_service_dispatch_writes_log(tmp_path, monkeypatch):
+def test_webhook_service_dispatch_writes_log(tmp_path, monkeypatch, jwt_headers):
     monkeypatch.setenv("STORAGE_BACKEND", "local")
     monkeypatch.setenv("LOCAL_GRAPH_ROOT", tmp_path.as_posix())
     get_config.cache_clear()
@@ -155,7 +155,7 @@ def test_webhook_service_dispatch_writes_log(tmp_path, monkeypatch):
 
     monkeypatch.setattr(service, "deliver_webhook", fake_deliver)
 
-    client = TestClient(service.app)
+    client = TestClient(service.app, headers=jwt_headers)
     resp = client.post(
         "/webhooks",
         json={"name": "Demo", "url": "https://example.com/hook"},

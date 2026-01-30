@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import os
-import secrets
 import time
 import uuid
 from contextlib import asynccontextmanager
@@ -13,6 +12,8 @@ from urllib.parse import urlparse
 from fastapi import FastAPI, Header, HTTPException, Request
 
 from retikon_core.config import get_config
+from retikon_core.auth.jwt import auth_context_from_claims, decode_jwt
+from retikon_core.errors import AuthError
 from retikon_core.logging import configure_logging, get_logger
 from retikon_core.query_engine import download_snapshot, get_secure_connection
 from retikon_core.services.fastapi_scaffolding import (
@@ -89,24 +90,44 @@ apply_cors_middleware(app, default_allow_all=True)
 add_correlation_id_middleware(app)
 
 
-def _api_key_required() -> bool:
-    env = os.getenv("ENV", "local").lower()
-    return env not in {"dev", "local", "test"}
+def _extract_bearer_tokens(request: Request) -> list[str]:
+    tokens: list[str] = []
+    for header_name in (
+        "authorization",
+        "x-forwarded-authorization",
+        "x-original-authorization",
+    ):
+        header = request.headers.get(header_name)
+        token = _parse_bearer_token(header)
+        if token and token not in tokens:
+            tokens.append(token)
+    return tokens
 
 
-def _get_api_key() -> str | None:
-    return os.getenv("QUERY_API_KEY")
+def _parse_bearer_token(header: str | None) -> str | None:
+    if not header:
+        return None
+    parts = header.split()
+    if len(parts) != 2 or parts[0].lower() != "bearer":
+        return None
+    token = parts[1].strip()
+    return token or None
 
 
 def _authorize(request: Request) -> None:
-    api_key = _get_api_key()
-    if not api_key:
-        if _api_key_required():
-            raise HTTPException(status_code=500, detail="QUERY_API_KEY is required")
-        return
-    header_key = request.headers.get("x-api-key")
-    if not header_key or not secrets.compare_digest(header_key, api_key):
+    tokens = _extract_bearer_tokens(request)
+    if not tokens:
         raise HTTPException(status_code=401, detail="Unauthorized")
+    last_exc: AuthError | None = None
+    for token in tokens:
+        try:
+            claims = decode_jwt(token)
+            auth_context_from_claims(claims)
+            return
+        except AuthError as exc:
+            last_exc = exc
+            continue
+    raise HTTPException(status_code=401, detail="Unauthorized") from last_exc
 
 
 def _is_local_uri(uri: str) -> bool:

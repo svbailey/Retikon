@@ -6,9 +6,11 @@ from dataclasses import dataclass
 from typing import Annotated
 
 import fsspec
-from fastapi import FastAPI, File, Form, HTTPException, UploadFile
+from fastapi import FastAPI, File, Form, HTTPException, Request, UploadFile
 from pydantic import BaseModel
 
+from gcp_adapter.auth import authorize_request
+from retikon_core.auth import AuthContext
 from retikon_core.edge.buffer import BufferItem, EdgeBuffer
 from retikon_core.edge.policies import AdaptiveBatchPolicy, BackpressurePolicy
 from retikon_core.logging import configure_logging, get_logger
@@ -145,6 +147,10 @@ def _init_state() -> GatewayState:
 STATE = _init_state()
 
 
+def _authorize(request: Request) -> AuthContext | None:
+    return authorize_request(request=request, require_admin=False)
+
+
 def _object_path(
     *,
     modality: str,
@@ -236,7 +242,8 @@ async def health() -> dict[str, str]:
 
 
 @app.get("/edge/config", response_model=ConfigResponse)
-async def get_config() -> ConfigResponse:
+async def get_config(request: Request) -> ConfigResponse:
+    _authorize(request)
     return ConfigResponse(
         buffer_dir=_buffer_dir(),
         buffer_max_bytes=STATE.buffer.max_bytes,
@@ -251,7 +258,8 @@ async def get_config() -> ConfigResponse:
 
 
 @app.post("/edge/config", response_model=ConfigResponse)
-async def update_config(payload: ConfigUpdate) -> ConfigResponse:
+async def update_config(payload: ConfigUpdate, request: Request) -> ConfigResponse:
+    _authorize(request)
     if payload.buffer_max_bytes is not None:
         STATE.buffer.max_bytes = payload.buffer_max_bytes
     if payload.buffer_ttl_seconds is not None:
@@ -297,7 +305,8 @@ async def update_config(payload: ConfigUpdate) -> ConfigResponse:
 
 
 @app.get("/edge/buffer/status", response_model=BufferStatus)
-async def buffer_status() -> BufferStatus:
+async def buffer_status(request: Request) -> BufferStatus:
+    _authorize(request)
     stats = STATE.buffer.stats()
     return BufferStatus(
         count=stats.count,
@@ -308,12 +317,14 @@ async def buffer_status() -> BufferStatus:
 
 
 @app.post("/edge/buffer/replay")
-async def buffer_replay() -> dict[str, int]:
+async def buffer_replay(request: Request) -> dict[str, int]:
+    _authorize(request)
     return STATE.buffer.replay(_replay_item)
 
 
 @app.post("/edge/buffer/prune")
-async def buffer_prune() -> dict[str, int]:
+async def buffer_prune(request: Request) -> dict[str, int]:
+    _authorize(request)
     before = STATE.buffer.stats()
     STATE.buffer.prune()
     after = STATE.buffer.stats()
@@ -322,12 +333,14 @@ async def buffer_prune() -> dict[str, int]:
 
 @app.post("/edge/upload", response_model=UploadResponse)
 async def upload(
+    request: Request,
     file: Annotated[UploadFile, File()],
     modality: Annotated[str, Form()],
     device_id: Annotated[str | None, Form()] = None,
     stream_id: Annotated[str | None, Form()] = None,
     site_id: Annotated[str | None, Form()] = None,
 ) -> UploadResponse:
+    _authorize(request)
     backlog = STATE.buffer.stats().count
     if not STATE.backpressure.should_accept(backlog):
         raise HTTPException(status_code=429, detail="Gateway backpressure active")

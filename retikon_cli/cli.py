@@ -61,25 +61,25 @@ def _request_json(
     url: str,
     payload: dict[str, Any] | None = None,
     timeout: int | None = None,
-    api_key_envs: tuple[str, ...] | None = None,
+    auth_token_envs: tuple[str, ...] | None = None,
 ) -> dict[str, Any]:
     data = None
     if payload is not None:
         data = json.dumps(payload).encode("utf-8")
     headers = {"Content-Type": "application/json"}
-    if api_key_envs:
-        for name in api_key_envs:
+    if auth_token_envs:
+        for name in auth_token_envs:
             value = os.getenv(name)
             if value:
-                headers["x-api-key"] = value
+                headers["Authorization"] = f"Bearer {value}"
                 break
-        if "x-api-key" not in headers:
+        if "Authorization" not in headers:
             env_path = Path(os.getenv("RETIKON_ENV_FILE", DEFAULT_ENV_FILE))
             env_file = _read_env_file(env_path)
-            for name in api_key_envs:
+            for name in auth_token_envs:
                 value = env_file.get(name)
                 if value:
-                    headers["x-api-key"] = value
+                    headers["Authorization"] = f"Bearer {value}"
                     break
     req = urllib.request.Request(
         url,
@@ -369,7 +369,7 @@ def cmd_ingest(args: argparse.Namespace) -> int:
         "POST",
         f"{ingest_url}/ingest",
         payload=payload,
-        api_key_envs=("INGEST_API_KEY", "QUERY_API_KEY"),
+        auth_token_envs=("RETIKON_AUTH_TOKEN", "RETIKON_JWT"),
     )
     _print_json(response)
     return 0
@@ -409,7 +409,7 @@ def cmd_query(args: argparse.Namespace) -> int:
         "POST",
         f"{query_url}/query",
         payload=payload,
-        api_key_envs=("QUERY_API_KEY",),
+        auth_token_envs=("RETIKON_AUTH_TOKEN", "RETIKON_JWT"),
     )
     _print_json(response)
     return 0

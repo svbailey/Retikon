@@ -73,7 +73,7 @@ Retikon is an open-core platform:
 - Chunking: 512 token target, 50 token overlap.
 - Caps: video 300s, audio 20m, raw download 500MB.
 - Scoring: `sim = 1.0 - cosine_distance`, clamp to [0.0, 1.0].
-- Query auth: `X-API-Key`.
+- Query auth: `Authorization: Bearer <JWT>`.
 - Dev Console: GCS static hosting (optional Cloud CDN).
 
 ## GraphAr layout (strict)
@@ -123,11 +123,9 @@ Pro (GCP) variables:
 - `STORAGE_BACKEND=gcs`
 - `RAW_BUCKET`, `GRAPH_BUCKET`, `GRAPH_PREFIX`
 - `SNAPSHOT_URI`
-- `QUERY_API_KEY` (dev only; prod uses Secret Manager)
+- `AUTH_ISSUER`, `AUTH_AUDIENCE`, `AUTH_JWKS_URI`
 - `QUERY_WARMUP`, `QUERY_WARMUP_TEXT`, `QUERY_WARMUP_STEPS`
-- `AUDIT_API_KEY` (defaults to `QUERY_API_KEY` in Pro)
-- `AUDIT_REQUIRE_ADMIN` (set `1` to require admin API keys)
-- `INGEST_API_KEY` (optional for ingestion auth)
+- `AUDIT_REQUIRE_ADMIN` (set `1` to require admin JWTs)
 
 Full env reference: `Dev Docs/Environment-Reference.md`
 
@@ -136,6 +134,7 @@ CLI/SDK defaults (optional):
 - `RETIKON_INGEST_URL`
 - `RETIKON_QUERY_URL`
 - `RETIKON_TIMEOUT_S`
+- `RETIKON_AUTH_TOKEN` (or `RETIKON_JWT`)
 
 ## Development workflow (high level)
 

@@ -1,8 +1,10 @@
 import os
 import tempfile
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 import duckdb
+import jwt
 import pytest
 
 
@@ -31,10 +33,66 @@ def _disable_query_warmup(monkeypatch: pytest.MonkeyPatch) -> None:
     set_default("DUCKDB_SKIP_HEALTHCHECK", "1")
     set_default("DUCKDB_ALLOW_INSTALL", "1")
     set_default("SNAPSHOT_URI", _ensure_test_snapshot())
+    set_default("AUTH_JWT_HS256_SECRET", "test-secret")
+    set_default("AUTH_JWT_ALGORITHMS", "HS256")
+    set_default("AUTH_ISSUER", "https://issuer.test")
+    set_default("AUTH_AUDIENCE", "retikon-test")
+    set_default("AUTH_REQUIRED_CLAIMS", "sub,iss,aud,exp,iat")
 
 
 _TEST_SNAPSHOT_PATH: str | None = None
 _TEST_GRAPH_ROOT: str | None = None
+
+
+def _make_jwt(
+    *,
+    secret: str,
+    issuer: str,
+    audience: str,
+    subject: str = "user-1",
+    roles: list[str] | None = None,
+    groups: list[str] | None = None,
+    org_id: str | None = "org-1",
+    site_id: str | None = None,
+    stream_id: str | None = None,
+) -> str:
+    now = datetime.now(timezone.utc)
+    claims: dict[str, object] = {
+        "sub": subject,
+        "iss": issuer,
+        "aud": audience,
+        "exp": int((now + timedelta(minutes=5)).timestamp()),
+        "iat": int(now.timestamp()),
+        "email": "user@example.com",
+    }
+    if roles is not None:
+        claims["roles"] = roles
+    if groups is not None:
+        claims["groups"] = groups
+    if org_id is not None:
+        claims["org_id"] = org_id
+    if site_id is not None:
+        claims["site_id"] = site_id
+    if stream_id is not None:
+        claims["stream_id"] = stream_id
+    return jwt.encode(claims, secret, algorithm="HS256")
+
+
+@pytest.fixture
+def jwt_factory():
+    def _factory(**kwargs) -> str:
+        secret = os.getenv("AUTH_JWT_HS256_SECRET", "test-secret")
+        issuer = os.getenv("AUTH_ISSUER", "https://issuer.test")
+        audience = os.getenv("AUTH_AUDIENCE", "retikon-test")
+        return _make_jwt(secret=secret, issuer=issuer, audience=audience, **kwargs)
+
+    return _factory
+
+
+@pytest.fixture
+def jwt_headers(jwt_factory):
+    token = jwt_factory()
+    return {"Authorization": f"Bearer {token}"}
 
 
 def _ensure_test_graph_root() -> str:

@@ -79,18 +79,26 @@ def decode_jwt(token: str, *, config: JwtConfig | None = None) -> dict[str, Any]
     options: dict[str, object] = {}
     if config.required_claims:
         options["require"] = list(config.required_claims)
-    try:
-        return jwt.decode(
-            token,
-            key=key,
-            algorithms=list(algs),
-            audience=config.audience,
-            issuer=config.issuer,
-            leeway=config.leeway_seconds,
-            options=options,
-        )
-    except jwt.PyJWTError as exc:
-        raise AuthError("Invalid JWT") from exc
+    issuers = _split_csv(config.issuer)
+    audiences = _split_csv(config.audience)
+    last_exc: jwt.PyJWTError | None = None
+    for issuer in issuers or [None]:
+        try:
+            kwargs: dict[str, object] = {
+                "key": key,
+                "algorithms": list(algs),
+                "leeway": config.leeway_seconds,
+                "options": options,
+            }
+            if audiences:
+                kwargs["audience"] = audiences
+            if issuer:
+                kwargs["issuer"] = issuer
+            return jwt.decode(token, **kwargs)
+        except jwt.PyJWTError as exc:
+            last_exc = exc
+            continue
+    raise AuthError("Invalid JWT") from last_exc
 
 
 def auth_context_from_claims(
@@ -153,6 +161,12 @@ def _env_str(name: str) -> str | None:
         return None
     value = value.strip()
     return value or None
+
+
+def _split_csv(value: str | None) -> list[str]:
+    if not value:
+        return []
+    return [item.strip() for item in value.split(",") if item.strip()]
 
 
 def _split_env(name: str, *, default: str = "") -> tuple[str, ...]:

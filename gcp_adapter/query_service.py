@@ -95,15 +95,6 @@ apply_cors_middleware(app)
 add_correlation_id_middleware(app)
 
 
-def _api_key_required() -> bool:
-    env = os.getenv("ENV", "dev").lower()
-    return env not in {"dev", "local", "test"}
-
-
-def _get_api_key() -> str | None:
-    return os.getenv("QUERY_API_KEY")
-
-
 def _graph_root_uri() -> str:
     graph_bucket, graph_prefix = _graph_settings()
     return graph_root(normalize_bucket_uri(graph_bucket, scheme="gs"), graph_prefix)
@@ -112,9 +103,6 @@ def _graph_root_uri() -> str:
 def _authorize(request: Request) -> AuthContext | None:
     return authorize_request(
         request=request,
-        base_uri=_graph_root_uri(),
-        fallback_key=_get_api_key(),
-        require_api_key=_api_key_required(),
         require_admin=False,
     )
 
@@ -372,7 +360,7 @@ async def query(
 async def reload_snapshot(request: Request) -> HealthResponse:
     auth_context = _authorize(request)
     if auth_context and not auth_context.is_admin:
-        raise HTTPException(status_code=403, detail="Admin API key required")
+        raise HTTPException(status_code=403, detail="Admin access required")
 
     try:
         _load_snapshot()

@@ -17,6 +17,7 @@ from retikon_sdk import RetikonClient
 client = RetikonClient(
     ingest_url="http://localhost:8081",
     query_url="http://localhost:8080",
+    auth_token="JWT",
 )
 
 # Ingest a local file by path
@@ -38,7 +39,7 @@ Defaults can also come from environment variables:
 
 - `RETIKON_INGEST_URL`
 - `RETIKON_QUERY_URL`
-- `QUERY_API_KEY` or `INGEST_API_KEY`
+- `RETIKON_AUTH_TOKEN` (or `RETIKON_JWT`)
 - `RETIKON_TIMEOUT_S`
 ```
 

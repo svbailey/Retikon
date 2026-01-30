@@ -2711,7 +2711,6 @@ resource "google_cloud_scheduler_job" "workflow_tick" {
 
     headers = {
       "Content-Type" = "application/json"
-      "x-api-key"    = local.resolved_query_api_key
     }
 
     oidc_token {

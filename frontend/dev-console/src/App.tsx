@@ -328,7 +328,7 @@ export default function App() {
   const [results, setResults] = useState<QueryHit[]>([]);
   const [loading, setLoading] = useState(false);
   const [queryError, setQueryError] = useState<string | null>(null);
-  const [apiKey, setApiKey] = useState("");
+  const [authToken, setAuthToken] = useState("");
   const [activeTab, setActiveTab] = useState<ConsoleTab>("console");
   const [devApiOverride, setDevApiOverride] = useState("");
   const [queryUrlOverride, setQueryUrlOverride] = useState("");
@@ -479,9 +479,11 @@ export default function App() {
   }, [rawBucket, rawPrefix, uploadCategory, uploadFile]);
 
   useEffect(() => {
-    const stored = localStorage.getItem("retikon_api_key");
+    const stored =
+      localStorage.getItem("retikon_auth_token") ||
+      localStorage.getItem("retikon_api_key");
     if (stored) {
-      setApiKey(stored);
+      setAuthToken(stored);
     }
     const devOverride = localStorage.getItem("retikon_dev_api_url");
     if (devOverride) {
@@ -522,10 +524,12 @@ export default function App() {
   }, []);
 
   useEffect(() => {
-    if (apiKey) {
-      localStorage.setItem("retikon_api_key", apiKey);
+    if (authToken) {
+      localStorage.setItem("retikon_auth_token", authToken);
+    } else {
+      localStorage.removeItem("retikon_auth_token");
     }
-  }, [apiKey]);
+  }, [authToken]);
 
   useEffect(() => {
     if (devApiOverride) {
@@ -604,7 +608,7 @@ export default function App() {
   };
 
   const devHeaders = () => {
-    return apiKey ? { "X-API-Key": apiKey } : {};
+    return authToken ? { Authorization: `Bearer ${authToken}` } : {};
   };
 
   const handleUpload = async () => {
@@ -1124,8 +1128,8 @@ export default function App() {
   };
 
   const reloadSnapshot = async () => {
-    if (!apiKey) {
-      setReloadError("API key required to reload snapshot.");
+    if (!authToken) {
+      setReloadError("JWT required to reload snapshot.");
       setReloadStatus("error");
       return;
     }
@@ -1137,7 +1141,7 @@ export default function App() {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          "X-API-Key": apiKey,
+          Authorization: `Bearer ${authToken}`,
         },
       });
       if (!resp.ok) {
@@ -1201,7 +1205,7 @@ export default function App() {
       addActivity("Dev API is not configured for graph previews.", "error");
       return null;
     }
-    if (!apiKey) {
+    if (!authToken) {
       return null;
     }
     if (thumbUrls[uri]) {
@@ -1230,8 +1234,8 @@ export default function App() {
       addActivity("Dev API is not configured for previews.", "error");
       return;
     }
-    if (!apiKey) {
-      addActivity("API key required to load video previews.", "error");
+    if (!authToken) {
+      addActivity("JWT required to load video previews.", "error");
       return;
     }
     if (videoUrls[uri] || videoLoading[uri]) {
@@ -1319,7 +1323,7 @@ export default function App() {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          ...(apiKey ? { "X-API-Key": apiKey } : {}),
+          ...(authToken ? { Authorization: `Bearer ${authToken}` } : {}),
         },
         body: JSON.stringify(payload),
       });
@@ -1353,8 +1357,8 @@ export default function App() {
     }
 
     const headers = ["-H 'Content-Type: application/json'"];
-    if (apiKey) {
-      headers.push(`-H 'X-API-Key: ${apiKey}'`);
+    if (authToken) {
+      headers.push(`-H 'Authorization: Bearer ${authToken}'`);
     }
     return `curl -X POST ${queryUrl} ${headers.join(" ")} -d '${JSON.stringify(
       payload,
@@ -1451,13 +1455,13 @@ export default function App() {
           </p>
           <div className="settings-grid">
             <label className="field">
-              <span>API key</span>
+              <span>JWT</span>
               <input
                 type="password"
-                placeholder="Paste your X-API-Key"
-                value={apiKey}
+                placeholder="Paste your JWT"
+                value={authToken}
                 autoComplete="new-password"
-                onChange={(event) => setApiKey(event.target.value)}
+                onChange={(event) => setAuthToken(event.target.value)}
               />
             </label>
             <label className="field">

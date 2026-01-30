@@ -114,7 +114,6 @@ terraform apply \
 
 ## Audit service configuration
 
-- `AUDIT_API_KEY` defaults to the same Secret Manager key as `QUERY_API_KEY`.
 - `AUDIT_REQUIRE_ADMIN=1` in prod (enforced by Terraform variable
   `audit_require_admin`).
 
@@ -128,7 +127,7 @@ graph control namespace.
 ```bash
 curl -X POST "$DATA_FACTORY_URL/data-factory/ocr/connectors" \
   -H "Content-Type: application/json" \
-  -H "X-API-Key: $DATA_FACTORY_API_KEY" \
+  -H "Authorization: Bearer $RETIKON_AUTH_TOKEN" \
   -d '{
     "name": "OCR Primary",
     "url": "https://ocr.example.com/v1/extract",

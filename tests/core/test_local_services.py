@@ -8,14 +8,14 @@ from local_adapter import ingestion_service, query_service
 from retikon_core.config import get_config
 
 
-def test_local_ingestion_service(tmp_path, monkeypatch):
+def test_local_ingestion_service(tmp_path, monkeypatch, jwt_headers):
     monkeypatch.setenv("STORAGE_BACKEND", "local")
     monkeypatch.setenv("LOCAL_GRAPH_ROOT", tmp_path.as_posix())
     monkeypatch.setenv("RAW_BUCKET", "local")
     monkeypatch.setenv("USE_REAL_MODELS", "0")
     get_config.cache_clear()
 
-    client = TestClient(ingestion_service.app)
+    client = TestClient(ingestion_service.app, headers=jwt_headers)
     response = client.post(
         "/ingest",
         json={"path": "tests/fixtures/sample.csv", "content_type": "text/csv"},
@@ -28,14 +28,14 @@ def test_local_ingestion_service(tmp_path, monkeypatch):
     get_config.cache_clear()
 
 
-def test_local_query_service_keyword(monkeypatch, tmp_path):
+def test_local_query_service_keyword(monkeypatch, tmp_path, jwt_headers):
     monkeypatch.setenv("STORAGE_BACKEND", "local")
     monkeypatch.setenv("LOCAL_GRAPH_ROOT", tmp_path.as_posix())
     get_config.cache_clear()
     query_service.STATE.local_path = None
     query_service.STATE.loaded_at = None
 
-    client = TestClient(query_service.app)
+    client = TestClient(query_service.app, headers=jwt_headers)
     health = client.get("/health")
     assert health.status_code == 200
 

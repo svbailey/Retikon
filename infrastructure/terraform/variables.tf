@@ -840,7 +840,7 @@ variable "log_level" {
 
 variable "auth_mode" {
   type    = string
-  default = "api_key"
+  default = "jwt"
 }
 
 variable "auth_issuer" {

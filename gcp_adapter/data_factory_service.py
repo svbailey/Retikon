@@ -194,19 +194,10 @@ class OfficeConversionJobResponse(BaseModel):
     updated_at: str
 
 
-def _api_key_required() -> bool:
-    env = os.getenv("ENV", "dev").lower()
-    return env not in {"dev", "local", "test"}
-
-
 def _require_admin() -> bool:
     env = os.getenv("ENV", "dev").lower()
     default = "0" if env in {"dev", "local", "test"} else "1"
     return os.getenv("DATA_FACTORY_REQUIRE_ADMIN", default) == "1"
-
-
-def _data_factory_api_key() -> str | None:
-    return os.getenv("DATA_FACTORY_API_KEY") or os.getenv("QUERY_API_KEY")
 
 
 _training_queue_publisher: PubSubPublisher | None = None
@@ -227,7 +218,7 @@ def _training_dlq_topic() -> str | None:
 
 
 def _training_runner_token() -> str | None:
-    return os.getenv("TRAINING_RUNNER_TOKEN") or os.getenv("DATA_FACTORY_API_KEY")
+    return os.getenv("TRAINING_RUNNER_TOKEN")
 
 
 def _training_sim_seconds() -> float:
@@ -320,9 +311,6 @@ def _execute_training_job_inline(job: TrainingJob) -> TrainingJob:
 def _authorize(request: Request) -> AuthContext | None:
     return authorize_request(
         request=request,
-        base_uri=_get_config().graph_root_uri(),
-        fallback_key=_data_factory_api_key(),
-        require_api_key=_api_key_required(),
         require_admin=_require_admin(),
     )
 

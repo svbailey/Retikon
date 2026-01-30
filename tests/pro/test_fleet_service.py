@@ -7,7 +7,7 @@ from fastapi.testclient import TestClient
 from retikon_core.config import get_config
 
 
-def test_fleet_service_endpoints(monkeypatch, tmp_path):
+def test_fleet_service_endpoints(monkeypatch, tmp_path, jwt_headers):
     monkeypatch.setenv("ENV", "dev")
     monkeypatch.setenv("STORAGE_BACKEND", "local")
     monkeypatch.setenv("LOCAL_GRAPH_ROOT", tmp_path.as_posix())
@@ -17,7 +17,7 @@ def test_fleet_service_endpoints(monkeypatch, tmp_path):
 
     importlib.reload(service)
 
-    client = TestClient(service.app)
+    client = TestClient(service.app, headers=jwt_headers)
 
     resp = client.get("/fleet/devices")
     assert resp.status_code == 200

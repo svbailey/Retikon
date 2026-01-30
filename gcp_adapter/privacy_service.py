@@ -70,27 +70,15 @@ class PrivacyPolicyResponse(BaseModel):
     updated_at: str
 
 
-def _api_key_required() -> bool:
-    env = os.getenv("ENV", "dev").lower()
-    return env not in {"dev", "local", "test"}
-
-
 def _require_admin() -> bool:
     env = os.getenv("ENV", "dev").lower()
     default = "0" if env in {"dev", "local", "test"} else "1"
     return os.getenv("PRIVACY_REQUIRE_ADMIN", default) == "1"
 
 
-def _privacy_api_key() -> str | None:
-    return os.getenv("PRIVACY_API_KEY") or os.getenv("QUERY_API_KEY")
-
-
 def _authorize(request: Request) -> AuthContext | None:
     return authorize_request(
         request=request,
-        base_uri=_get_config().graph_root_uri(),
-        fallback_key=_privacy_api_key(),
-        require_api_key=_api_key_required(),
         require_admin=_require_admin(),
     )
 
