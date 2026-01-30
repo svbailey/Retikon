@@ -112,7 +112,7 @@ def _auth_context_from_gateway_userinfo(request: Request) -> AuthContext | None:
         return None
 
 
-def _decode_gateway_userinfo(raw: str) -> dict[str, object] | None:
+def _decode_gateway_userinfo(raw: str) -> object | None:
     try:
         padded = raw + "=" * (-len(raw) % 4)
         decoded = base64.urlsafe_b64decode(padded.encode("utf-8")).decode("utf-8")

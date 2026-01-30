@@ -4,11 +4,15 @@ import json
 import os
 import urllib.request
 from dataclasses import dataclass
-from typing import Any
+from typing import Any, cast
 
 import jwt
 from cryptography import x509
-from jwt import PyJWKClient
+from cryptography.hazmat.primitives.asymmetric.ec import EllipticCurvePublicKey
+from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PublicKey
+from cryptography.hazmat.primitives.asymmetric.ed448 import Ed448PublicKey
+from cryptography.hazmat.primitives.asymmetric.rsa import RSAPublicKey
+from jwt import PyJWK, PyJWKClient
 
 from retikon_core.auth.types import AuthContext
 from retikon_core.errors import AuthError
@@ -34,6 +38,17 @@ class JwtConfig:
     admin_roles: tuple[str, ...]
     admin_groups: tuple[str, ...]
     leeway_seconds: int
+
+
+JwtKey = (
+    RSAPublicKey
+    | EllipticCurvePublicKey
+    | Ed25519PublicKey
+    | Ed448PublicKey
+    | PyJWK
+    | str
+    | bytes
+)
 
 
 def load_jwt_config() -> JwtConfig:
@@ -114,7 +129,7 @@ def auth_context_from_claims(
 def _resolve_key(
     token: str,
     config: JwtConfig,
-) -> tuple[str | object | None, tuple[str, ...]]:
+) -> tuple[JwtKey, tuple[str, ...]]:
     if config.hs256_secret:
         return config.hs256_secret, ("HS256",)
     if config.public_key:
@@ -125,8 +140,8 @@ def _resolve_key(
         try:
             jwk_client = PyJWKClient(config.jwks_uri)
             signing_key = jwk_client.get_signing_key_from_jwt(token)
-            alg = signing_key.algorithm or config.algorithms[0]
-            return signing_key.key, (alg,)
+            alg = _token_alg(token) or config.algorithms[0]
+            return cast(JwtKey, signing_key.key), (alg,)
         except Exception as exc:
             raise AuthError("Failed to fetch JWKS") from exc
     raise AuthError("JWT verification not configured")
@@ -187,7 +202,7 @@ def _looks_like_x509(uri: str) -> bool:
     return "/metadata/x509/" in uri
 
 
-def _load_x509_key(token: str, jwks_uri: str) -> object:
+def _load_x509_key(token: str, jwks_uri: str) -> JwtKey:
     try:
         header = jwt.get_unverified_header(token)
         kid = header.get("kid")
@@ -212,3 +227,14 @@ def _load_x509_key(token: str, jwks_uri: str) -> object:
         return cert.public_key()
     except Exception as exc:
         raise AuthError("Failed to parse x509 certificate") from exc
+
+
+def _token_alg(token: str) -> str | None:
+    try:
+        header = jwt.get_unverified_header(token)
+    except Exception:
+        return None
+    alg = header.get("alg")
+    if not alg:
+        return None
+    return str(alg)

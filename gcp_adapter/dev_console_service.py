@@ -11,7 +11,7 @@ from urllib.parse import urlparse
 import fsspec
 import google.auth
 import pyarrow.parquet as pq
-import requests
+import requests  # type: ignore[import-untyped]
 from fastapi import FastAPI, File, Form, HTTPException, Request, UploadFile
 from fastapi.responses import StreamingResponse
 from google.auth.transport import requests as google_requests
