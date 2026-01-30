@@ -1,0 +1,99 @@
+{
+  "displayName": "Retikon Ops",
+  "etag": "3cbf8a74782a0c03a8048dbde995b452",
+  "mosaicLayout": {
+    "columns": 12,
+    "tiles": [
+      {
+        "height": 4,
+        "widget": {
+          "title": "Ingestion 5xx rate (req/s)",
+          "xyChart": {
+            "dataSets": [
+              {
+                "plotType": "LINE",
+                "targetAxis": "Y1",
+                "timeSeriesQuery": {
+                  "timeSeriesFilter": {
+                    "aggregation": {
+                      "alignmentPeriod": "60s",
+                      "crossSeriesReducer": "REDUCE_SUM",
+                      "perSeriesAligner": "ALIGN_RATE"
+                    },
+                    "filter": "resource.type=\"cloud_run_revision\" AND resource.labels.service_name=\"retikon-ingestion-dev\" AND metric.type=\"run.googleapis.com/request_count\" AND metric.labels.response_code_class=\"5xx\""
+                  }
+                }
+              }
+            ],
+            "yAxis": {
+              "label": "req/s",
+              "scale": "LINEAR"
+            }
+          }
+        },
+        "width": 4
+      },
+      {
+        "height": 4,
+        "widget": {
+          "title": "Query p95 latency (s)",
+          "xyChart": {
+            "dataSets": [
+              {
+                "plotType": "LINE",
+                "targetAxis": "Y1",
+                "timeSeriesQuery": {
+                  "timeSeriesFilter": {
+                    "aggregation": {
+                      "alignmentPeriod": "60s",
+                      "crossSeriesReducer": "REDUCE_MAX",
+                      "perSeriesAligner": "ALIGN_PERCENTILE_95"
+                    },
+                    "filter": "resource.type=\"cloud_run_revision\" AND resource.labels.service_name=\"retikon-query-dev\" AND metric.type=\"run.googleapis.com/request_latencies\""
+                  }
+                }
+              }
+            ],
+            "yAxis": {
+              "label": "seconds",
+              "scale": "LINEAR"
+            }
+          }
+        },
+        "width": 4,
+        "xPos": 4
+      },
+      {
+        "height": 4,
+        "widget": {
+          "title": "DLQ backlog",
+          "xyChart": {
+            "dataSets": [
+              {
+                "plotType": "LINE",
+                "targetAxis": "Y1",
+                "timeSeriesQuery": {
+                  "timeSeriesFilter": {
+                    "aggregation": {
+                      "alignmentPeriod": "60s",
+                      "crossSeriesReducer": "REDUCE_MAX",
+                      "perSeriesAligner": "ALIGN_MAX"
+                    },
+                    "filter": "resource.type=\"pubsub_subscription\" AND resource.labels.subscription_id=\"retikon-ingest-dlq-sub\" AND metric.type=\"pubsub.googleapis.com/subscription/num_undelivered_messages\""
+                  }
+                }
+              }
+            ],
+            "yAxis": {
+              "label": "messages",
+              "scale": "LINEAR"
+            }
+          }
+        },
+        "width": 4,
+        "xPos": 8
+      }
+    ]
+  },
+  "name": "projects/423745254982/dashboards/2f514524-efec-4290-a260-c849390b5cdf"
+}

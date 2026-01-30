@@ -49,7 +49,8 @@ Defaults shown match current code where applicable.
 - `DUCKDB_TEMP_DIRECTORY`
 - `DUCKDB_HEALTHCHECK_URI`
 - `DUCKDB_ALLOW_INSTALL=0|1`
-- `DUCKDB_GCS_FALLBACK=0|1`
+- `RETIKON_DUCKDB_AUTH_PROVIDER` (e.g., `gcp_adapter.duckdb_auth:GcsDuckDBAuthProvider`)
+- `DUCKDB_GCS_FALLBACK=0|1` (GCS provider only)
 - `DUCKDB_SKIP_HEALTHCHECK=0|1`
 
 ## Pro (GCP) required
@@ -61,6 +62,7 @@ Defaults shown match current code where applicable.
 - `GRAPH_BUCKET`
 - `GRAPH_PREFIX`
 - `SNAPSHOT_URI`
+- `RETIKON_DUCKDB_AUTH_PROVIDER` (GCP: `gcp_adapter.duckdb_auth:GcsDuckDBAuthProvider`)
 
 ## Pro (GCP) auth + governance
 

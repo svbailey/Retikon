@@ -721,6 +721,10 @@ resource "google_cloud_run_service" "query" {
           value = var.duckdb_allow_install ? "1" : "0"
         }
         env {
+          name  = "RETIKON_DUCKDB_AUTH_PROVIDER"
+          value = var.duckdb_auth_provider
+        }
+        env {
           name  = "DUCKDB_GCS_FALLBACK"
           value = var.duckdb_gcs_fallback ? "1" : "0"
         }
@@ -907,6 +911,10 @@ resource "google_cloud_run_service" "query_gpu" {
           value = var.duckdb_allow_install ? "1" : "0"
         }
         env {
+          name  = "RETIKON_DUCKDB_AUTH_PROVIDER"
+          value = var.duckdb_auth_provider
+        }
+        env {
           name  = "DUCKDB_GCS_FALLBACK"
           value = var.duckdb_gcs_fallback ? "1" : "0"
         }
@@ -994,6 +1002,10 @@ resource "google_cloud_run_service" "audit" {
         env {
           name  = "DUCKDB_ALLOW_INSTALL"
           value = var.duckdb_allow_install ? "1" : "0"
+        }
+        env {
+          name  = "RETIKON_DUCKDB_AUTH_PROVIDER"
+          value = var.duckdb_auth_provider
         }
         env {
           name  = "DUCKDB_GCS_FALLBACK"
@@ -1793,6 +1805,10 @@ resource "google_cloud_run_v2_job" "index_builder" {
           value = var.duckdb_allow_install ? "1" : "0"
         }
         env {
+          name  = "RETIKON_DUCKDB_AUTH_PROVIDER"
+          value = var.duckdb_auth_provider
+        }
+        env {
           name  = "INDEX_BUILDER_WORK_DIR"
           value = var.index_builder_work_dir
         }
@@ -2138,6 +2154,10 @@ resource "google_monitoring_dashboard" "ops" {
       }
     }
   )
+
+  lifecycle {
+    ignore_changes = [dashboard_json]
+  }
 }
 
 resource "google_cloud_run_v2_job" "ingest_smoke" {

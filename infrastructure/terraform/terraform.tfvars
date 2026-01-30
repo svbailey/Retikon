@@ -9,6 +9,7 @@ snapshot_uri      = "gs://retikon-graph-simitor-dev/retikon_v2/snapshots/retikon
 raw_prefix        = "raw"
 duckdb_skip_healthcheck = true
 duckdb_gcs_fallback = false
+duckdb_auth_provider = "gcp_adapter.duckdb_auth:GcsDuckDBAuthProvider"
 index_builder_work_dir = "/tmp"
 index_builder_copy_local = false
 index_builder_fallback_local = true

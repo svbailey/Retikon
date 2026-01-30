@@ -18,6 +18,7 @@ def _disable_query_warmup(monkeypatch: pytest.MonkeyPatch) -> None:
     set_default("RAW_BUCKET", "test-raw")
     set_default("GRAPH_BUCKET", "test-graph")
     set_default("GRAPH_PREFIX", "retikon_v2")
+    set_default("LOCAL_GRAPH_ROOT", _ensure_test_graph_root())
     set_default("ENV", "test")
     set_default("LOG_LEVEL", "INFO")
     set_default("MAX_RAW_BYTES", "500000000")
@@ -33,6 +34,16 @@ def _disable_query_warmup(monkeypatch: pytest.MonkeyPatch) -> None:
 
 
 _TEST_SNAPSHOT_PATH: str | None = None
+_TEST_GRAPH_ROOT: str | None = None
+
+
+def _ensure_test_graph_root() -> str:
+    global _TEST_GRAPH_ROOT
+    if _TEST_GRAPH_ROOT and Path(_TEST_GRAPH_ROOT).exists():
+        return _TEST_GRAPH_ROOT
+
+    _TEST_GRAPH_ROOT = tempfile.mkdtemp(prefix="retikon_test_graph_")
+    return _TEST_GRAPH_ROOT
 
 
 def _ensure_test_snapshot() -> str:

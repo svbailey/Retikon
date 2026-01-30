@@ -748,6 +748,11 @@ variable "duckdb_gcs_fallback" {
   default = false
 }
 
+variable "duckdb_auth_provider" {
+  type    = string
+  default = "gcp_adapter.duckdb_auth:GcsDuckDBAuthProvider"
+}
+
 variable "duckdb_skip_healthcheck" {
   type    = bool
   default = false

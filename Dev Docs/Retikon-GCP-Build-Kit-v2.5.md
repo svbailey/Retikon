@@ -700,6 +700,7 @@ Enable these APIs in the target project:
   - `QUERY_WARMUP` (optional, default 1), `QUERY_WARMUP_TEXT` (optional)
   - `QUERY_WARMUP_STEPS` (optional, default `text,image_text,audio_text,image`)
   - `SLOW_QUERY_MS` (optional), `LOG_QUERY_TIMINGS` (optional)
+  - `RETIKON_DUCKDB_AUTH_PROVIDER` (GCP: `gcp_adapter.duckdb_auth:GcsDuckDBAuthProvider`)
   - `DUCKDB_GCS_FALLBACK` (optional)
 - Local `.env` file for dev (non-prod only).
 
@@ -1211,6 +1212,7 @@ E5, E6, E9, E10
 
 - E5 Secure DuckDB connection (GCS)
   - Implement `retikon_core/query_engine/warm_start.py:get_secure_connection()`.
+  - Use `RETIKON_DUCKDB_AUTH_PROVIDER` to load the GCS auth provider in GCP.
   - Load DuckDB extensions: `httpfs` and `vss`.
   - Primary auth path:
     - `CREATE SECRET retikon_gcs (TYPE GCS, PROVIDER credential_chain);`
@@ -1371,6 +1373,8 @@ E8, E7
   - Add metrics export:
     - OpenTelemetry optional
     - Cloud Monitoring dashboards
+    - Manage dashboards out-of-band (Terraform ignores `dashboard_json`);
+      use `scripts/monitoring_dashboard_sync.py` to export/apply.
   - Alerts:
     - ingestion error rate
     - query p95 latency

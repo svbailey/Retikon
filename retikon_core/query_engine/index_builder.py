@@ -14,6 +14,10 @@ import duckdb
 import fsspec
 
 from retikon_core.logging import configure_logging, get_logger
+from retikon_core.query_engine.duckdb_auth import (
+    DuckDBAuthContext,
+    load_duckdb_auth_provider,
+)
 from retikon_core.query_engine.warm_start import load_extensions
 from retikon_core.storage.paths import (
     backend_scheme,
@@ -347,23 +351,6 @@ def _table_has_column(
     return any(row[1] == column for row in rows)
 
 
-def _configure_gcs_secret(
-    conn: duckdb.DuckDBPyConnection,
-    allow_install: bool,
-) -> str:
-    use_fallback = os.getenv("DUCKDB_GCS_FALLBACK", "0") == "1"
-    conn.execute("DROP SECRET IF EXISTS retikon_gcs")
-    if use_fallback:
-        load_extensions(conn, ("gcs",), allow_install)
-        return "gcs_extension"
-    conn.execute("CREATE SECRET retikon_gcs (TYPE GCS, PROVIDER credential_chain)")
-    return "credential_chain"
-
-
-def _is_gcs_uri(uri: str | None) -> bool:
-    return bool(uri and uri.startswith("gs://"))
-
-
 def build_snapshot(
     *,
     graph_uri: str,
@@ -393,9 +380,12 @@ def build_snapshot(
     ) -> tuple[IndexBuildReport, str]:
         conn = duckdb.connect(str(db_path))
         extensions = load_extensions(conn, ("httpfs", "vss"), allow_install)
-        auth_path = "none"
-        if _is_gcs_uri(base_uri) or _is_gcs_uri(source_uri):
-            auth_path = _configure_gcs_secret(conn, allow_install)
+        provider = load_duckdb_auth_provider()
+        context = DuckDBAuthContext(
+            uris=tuple(uri for uri in (base_uri, source_uri) if uri),
+            allow_install=allow_install,
+        )
+        auth_path, fallback_used = provider.configure(conn, context)
         conn.execute("SET hnsw_enable_experimental_persistence=true")
 
         groups, media_files, has_manifests = _load_manifest_groups(
@@ -852,11 +842,11 @@ def build_snapshot(
             file_size_bytes=_file_size_bytes(str(db_path)),
         )
         logger.info(
-            "DuckDB GCS auth initialized",
+            "DuckDB auth initialized",
             extra={
                 "duckdb_auth_path": auth_path,
                 "duckdb_extension_loaded": ",".join(extensions),
-                "duckdb_fallback_used": os.getenv("DUCKDB_GCS_FALLBACK", "0") == "1",
+                "duckdb_fallback_used": fallback_used,
             },
         )
         return report, ",".join(extensions)

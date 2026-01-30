@@ -8,6 +8,10 @@ import duckdb
 
 from retikon_core.errors import RecoverableError
 from retikon_core.logging import get_logger
+from retikon_core.query_engine.duckdb_auth import (
+    DuckDBAuthContext,
+    load_duckdb_auth_provider,
+)
 
 logger = get_logger(__name__)
 
@@ -50,36 +54,21 @@ def load_extensions(
     return tuple(loaded)
 
 
-def _configure_gcs_secret(
-    conn: duckdb.DuckDBPyConnection,
-    use_fallback: bool,
-    allow_install: bool,
-) -> str:
-    conn.execute("DROP SECRET IF EXISTS retikon_gcs")
-    if use_fallback:
-        _load_extension(conn, "gcs", allow_install)
-        return "gcs_extension"
-    conn.execute("CREATE SECRET retikon_gcs (TYPE GCS, PROVIDER credential_chain)")
-    return "credential_chain"
-
-
-def _is_gcs_uri(uri: str | None) -> bool:
-    return bool(uri and uri.startswith("gs://"))
-
-
 def get_secure_connection(
     *,
     healthcheck_uri: str | None,
 ) -> tuple[duckdb.DuckDBPyConnection, DuckDBAuthInfo]:
     allow_install = os.getenv("DUCKDB_ALLOW_INSTALL", "0") == "1"
-    use_fallback = os.getenv("DUCKDB_GCS_FALLBACK", "0") == "1"
     skip_healthcheck = os.getenv("DUCKDB_SKIP_HEALTHCHECK", "0") == "1"
 
     conn = duckdb.connect(database=":memory:")
     extensions_loaded = load_extensions(conn, ("httpfs", "vss"), allow_install)
-    auth_path = "none"
-    if _is_gcs_uri(healthcheck_uri):
-        auth_path = _configure_gcs_secret(conn, use_fallback, allow_install)
+    provider = load_duckdb_auth_provider()
+    context = DuckDBAuthContext(
+        uris=tuple(uri for uri in (healthcheck_uri,) if uri),
+        allow_install=allow_install,
+    )
+    auth_path, fallback_used = provider.configure(conn, context)
 
     if healthcheck_uri and not skip_healthcheck:
         try:
@@ -89,21 +78,21 @@ def get_secure_connection(
             )
         except Exception as exc:
             raise RecoverableError(
-                "DuckDB GCS healthcheck failed. "
-                "Verify ADC/Workload Identity and DuckDB secret configuration."
+                "DuckDB healthcheck failed. "
+                "Verify storage auth configuration and DuckDB secret setup."
             ) from exc
 
     logger.info(
-        "DuckDB GCS auth initialized",
+        "DuckDB auth initialized",
         extra={
             "duckdb_auth_path": auth_path,
             "duckdb_extension_loaded": ",".join(extensions_loaded),
-            "duckdb_fallback_used": use_fallback,
+            "duckdb_fallback_used": fallback_used,
         },
     )
 
     return conn, DuckDBAuthInfo(
         auth_path=auth_path,
         extensions_loaded=extensions_loaded,
-        fallback_used=use_fallback,
+        fallback_used=fallback_used,
     )
