@@ -199,11 +199,12 @@ Graph exploration:
 - Query by text or image.
 - Open Graph Explorer to inspect related events.
 
-## 10) Authentication (JWT + API key fallback)
+## 10) Authentication (JWT at gateway, API keys internal)
 
 Production default:
-- User-facing APIs require JWTs (`AUTH_MODE=jwt`).
-- API keys are reserved for internal automation (backfill, batch jobs).
+- API Gateway is JWT-only for user-facing traffic.
+- API keys are reserved for internal automation (backfill, batch jobs) and are not accepted at the gateway.
+- Services may run `AUTH_MODE=dual` internally to support automation while keeping the gateway strict.
 
 ### JWT claims contract
 Required in production (recommended `AUTH_REQUIRED_CLAIMS`):
@@ -242,12 +243,22 @@ Example JWT payload:
 ```
 Authorization: Bearer <JWT>
 ```
+When calls are routed through API Gateway, the gateway may forward the JWT
+in proxy headers or attach user claims. Enable `AUTH_GATEWAY_USERINFO=1` to
+accept `X-Forwarded-Authorization` / `X-Original-Authorization` or
+`X-Endpoint-API-UserInfo` from the gateway.
+
+### Internal invokers (Cloud Run IAM)
+- Non-gateway services should be locked to explicit service accounts (no `allUsers`).
+- Pub/Sub push and Cloud Scheduler should use OIDC tokens with a service account.
+- Grant `roles/iam.serviceAccountTokenCreator` to the Pub/Sub and Scheduler service agents for that service account.
+- Keep API keys for internal automation when `AUTH_MODE=dual`.
 
 ### Mapping to Retikon auth
 - `roles` map to RBAC roles; `AUTH_ADMIN_ROLES` controls admin elevation.
 - `groups` can be used for ABAC policies; `AUTH_ADMIN_GROUPS` can elevate admin.
 - `org_id/site_id/stream_id` map to tenant scope.
-- If `AUTH_MODE=dual`, JWT is preferred when both JWT and API key are present.
+- If `AUTH_MODE=dual`, JWT is preferred when both JWT and API key are present (internal calls only).
 
 ### Auth env vars (summary)
 - `AUTH_MODE=api_key|jwt|dual`
@@ -256,6 +267,13 @@ Authorization: Bearer <JWT>
 - `AUTH_CLAIM_SUB`, `AUTH_CLAIM_EMAIL`, `AUTH_CLAIM_ROLES`, `AUTH_CLAIM_GROUPS`
 - `AUTH_CLAIM_ORG_ID`, `AUTH_CLAIM_SITE_ID`, `AUTH_CLAIM_STREAM_ID`
 - `AUTH_ADMIN_ROLES`, `AUTH_ADMIN_GROUPS`, `AUTH_JWT_LEEWAY_SECONDS`
+- `AUTH_GATEWAY_USERINFO=1` (trust gateway headers for JWT user identity)
+
+### Google Identity Platform defaults
+For Firebase/Identity Platform ID tokens:
+- `AUTH_ISSUER = https://securetoken.google.com/<PROJECT_ID>`
+- `AUTH_AUDIENCE = <PROJECT_ID>`
+- `AUTH_JWKS_URI = https://www.googleapis.com/service_accounts/v1/metadata/x509/securetoken@system.gserviceaccount.com`
 
 ## 10) SDK Quickstarts
 

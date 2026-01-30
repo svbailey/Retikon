@@ -1,5 +1,6 @@
 import os
 
+from retikon_core.audit.compactor import compact_audit_logs
 from retikon_core.compaction import run_compaction
 from retikon_core.logging import configure_logging, get_logger
 
@@ -48,6 +49,20 @@ def main() -> None:
             "duration_seconds": report.duration_seconds,
         },
     )
+
+    if os.getenv("AUDIT_COMPACTION_ENABLED", "0") == "1":
+        audit_report = compact_audit_logs(base_uri=_graph_uri())
+        logger.info(
+            "Audit compaction finished",
+            extra={
+                "run_id": audit_report.run_id,
+                "outputs": audit_report.outputs,
+                "removed_sources": audit_report.removed_sources,
+                "audit_uri": audit_report.audit_uri,
+                "duration_seconds": audit_report.duration_seconds,
+                "errors": audit_report.errors,
+            },
+        )
 
 
 if __name__ == "__main__":

@@ -47,6 +47,21 @@ def _open_uri(uri: str):
     return fs, path
 
 
+def filter_existing_uris(uris: Iterable[str]) -> tuple[list[str], list[str]]:
+    existing: list[str] = []
+    missing: list[str] = []
+    for uri in uris:
+        fs, path = _open_uri(uri)
+        try:
+            if fs.exists(path):
+                existing.append(uri)
+            else:
+                missing.append(uri)
+        except FileNotFoundError:
+            missing.append(uri)
+    return existing, missing
+
+
 def _read_schema(uri: str) -> pa.Schema:
     fs, path = _open_uri(uri)
     with fs.open(path, "rb") as handle:
@@ -70,6 +85,10 @@ def unify_schema(uris: Iterable[str]) -> pa.Schema:
     if not schemas:
         raise ValueError("No schemas available for compaction")
     return pa.unify_schemas(schemas)
+
+
+def relax_schema(schema: pa.Schema) -> pa.Schema:
+    return pa.schema([field.with_nullable(True) for field in schema])
 
 
 def iter_tables(uris: Iterable[str], schema: pa.Schema) -> Iterable[pa.Table]:

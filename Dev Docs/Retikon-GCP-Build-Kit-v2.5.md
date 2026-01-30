@@ -639,7 +639,8 @@ deliverables with testing and exit criteria.
 - Media formats use a permissive whitelist aligned with ffmpeg support.
 - Hard caps: video 300 seconds, audio 20 minutes, raw download limit 500 MB
   (configurable).
-- Query auth supports JWT via API Gateway (`AUTH_MODE=jwt`) with API-key fallback for internal automation.
+- API Gateway is JWT-only for user traffic; API keys are reserved for internal automation and direct service calls.
+- Auth modes by environment: prod=`jwt`, staging=`dual`, dev=`dual` (or `api_key` for local-only testing).
 - Scoring uses similarity in the 0..1 range (higher is better).
 - Frontend: minimal React Dev Console in Sprint 5.
 - Embedding dimensions: text 768 (BGE base), image 512 (CLIP ViT-B/32), audio
@@ -893,7 +894,7 @@ Vector columns use `list<float32>` with fixed lengths per modality.
 - E6 IndexBuilder: HNSW build and snapshot upload.
 - E7 GCP IaC + CI/CD: Terraform and pipelines.
 - E8 Reliability + Observability + Cost controls: DLQ, limits, logging, metrics.
-- E9 Security: API key auth, IAM, secrets.
+- E9 Security: JWT gateway auth, internal API keys, IAM, secrets.
 - E10 Frontend Dev Console.
 
 ### Sprint 1 (Weeks 1-2) - Foundations and deployable skeleton
@@ -1255,11 +1256,14 @@ E5, E6, E9, E10
     - `top_k` max enforced.
     - reject large base64 payloads and oversized JSON bodies.
 
-- E9 Query auth (JWT + API key fallback)
+- E9 Query auth (JWT-only gateway + internal API keys)
   - Add middleware in `gcp_adapter/query_service.py`.
   - JWT validation via API Gateway + in-service verification (defense-in-depth).
-  - API keys remain for internal automation and local dev.
-  - Unit tests: missing key -> 401, wrong key -> 401, correct -> 200.
+  - API keys remain for internal automation and local dev (direct service calls only).
+  - When API Gateway is enabled, lock Cloud Run invokers to the API Gateway
+    service account and set `jwt_audience` in the gateway backend config.
+  - Set `AUTH_GATEWAY_USERINFO=1` when services trust gateway headers.
+  - Unit tests: missing JWT -> 401 at gateway; JWT verified in-service; API key tests cover direct service calls.
 
 - E10 Minimal React Dev Console
   - Create `frontend/dev-console/` (Vite + React).
@@ -1267,7 +1271,8 @@ E5, E6, E9, E10
     - text input and image upload (client-side resize)
     - results list with modality icons
     - image thumbnail, audio player, and video link with timestamps
-    - API key input stored in `localStorage`
+    - JWT input or login flow (token stored securely; avoid localStorage for prod)
+    - Optional API key input for internal automation only
     - "copy curl" button for debugging
   - Deploy target:
     - GCS static site (optionally fronted by Cloud CDN).
@@ -1277,7 +1282,7 @@ E5, E6, E9, E10
 
 - Query service reads private GCS via ADC without HMAC keys.
 - Snapshot is used and HNSW-backed queries return results.
-- API key is required for the query API.
+- JWT is required at the gateway for the query API; API keys are internal-only.
 - Dev Console validates end-to-end multimodal retrieval.
 
 #### Release note (must resolve before signoff)

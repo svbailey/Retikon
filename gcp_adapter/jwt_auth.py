@@ -1,10 +1,13 @@
 from __future__ import annotations
 
+import json
 import os
+import urllib.request
 from dataclasses import dataclass
 from typing import Any
 
 import jwt
+from cryptography import x509
 from jwt import PyJWKClient
 
 from retikon_core.auth.types import AuthContext
@@ -58,8 +61,6 @@ def load_jwt_config() -> JwtConfig:
 def decode_jwt(token: str, *, config: JwtConfig | None = None) -> dict[str, Any]:
     config = config or load_jwt_config()
     key, algs = _resolve_key(token, config)
-    if not key:
-        raise AuthError("JWT verification not configured")
     options: dict[str, object] = {}
     if config.required_claims:
         options["require"] = list(config.required_claims)
@@ -119,11 +120,16 @@ def _resolve_key(
     if config.public_key:
         return config.public_key, config.algorithms
     if config.jwks_uri:
-        jwk_client = PyJWKClient(config.jwks_uri)
-        signing_key = jwk_client.get_signing_key_from_jwt(token)
-        alg = signing_key.algorithm or config.algorithms[0]
-        return signing_key.key, (alg,)
-    return None, config.algorithms
+        if _looks_like_x509(config.jwks_uri):
+            return _load_x509_key(token, config.jwks_uri), config.algorithms
+        try:
+            jwk_client = PyJWKClient(config.jwks_uri)
+            signing_key = jwk_client.get_signing_key_from_jwt(token)
+            alg = signing_key.algorithm or config.algorithms[0]
+            return signing_key.key, (alg,)
+        except Exception as exc:
+            raise AuthError("Failed to fetch JWKS") from exc
+    raise AuthError("JWT verification not configured")
 
 
 def _env_str(name: str) -> str | None:
@@ -175,3 +181,34 @@ def _is_admin(
         if group.lower() in admin_groups:
             return True
     return False
+
+
+def _looks_like_x509(uri: str) -> bool:
+    return "/metadata/x509/" in uri
+
+
+def _load_x509_key(token: str, jwks_uri: str) -> object:
+    try:
+        header = jwt.get_unverified_header(token)
+        kid = header.get("kid")
+        if not kid:
+            raise AuthError("JWT header missing kid")
+    except AuthError:
+        raise
+    except Exception as exc:
+        raise AuthError("JWT header invalid") from exc
+    try:
+        with urllib.request.urlopen(jwks_uri, timeout=10) as resp:
+            payload = json.loads(resp.read().decode("utf-8"))
+    except Exception as exc:
+        raise AuthError("Failed to fetch x509 JWKS") from exc
+    if not isinstance(payload, dict):
+        raise AuthError("Invalid x509 JWKS payload")
+    cert_pem = payload.get(kid)
+    if not cert_pem:
+        raise AuthError("JWT kid not found in x509 JWKS")
+    try:
+        cert = x509.load_pem_x509_certificate(str(cert_pem).encode("utf-8"))
+        return cert.public_key()
+    except Exception as exc:
+        raise AuthError("Failed to parse x509 certificate") from exc

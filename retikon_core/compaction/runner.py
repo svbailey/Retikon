@@ -15,7 +15,9 @@ import fsspec
 from retikon_core.audit import CompactionAuditRecord, write_compaction_audit_log
 from retikon_core.compaction.io import (
     delete_uri,
+    filter_existing_uris,
     iter_tables,
+    relax_schema,
     unify_schema,
     uri_modified_at,
     write_parquet_tables,
@@ -190,6 +192,8 @@ def _compact_batch(
     retention_apply: bool,
     dry_run: bool,
     strict: bool,
+    skip_missing: bool,
+    relax_nulls: bool,
 ) -> tuple[list[CompactionOutput], list[str], list[CompactionAuditRecord]]:
     outputs: list[CompactionOutput] = []
     removed: list[str] = []
@@ -199,6 +203,21 @@ def _compact_batch(
     for file_kind in batch.file_kinds:
         source_files = [group.files[file_kind] for group in batch.groups]
         source_uris = [item.uri for item in source_files]
+        if skip_missing:
+            source_uris, missing = filter_existing_uris(source_uris)
+            if missing:
+                logger.warning(
+                    "Skipping missing compaction sources",
+                    extra={
+                        "run_id": run_id,
+                        "file_kind": file_kind,
+                        "missing_count": len(missing),
+                    },
+                )
+            if not source_uris or len(source_uris) < 2:
+                continue
+            existing = set(source_uris)
+            source_files = [item for item in source_files if item.uri in existing]
         source_rows = sum(item.rows for item in source_files)
         source_bytes = sum(item.bytes_written for item in source_files)
         retention_actions: list[dict[str, object]] = []
@@ -248,6 +267,8 @@ def _compact_batch(
             )
         else:
             schema = unify_schema(source_uris)
+            if relax_nulls:
+                schema = relax_schema(schema)
             tables = iter_tables(source_uris, schema)
             write_result = write_parquet_tables(
                 tables=tables,
@@ -344,6 +365,8 @@ def run_compaction(
         "COMPACTION_PIPELINE_VERSION"
     )
     pipeline_version = raw_pipeline or "compaction"
+    skip_missing = os.getenv("COMPACTION_SKIP_MISSING", "0") == "1"
+    relax_nulls = os.getenv("COMPACTION_RELAX_NULLS", "0") == "1"
 
     configure_logging(
         service=SERVICE_NAME,
@@ -414,6 +437,8 @@ def run_compaction(
                 retention_apply=retention_apply,
                 dry_run=dry_run,
                 strict=strict,
+                skip_missing=skip_missing,
+                relax_nulls=relax_nulls,
             )
             outputs.extend(batch_outputs)
             removed_sources.extend(removed)

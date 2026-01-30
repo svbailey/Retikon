@@ -11,10 +11,13 @@ from urllib.parse import urlparse
 import fsspec
 import google.auth
 import pyarrow.parquet as pq
+import requests
 from fastapi import FastAPI, File, Form, HTTPException, Request, UploadFile
 from fastapi.responses import StreamingResponse
+from google.auth.transport import requests as google_requests
 from google.auth.transport.requests import AuthorizedSession
 from google.cloud import firestore, storage
+from google.oauth2 import id_token
 
 from retikon_core.ingestion.idempotency import build_doc_id
 from retikon_core.logging import configure_logging, get_logger
@@ -100,6 +103,16 @@ def _query_service_url() -> str:
     if raw.endswith("/query"):
         return raw[: -len("/query")]
     return raw.rstrip("/")
+
+
+def _fetch_id_token(audience: str) -> str | None:
+    env = os.getenv("ENV", "dev").lower()
+    if env in {"dev", "local", "test"}:
+        return None
+    if audience.startswith(("http://localhost", "http://127.0.0.1")):
+        return None
+    request = google_requests.Request()
+    return id_token.fetch_id_token(request, audience)
 
 
 def _parse_gs_uri(uri: str) -> ObjectRef:
@@ -361,13 +374,13 @@ async def snapshot_reload(request: Request) -> dict[str, object]:
     _require_api_key(request)
     base_url = _query_service_url()
     api_key = os.getenv("DEV_CONSOLE_API_KEY") or os.getenv("QUERY_API_KEY")
-    credentials, _ = google.auth.default(
-        scopes=["https://www.googleapis.com/auth/cloud-platform"]
-    )
-    session = AuthorizedSession(credentials)
-    resp = session.post(
+    headers = {"x-api-key": api_key or ""}
+    token = _fetch_id_token(base_url)
+    if token:
+        headers["authorization"] = f"Bearer {token}"
+    resp = requests.post(
         f"{base_url}/admin/reload-snapshot",
-        headers={"x-api-key": api_key or ""},
+        headers=headers,
     )
     if resp.status_code >= 300:
         raise HTTPException(status_code=resp.status_code, detail=resp.text)

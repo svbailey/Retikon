@@ -110,3 +110,48 @@ def test_compaction_merges_docchunk_runs(tmp_path):
     assert report.audit_uri is not None
     audit_path = Path(report.audit_uri)
     assert audit_path.exists()
+
+
+def test_compaction_skips_missing_files(tmp_path, monkeypatch):
+    base_uri = tmp_path.as_posix()
+    _write_doc_run(base_uri, "run-1", start=0, count=2)
+    _write_doc_run(base_uri, "run-2", start=2, count=2)
+
+    manifest_path = Path(manifest_uri(base_uri, "run-1"))
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    missing_uri = (
+        Path(base_uri)
+        / "vertices"
+        / "DocChunk"
+        / "core"
+        / "part-missing.parquet"
+    ).as_posix()
+    manifest["files"].append(
+        {
+            "uri": missing_uri,
+            "rows": 1,
+            "bytes_written": 1,
+            "sha256": "",
+        }
+    )
+    manifest_path.write_text(
+        json.dumps(manifest, indent=2, sort_keys=True),
+        encoding="utf-8",
+    )
+
+    monkeypatch.setenv("COMPACTION_SKIP_MISSING", "1")
+    policy = CompactionPolicy(
+        target_min_bytes=10_000_000,
+        target_max_bytes=20_000_000,
+        max_groups_per_batch=10,
+    )
+    report = run_compaction(
+        base_uri=base_uri,
+        policy=policy,
+        retention_policy=RetentionPolicy(),
+        delete_source=False,
+        dry_run=False,
+        strict=True,
+    )
+
+    assert report.outputs

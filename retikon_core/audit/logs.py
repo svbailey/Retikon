@@ -1,5 +1,8 @@
 from __future__ import annotations
 
+import os
+import threading
+import time
 import uuid
 from dataclasses import asdict, dataclass
 from datetime import datetime, timezone
@@ -80,6 +83,69 @@ def record_audit_log(
         pipeline_version=pipeline_version,
         schema_version=schema_version,
     )
+    return _buffer_audit_log(base_uri, event)
+
+
+_AUDIT_BUFFER_LOCK = threading.Lock()
+_AUDIT_BUFFER: list[AuditLogRecord] = []
+_AUDIT_LAST_FLUSH = 0.0
+
+
+def _batch_size() -> int:
+    raw = os.getenv("AUDIT_BATCH_SIZE", "1").strip()
+    try:
+        value = int(raw)
+    except ValueError:
+        return 1
+    return max(1, value)
+
+
+def _batch_flush_seconds() -> float:
+    raw = os.getenv("AUDIT_BATCH_FLUSH_SECONDS", "5").strip()
+    try:
+        value = float(raw)
+    except ValueError:
+        return 5.0
+    return max(0.0, value)
+
+
+def _write_audit_events(
+    base_uri: str,
+    events: list[AuditLogRecord],
+) -> WriteResult:
     schema = schema_for("AuditLog", "core")
     dest_uri = vertex_part_uri(base_uri, "AuditLog", "core", str(uuid.uuid4()))
-    return write_parquet([asdict(event)], schema, dest_uri)
+    return write_parquet([asdict(event) for event in events], schema, dest_uri)
+
+
+def _flush_audit_buffer(
+    base_uri: str,
+    buffer: list[AuditLogRecord],
+) -> WriteResult | None:
+    if not buffer:
+        return None
+    result = _write_audit_events(base_uri, buffer)
+    buffer.clear()
+    return result
+
+
+def _buffer_audit_log(base_uri: str, event: AuditLogRecord) -> WriteResult:
+    batch_size = _batch_size()
+    if batch_size <= 1:
+        return _write_audit_events(base_uri, [event])
+
+    now = time.monotonic()
+    flush_after = _batch_flush_seconds()
+    with _AUDIT_BUFFER_LOCK:
+        global _AUDIT_LAST_FLUSH
+        _AUDIT_BUFFER.append(event)
+        should_flush = len(_AUDIT_BUFFER) >= batch_size
+        if not should_flush and flush_after > 0:
+            should_flush = (now - _AUDIT_LAST_FLUSH) >= flush_after
+        result = _flush_audit_buffer(base_uri, _AUDIT_BUFFER) if should_flush else None
+        if result is not None:
+            _AUDIT_LAST_FLUSH = now
+            return result
+
+    # If we didn't flush, return a placeholder write result for the queued event.
+    return WriteResult(uri="", rows=1, bytes_written=0, sha256="")

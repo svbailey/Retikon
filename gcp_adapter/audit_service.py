@@ -77,6 +77,26 @@ def _audit_api_key() -> str | None:
     return os.getenv("AUDIT_API_KEY") or os.getenv("QUERY_API_KEY")
 
 
+def _diagnostics_enabled() -> bool:
+    return os.getenv("AUDIT_DIAGNOSTICS", "0") == "1"
+
+
+def _parquet_limit() -> int | None:
+    raw = os.getenv("AUDIT_PARQUET_LIMIT", "").strip()
+    if not raw:
+        return None
+    try:
+        value = int(raw)
+    except ValueError:
+        return None
+    return value if value > 0 else None
+
+
+def _log_diag(message: str, *, extra: dict[str, object]) -> None:
+    if _diagnostics_enabled():
+        logger.info(message, extra={"timings": extra})
+
+
 def _graph_uri() -> str:
     graph_uri = os.getenv("GRAPH_URI")
     if graph_uri:
@@ -128,7 +148,22 @@ def _resolve_parquet_files(
     uri_pattern: str,
 ) -> tuple[list[str], tempfile.TemporaryDirectory | None]:
     fs, path = fsspec.core.url_to_fs(uri_pattern)
+    glob_start = time.monotonic()
     matches = sorted(fs.glob(path))
+    glob_ms = int((time.monotonic() - glob_start) * 1000)
+    original_count = len(matches)
+    limit = _parquet_limit()
+    if limit is not None:
+        matches = matches[:limit]
+    _log_diag(
+        "Audit parquet globbed",
+        extra={
+            "glob_ms": glob_ms,
+            "match_count": original_count,
+            "limit": limit,
+            "selected_count": len(matches),
+        },
+    )
     if not matches:
         return [], None
 
@@ -141,11 +176,17 @@ def _resolve_parquet_files(
 
     tmpdir = tempfile.TemporaryDirectory(prefix="retikon-audit-")
     local_paths: list[str] = []
+    download_start = time.monotonic()
     for remote_path in matches:
         filename = os.path.basename(remote_path)
         local_path = os.path.join(tmpdir.name, filename)
         fs.get(remote_path, local_path)
         local_paths.append(local_path)
+    download_ms = int((time.monotonic() - download_start) * 1000)
+    _log_diag(
+        "Audit parquet download completed",
+        extra={"file_count": len(local_paths), "download_ms": download_ms},
+    )
     return local_paths, tmpdir
 
 
@@ -256,10 +297,21 @@ def _query_rows(
         if limit is not None:
             query += " LIMIT ?"
             params.append(limit)
+        query_start = time.monotonic()
         cursor = conn.execute(query, params)
+        query_ms = int((time.monotonic() - query_start) * 1000)
         description = cursor.description or []
         columns = [col[0] for col in description]
         rows = cursor.fetchall()
+        _log_diag(
+            "Audit parquet query completed",
+            extra={
+                "query_ms": query_ms,
+                "file_count": len(local_paths),
+                "row_count": len(rows),
+                "limit": limit,
+            },
+        )
     finally:
         conn.close()
         if tmpdir is not None:
@@ -290,7 +342,13 @@ def _stream_query(
         query += " WHERE " + " AND ".join(where_clauses)
         params.extend(values)
     query += " ORDER BY created_at DESC"
+    query_start = time.monotonic()
     cursor = conn.execute(query, params)
+    query_ms = int((time.monotonic() - query_start) * 1000)
+    _log_diag(
+        "Audit parquet stream query started",
+        extra={"query_ms": query_ms, "file_count": len(local_paths)},
+    )
     description = cursor.description or []
     columns = [col[0] for col in description]
 

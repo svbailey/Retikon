@@ -17,6 +17,7 @@ locals {
       chaos_url    = google_cloud_run_service.chaos.status[0].url
     }
   )
+  api_gateway_invoker = "serviceAccount:service-${data.google_project.project.number}@gcp-sa-apigateway.iam.gserviceaccount.com"
 }
 
 resource "google_storage_bucket" "raw" {
@@ -96,6 +97,10 @@ resource "google_pubsub_subscription" "stream_ingest" {
 
   push_config {
     push_endpoint = "${google_cloud_run_service.stream_ingest.status[0].url}/ingest/stream/push"
+    oidc_token {
+      service_account_email = google_service_account.stream_ingest.email
+      audience              = google_cloud_run_service.stream_ingest.status[0].url
+    }
   }
 }
 
@@ -113,6 +118,10 @@ resource "google_pubsub_subscription" "workflow_queue" {
 
   push_config {
     push_endpoint = "${google_cloud_run_service.workflow.status[0].url}/workflows/runner"
+    oidc_token {
+      service_account_email = google_service_account.workflow.email
+      audience              = google_cloud_run_service.workflow.status[0].url
+    }
   }
 }
 
@@ -241,6 +250,24 @@ resource "google_pubsub_topic_iam_member" "workflow_dlq_publisher" {
   topic  = google_pubsub_topic.workflow_dlq.name
   role   = "roles/pubsub.publisher"
   member = "serviceAccount:${google_service_account.workflow.email}"
+}
+
+resource "google_service_account_iam_member" "pubsub_stream_ingest_token_creator" {
+  service_account_id = google_service_account.stream_ingest.name
+  role               = "roles/iam.serviceAccountTokenCreator"
+  member             = "serviceAccount:service-${data.google_project.project.number}@gcp-sa-pubsub.iam.gserviceaccount.com"
+}
+
+resource "google_service_account_iam_member" "pubsub_workflow_token_creator" {
+  service_account_id = google_service_account.workflow.name
+  role               = "roles/iam.serviceAccountTokenCreator"
+  member             = "serviceAccount:service-${data.google_project.project.number}@gcp-sa-pubsub.iam.gserviceaccount.com"
+}
+
+resource "google_service_account_iam_member" "scheduler_workflow_token_creator" {
+  service_account_id = google_service_account.workflow.name
+  role               = "roles/iam.serviceAccountTokenCreator"
+  member             = "serviceAccount:service-${data.google_project.project.number}@gcp-sa-cloudscheduler.iam.gserviceaccount.com"
 }
 
 resource "google_pubsub_topic_iam_member" "eventarc_transport_publisher" {
@@ -534,6 +561,14 @@ resource "google_cloud_run_service" "ingestion" {
           value = var.graph_prefix
         }
         env {
+          name  = "AUDIT_BATCH_SIZE"
+          value = tostring(var.audit_batch_size)
+        }
+        env {
+          name  = "AUDIT_BATCH_FLUSH_SECONDS"
+          value = tostring(var.audit_batch_flush_seconds)
+        }
+        env {
           name  = "MAX_RAW_BYTES"
           value = tostring(var.max_raw_bytes)
         }
@@ -696,6 +731,10 @@ resource "google_cloud_run_service" "query" {
           value = var.auth_jwks_uri
         }
         env {
+          name  = "AUTH_GATEWAY_USERINFO"
+          value = var.auth_gateway_userinfo ? "1" : "0"
+        }
+        env {
           name  = "AUTH_JWT_ALGORITHMS"
           value = var.auth_jwt_algorithms
         }
@@ -774,6 +813,14 @@ resource "google_cloud_run_service" "query" {
         env {
           name  = "GRAPH_PREFIX"
           value = var.graph_prefix
+        }
+        env {
+          name  = "AUDIT_BATCH_SIZE"
+          value = tostring(var.audit_batch_size)
+        }
+        env {
+          name  = "AUDIT_BATCH_FLUSH_SECONDS"
+          value = tostring(var.audit_batch_flush_seconds)
         }
         env {
           name  = "SNAPSHOT_URI"
@@ -1200,6 +1247,10 @@ resource "google_cloud_run_service" "audit" {
           value = var.auth_jwks_uri
         }
         env {
+          name  = "AUTH_GATEWAY_USERINFO"
+          value = var.auth_gateway_userinfo ? "1" : "0"
+        }
+        env {
           name  = "AUTH_JWT_ALGORITHMS"
           value = var.auth_jwt_algorithms
         }
@@ -1262,6 +1313,14 @@ resource "google_cloud_run_service" "audit" {
         env {
           name  = "AUDIT_REQUIRE_ADMIN"
           value = var.audit_require_admin ? "1" : "0"
+        }
+        env {
+          name  = "AUDIT_DIAGNOSTICS"
+          value = var.audit_diagnostics ? "1" : "0"
+        }
+        env {
+          name  = "AUDIT_PARQUET_LIMIT"
+          value = tostring(var.audit_parquet_limit)
         }
         env {
           name = "AUDIT_API_KEY"
@@ -1355,6 +1414,10 @@ resource "google_cloud_run_service" "workflow" {
         env {
           name  = "AUTH_JWKS_URI"
           value = var.auth_jwks_uri
+        }
+        env {
+          name  = "AUTH_GATEWAY_USERINFO"
+          value = var.auth_gateway_userinfo ? "1" : "0"
         }
         env {
           name  = "AUTH_JWT_ALGORITHMS"
@@ -1531,6 +1594,74 @@ resource "google_cloud_run_service" "chaos" {
           value = var.log_level
         }
         env {
+          name  = "AUTH_MODE"
+          value = var.auth_mode
+        }
+        env {
+          name  = "AUTH_ISSUER"
+          value = var.auth_issuer
+        }
+        env {
+          name  = "AUTH_AUDIENCE"
+          value = var.auth_audience
+        }
+        env {
+          name  = "AUTH_JWKS_URI"
+          value = var.auth_jwks_uri
+        }
+        env {
+          name  = "AUTH_GATEWAY_USERINFO"
+          value = var.auth_gateway_userinfo ? "1" : "0"
+        }
+        env {
+          name  = "AUTH_JWT_ALGORITHMS"
+          value = var.auth_jwt_algorithms
+        }
+        env {
+          name  = "AUTH_REQUIRED_CLAIMS"
+          value = var.auth_required_claims
+        }
+        env {
+          name  = "AUTH_CLAIM_SUB"
+          value = var.auth_claim_sub
+        }
+        env {
+          name  = "AUTH_CLAIM_EMAIL"
+          value = var.auth_claim_email
+        }
+        env {
+          name  = "AUTH_CLAIM_ROLES"
+          value = var.auth_claim_roles
+        }
+        env {
+          name  = "AUTH_CLAIM_GROUPS"
+          value = var.auth_claim_groups
+        }
+        env {
+          name  = "AUTH_CLAIM_ORG_ID"
+          value = var.auth_claim_org_id
+        }
+        env {
+          name  = "AUTH_CLAIM_SITE_ID"
+          value = var.auth_claim_site_id
+        }
+        env {
+          name  = "AUTH_CLAIM_STREAM_ID"
+          value = var.auth_claim_stream_id
+        }
+        env {
+          name  = "AUTH_ADMIN_ROLES"
+          value = var.auth_admin_roles
+        }
+        env {
+          name  = "AUTH_ADMIN_GROUPS"
+          value = var.auth_admin_groups
+        }
+        env {
+          name  = "AUTH_JWT_LEEWAY_SECONDS"
+          value = tostring(var.auth_jwt_leeway_seconds)
+        }
+        env {
           name  = "STORAGE_BACKEND"
           value = "gcs"
         }
@@ -1632,6 +1763,70 @@ resource "google_cloud_run_service" "dev_console" {
         env {
           name  = "LOG_LEVEL"
           value = var.log_level
+        }
+        env {
+          name  = "AUTH_MODE"
+          value = var.auth_mode
+        }
+        env {
+          name  = "AUTH_ISSUER"
+          value = var.auth_issuer
+        }
+        env {
+          name  = "AUTH_AUDIENCE"
+          value = var.auth_audience
+        }
+        env {
+          name  = "AUTH_JWKS_URI"
+          value = var.auth_jwks_uri
+        }
+        env {
+          name  = "AUTH_JWT_ALGORITHMS"
+          value = var.auth_jwt_algorithms
+        }
+        env {
+          name  = "AUTH_REQUIRED_CLAIMS"
+          value = var.auth_required_claims
+        }
+        env {
+          name  = "AUTH_CLAIM_SUB"
+          value = var.auth_claim_sub
+        }
+        env {
+          name  = "AUTH_CLAIM_EMAIL"
+          value = var.auth_claim_email
+        }
+        env {
+          name  = "AUTH_CLAIM_ROLES"
+          value = var.auth_claim_roles
+        }
+        env {
+          name  = "AUTH_CLAIM_GROUPS"
+          value = var.auth_claim_groups
+        }
+        env {
+          name  = "AUTH_CLAIM_ORG_ID"
+          value = var.auth_claim_org_id
+        }
+        env {
+          name  = "AUTH_CLAIM_SITE_ID"
+          value = var.auth_claim_site_id
+        }
+        env {
+          name  = "AUTH_CLAIM_STREAM_ID"
+          value = var.auth_claim_stream_id
+        }
+        env {
+          name  = "AUTH_ADMIN_ROLES"
+          value = var.auth_admin_roles
+        }
+        env {
+          name  = "AUTH_ADMIN_GROUPS"
+          value = var.auth_admin_groups
+        }
+        env {
+          name  = "AUTH_JWT_LEEWAY_SECONDS"
+          value = tostring(var.auth_jwt_leeway_seconds)
         }
         env {
           name  = "STORAGE_BACKEND"
@@ -1741,6 +1936,70 @@ resource "google_cloud_run_service" "edge_gateway" {
           value = var.log_level
         }
         env {
+          name  = "AUTH_MODE"
+          value = var.auth_mode
+        }
+        env {
+          name  = "AUTH_ISSUER"
+          value = var.auth_issuer
+        }
+        env {
+          name  = "AUTH_AUDIENCE"
+          value = var.auth_audience
+        }
+        env {
+          name  = "AUTH_JWKS_URI"
+          value = var.auth_jwks_uri
+        }
+        env {
+          name  = "AUTH_JWT_ALGORITHMS"
+          value = var.auth_jwt_algorithms
+        }
+        env {
+          name  = "AUTH_REQUIRED_CLAIMS"
+          value = var.auth_required_claims
+        }
+        env {
+          name  = "AUTH_CLAIM_SUB"
+          value = var.auth_claim_sub
+        }
+        env {
+          name  = "AUTH_CLAIM_EMAIL"
+          value = var.auth_claim_email
+        }
+        env {
+          name  = "AUTH_CLAIM_ROLES"
+          value = var.auth_claim_roles
+        }
+        env {
+          name  = "AUTH_CLAIM_GROUPS"
+          value = var.auth_claim_groups
+        }
+        env {
+          name  = "AUTH_CLAIM_ORG_ID"
+          value = var.auth_claim_org_id
+        }
+        env {
+          name  = "AUTH_CLAIM_SITE_ID"
+          value = var.auth_claim_site_id
+        }
+        env {
+          name  = "AUTH_CLAIM_STREAM_ID"
+          value = var.auth_claim_stream_id
+        }
+        env {
+          name  = "AUTH_ADMIN_ROLES"
+          value = var.auth_admin_roles
+        }
+        env {
+          name  = "AUTH_ADMIN_GROUPS"
+          value = var.auth_admin_groups
+        }
+        env {
+          name  = "AUTH_JWT_LEEWAY_SECONDS"
+          value = tostring(var.auth_jwt_leeway_seconds)
+        }
+        env {
           name  = "STORAGE_BACKEND"
           value = "gcs"
         }
@@ -1841,6 +2100,70 @@ resource "google_cloud_run_service" "stream_ingest" {
         env {
           name  = "LOG_LEVEL"
           value = var.log_level
+        }
+        env {
+          name  = "AUTH_MODE"
+          value = var.auth_mode
+        }
+        env {
+          name  = "AUTH_ISSUER"
+          value = var.auth_issuer
+        }
+        env {
+          name  = "AUTH_AUDIENCE"
+          value = var.auth_audience
+        }
+        env {
+          name  = "AUTH_JWKS_URI"
+          value = var.auth_jwks_uri
+        }
+        env {
+          name  = "AUTH_JWT_ALGORITHMS"
+          value = var.auth_jwt_algorithms
+        }
+        env {
+          name  = "AUTH_REQUIRED_CLAIMS"
+          value = var.auth_required_claims
+        }
+        env {
+          name  = "AUTH_CLAIM_SUB"
+          value = var.auth_claim_sub
+        }
+        env {
+          name  = "AUTH_CLAIM_EMAIL"
+          value = var.auth_claim_email
+        }
+        env {
+          name  = "AUTH_CLAIM_ROLES"
+          value = var.auth_claim_roles
+        }
+        env {
+          name  = "AUTH_CLAIM_GROUPS"
+          value = var.auth_claim_groups
+        }
+        env {
+          name  = "AUTH_CLAIM_ORG_ID"
+          value = var.auth_claim_org_id
+        }
+        env {
+          name  = "AUTH_CLAIM_SITE_ID"
+          value = var.auth_claim_site_id
+        }
+        env {
+          name  = "AUTH_CLAIM_STREAM_ID"
+          value = var.auth_claim_stream_id
+        }
+        env {
+          name  = "AUTH_ADMIN_ROLES"
+          value = var.auth_admin_roles
+        }
+        env {
+          name  = "AUTH_ADMIN_GROUPS"
+          value = var.auth_admin_groups
+        }
+        env {
+          name  = "AUTH_JWT_LEEWAY_SECONDS"
+          value = tostring(var.auth_jwt_leeway_seconds)
         }
         env {
           name  = "STORAGE_BACKEND"
@@ -2000,14 +2323,18 @@ resource "google_api_gateway_api_config" "retikon" {
   count    = var.enable_api_gateway ? 1 : 0
   provider = google-beta
 
-  api           = google_api_gateway_api.retikon[0].id
-  api_config_id = var.api_gateway_config_name
+  api                = google_api_gateway_api.retikon[0].api_id
+  api_config_id_prefix = var.api_gateway_config_name
 
   openapi_documents {
     document {
       path     = "retikon-gateway.yaml"
       contents = base64encode(local.api_gateway_openapi)
     }
+  }
+
+  lifecycle {
+    create_before_destroy = true
   }
 }
 
@@ -2024,7 +2351,14 @@ resource "google_cloud_run_service_iam_member" "query_invoker" {
   location = google_cloud_run_service.query.location
   service  = google_cloud_run_service.query.name
   role     = "roles/run.invoker"
-  member   = "allUsers"
+  member   = var.enable_api_gateway ? local.api_gateway_invoker : "allUsers"
+}
+
+resource "google_cloud_run_service_iam_member" "query_internal_invoker" {
+  location = google_cloud_run_service.query.location
+  service  = google_cloud_run_service.query.name
+  role     = "roles/run.invoker"
+  member   = "serviceAccount:${google_service_account.dev_console.email}"
 }
 
 resource "google_cloud_run_service_iam_member" "query_gpu_invoker" {
@@ -2032,55 +2366,69 @@ resource "google_cloud_run_service_iam_member" "query_gpu_invoker" {
   location = google_cloud_run_service.query_gpu[0].location
   service  = google_cloud_run_service.query_gpu[0].name
   role     = "roles/run.invoker"
-  member   = "allUsers"
+  member   = var.enable_api_gateway ? local.api_gateway_invoker : "allUsers"
 }
 
 resource "google_cloud_run_service_iam_member" "audit_invoker" {
   location = google_cloud_run_service.audit.location
   service  = google_cloud_run_service.audit.name
   role     = "roles/run.invoker"
-  member   = "allUsers"
+  member   = var.enable_api_gateway ? local.api_gateway_invoker : "allUsers"
 }
 
 resource "google_cloud_run_service_iam_member" "workflow_invoker" {
   location = google_cloud_run_service.workflow.location
   service  = google_cloud_run_service.workflow.name
   role     = "roles/run.invoker"
-  member   = "allUsers"
+  member   = var.enable_api_gateway ? local.api_gateway_invoker : "allUsers"
+}
+
+resource "google_cloud_run_service_iam_member" "workflow_internal_invoker" {
+  location = google_cloud_run_service.workflow.location
+  service  = google_cloud_run_service.workflow.name
+  role     = "roles/run.invoker"
+  member   = "serviceAccount:${google_service_account.workflow.email}"
 }
 
 resource "google_cloud_run_service_iam_member" "chaos_invoker" {
   location = google_cloud_run_service.chaos.location
   service  = google_cloud_run_service.chaos.name
   role     = "roles/run.invoker"
-  member   = "allUsers"
+  member   = var.enable_api_gateway ? local.api_gateway_invoker : "allUsers"
 }
 
 resource "google_cloud_run_service_iam_member" "dev_console_invoker" {
   location = google_cloud_run_service.dev_console.location
   service  = google_cloud_run_service.dev_console.name
   role     = "roles/run.invoker"
-  member   = "allUsers"
+  member   = "serviceAccount:${google_service_account.dev_console.email}"
 }
 
 resource "google_cloud_run_service_iam_member" "edge_gateway_invoker" {
   location = google_cloud_run_service.edge_gateway.location
   service  = google_cloud_run_service.edge_gateway.name
   role     = "roles/run.invoker"
-  member   = "allUsers"
+  member   = "serviceAccount:${google_service_account.edge_gateway.email}"
 }
 
 resource "google_cloud_run_service_iam_member" "stream_ingest_invoker" {
   location = google_cloud_run_service.stream_ingest.location
   service  = google_cloud_run_service.stream_ingest.name
   role     = "roles/run.invoker"
-  member   = "allUsers"
+  member   = "serviceAccount:${google_service_account.stream_ingest.email}"
 }
 
 resource "google_project_iam_member" "eventarc_service_agent" {
   project = var.project_id
   role    = "roles/eventarc.serviceAgent"
   member  = "serviceAccount:service-${data.google_project.project.number}@gcp-sa-eventarc.iam.gserviceaccount.com"
+}
+
+resource "google_project_iam_member" "apigateway_service_management_admin" {
+  count   = var.enable_api_gateway ? 1 : 0
+  project = var.project_id
+  role    = "roles/servicemanagement.admin"
+  member  = "serviceAccount:service-${data.google_project.project.number}@gcp-sa-apigateway.iam.gserviceaccount.com"
 }
 
 resource "google_project_iam_member" "eventarc_event_receiver" {
@@ -2262,6 +2610,50 @@ resource "google_cloud_run_v2_job" "compaction" {
           value = var.compaction_strict ? "1" : "0"
         }
         env {
+          name  = "COMPACTION_SKIP_MISSING"
+          value = var.compaction_skip_missing ? "1" : "0"
+        }
+        env {
+          name  = "COMPACTION_RELAX_NULLS"
+          value = var.compaction_relax_nulls ? "1" : "0"
+        }
+        env {
+          name  = "AUDIT_COMPACTION_ENABLED"
+          value = var.audit_compaction_enabled ? "1" : "0"
+        }
+        env {
+          name  = "AUDIT_COMPACTION_TARGET_MIN_BYTES"
+          value = tostring(var.audit_compaction_target_min_bytes)
+        }
+        env {
+          name  = "AUDIT_COMPACTION_TARGET_MAX_BYTES"
+          value = tostring(var.audit_compaction_target_max_bytes)
+        }
+        env {
+          name  = "AUDIT_COMPACTION_MAX_FILES_PER_BATCH"
+          value = tostring(var.audit_compaction_max_files_per_batch)
+        }
+        env {
+          name  = "AUDIT_COMPACTION_MAX_BATCHES"
+          value = tostring(var.audit_compaction_max_batches)
+        }
+        env {
+          name  = "AUDIT_COMPACTION_MIN_AGE_SECONDS"
+          value = tostring(var.audit_compaction_min_age_seconds)
+        }
+        env {
+          name  = "AUDIT_COMPACTION_DELETE_SOURCE"
+          value = var.audit_compaction_delete_source ? "1" : "0"
+        }
+        env {
+          name  = "AUDIT_COMPACTION_DRY_RUN"
+          value = var.audit_compaction_dry_run ? "1" : "0"
+        }
+        env {
+          name  = "AUDIT_COMPACTION_STRICT"
+          value = var.audit_compaction_strict ? "1" : "0"
+        }
+        env {
           name  = "RETENTION_HOT_DAYS"
           value = tostring(var.retention_hot_days)
         }
@@ -2320,6 +2712,11 @@ resource "google_cloud_scheduler_job" "workflow_tick" {
     headers = {
       "Content-Type" = "application/json"
       "x-api-key"    = local.resolved_query_api_key
+    }
+
+    oidc_token {
+      service_account_email = google_service_account.workflow.email
+      audience              = google_cloud_run_service.workflow.status[0].url
     }
 
     body = base64encode("{}")

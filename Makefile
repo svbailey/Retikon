@@ -46,7 +46,7 @@ build-query:
 	docker build -f $(DOCKERFILE_PRO) -t retikon-query:dev --build-arg APP_MODULE=$(APP_QUERY_PRO) .
 
 build-audit:
-	docker build -f $(DOCKERFILE_PRO) -t retikon-audit:dev --build-arg APP_MODULE=$(APP_AUDIT_PRO) .
+	docker build -f $(DOCKERFILE_PRO) -t retikon-audit:dev --build-arg APP_MODULE=$(APP_AUDIT_PRO) --build-arg PRELOAD_MODELS=0 .
 
 build-workflow:
 	docker build -f $(DOCKERFILE_PRO) -t retikon-workflows:dev --build-arg APP_MODULE=$(APP_WORKFLOW_PRO) --build-arg PRELOAD_MODELS=0 .

@@ -244,6 +244,26 @@ variable "audit_require_admin" {
   default = true
 }
 
+variable "audit_batch_size" {
+  type    = number
+  default = 1
+}
+
+variable "audit_batch_flush_seconds" {
+  type    = number
+  default = 5
+}
+
+variable "audit_diagnostics" {
+  type    = bool
+  default = false
+}
+
+variable "audit_parquet_limit" {
+  type    = number
+  default = 0
+}
+
 variable "workflow_require_admin" {
   type    = bool
   default = true
@@ -629,6 +649,61 @@ variable "compaction_strict" {
   default = true
 }
 
+variable "compaction_skip_missing" {
+  type    = bool
+  default = false
+}
+
+variable "compaction_relax_nulls" {
+  type    = bool
+  default = false
+}
+
+variable "audit_compaction_enabled" {
+  type    = bool
+  default = false
+}
+
+variable "audit_compaction_target_min_bytes" {
+  type    = number
+  default = 33554432
+}
+
+variable "audit_compaction_target_max_bytes" {
+  type    = number
+  default = 268435456
+}
+
+variable "audit_compaction_max_files_per_batch" {
+  type    = number
+  default = 500
+}
+
+variable "audit_compaction_max_batches" {
+  type    = number
+  default = 10
+}
+
+variable "audit_compaction_min_age_seconds" {
+  type    = number
+  default = 300
+}
+
+variable "audit_compaction_delete_source" {
+  type    = bool
+  default = false
+}
+
+variable "audit_compaction_dry_run" {
+  type    = bool
+  default = false
+}
+
+variable "audit_compaction_strict" {
+  type    = bool
+  default = true
+}
+
 variable "retention_hot_days" {
   type    = number
   default = 0
@@ -841,6 +916,11 @@ variable "auth_admin_groups" {
 variable "auth_jwt_leeway_seconds" {
   type    = number
   default = 0
+}
+
+variable "auth_gateway_userinfo" {
+  type    = bool
+  default = false
 }
 
 variable "enable_api_gateway" {
