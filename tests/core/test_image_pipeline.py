@@ -28,6 +28,7 @@ def test_image_pipeline_writes_graphar(tmp_path):
         md5_hash=None,
         crc32c=None,
         local_path=str(fixture),
+        uri_scheme="gs",
     )
 
     result = ingest_image(

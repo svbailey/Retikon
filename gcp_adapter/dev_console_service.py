@@ -22,7 +22,7 @@ from retikon_core.services.fastapi_scaffolding import (
     apply_cors_middleware,
     build_health_response,
 )
-from retikon_core.storage.paths import graph_root, manifest_uri
+from retikon_core.storage.paths import graph_root, manifest_uri, normalize_bucket_uri
 
 SERVICE_NAME = "retikon-dev-console"
 
@@ -113,7 +113,7 @@ def _parse_gs_uri(uri: str) -> ObjectRef:
 
 def _ensure_graph_uri(uri: str) -> None:
     bucket, prefix = _graph_settings()
-    root = graph_root(bucket, prefix).rstrip("/") + "/"
+    root = graph_root(normalize_bucket_uri(bucket, scheme="gs"), prefix).rstrip("/") + "/"
     if not uri.startswith(root):
         raise HTTPException(status_code=403, detail="Path outside graph prefix")
 
@@ -247,7 +247,9 @@ async def manifest(
         uri = manifest_uri_value
     else:
         bucket, prefix = _graph_settings()
-        uri = manifest_uri(graph_root(bucket, prefix), run_id or "")
+        uri = manifest_uri(
+            graph_root(normalize_bucket_uri(bucket, scheme="gs"), prefix), run_id or ""
+        )
     fs, path = fsspec.core.url_to_fs(uri)
     with fs.open(path, "rb") as handle:
         payload = json.loads(handle.read().decode("utf-8"))

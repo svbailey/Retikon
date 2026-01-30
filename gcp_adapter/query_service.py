@@ -39,7 +39,7 @@ from retikon_core.services.query_service_core import (
     validate_query_payload,
     warm_query_models,
 )
-from retikon_core.storage.paths import graph_root
+from retikon_core.storage.paths import graph_root, normalize_bucket_uri
 
 SERVICE_NAME = "retikon-query"
 
@@ -107,7 +107,7 @@ def _get_api_key() -> str | None:
 
 def _graph_root_uri() -> str:
     graph_bucket, graph_prefix = _graph_settings()
-    return graph_root(graph_bucket, graph_prefix)
+    return graph_root(normalize_bucket_uri(graph_bucket, scheme="gs"), graph_prefix)
 
 
 def _authorize(request: Request) -> AuthContext | None:

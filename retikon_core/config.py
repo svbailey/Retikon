@@ -3,7 +3,13 @@ from dataclasses import dataclass
 from functools import lru_cache
 
 from retikon_core.capabilities import get_edition, resolve_capabilities
-from retikon_core.storage.paths import graph_root
+from retikon_core.storage.paths import (
+    backend_scheme,
+    graph_root,
+    has_uri_scheme,
+    join_uri,
+    normalize_bucket_uri,
+)
 
 
 @dataclass(frozen=True)
@@ -54,7 +60,27 @@ class Config:
             if not self.local_graph_root:
                 raise ValueError("LOCAL_GRAPH_ROOT is required for local storage")
             return self.local_graph_root
-        return graph_root(self.graph_bucket, self.graph_prefix)
+        return graph_root(self.bucket_uri(self.graph_bucket), self.graph_prefix)
+
+    def storage_scheme(self) -> str | None:
+        return backend_scheme(self.storage_backend)
+
+    def bucket_uri(self, bucket: str) -> str:
+        scheme = self.storage_scheme()
+        if self.storage_backend != "local" and scheme is None and not has_uri_scheme(
+            bucket
+        ):
+            raise ValueError(
+                "Bucket must include a URI scheme when STORAGE_BACKEND="
+                f"{self.storage_backend} (example: s3://bucket)"
+            )
+        return normalize_bucket_uri(bucket, scheme=scheme)
+
+    def raw_object_uri(self, name: str, bucket: str | None = None) -> str:
+        if self.storage_backend == "local":
+            raise ValueError("raw_object_uri is not available for local storage")
+        base = self.bucket_uri(bucket or self.raw_bucket)
+        return join_uri(base, name)
 
     @classmethod
     def from_env(cls) -> "Config":
@@ -76,22 +102,21 @@ class Config:
             except ValueError as exc:
                 raise ValueError(f"{name} must be an integer") from exc
 
-        storage_backend = os.getenv("STORAGE_BACKEND", "gcs").strip().lower()
-        if storage_backend not in {"gcs", "local"}:
-            raise ValueError("STORAGE_BACKEND must be 'gcs' or 'local'")
+        storage_backend = os.getenv("STORAGE_BACKEND", "local").strip().lower()
+        allowed_backends = {"local", "gcs", "gs", "s3", "remote", "azure"}
+        if storage_backend not in allowed_backends:
+            allowed = ", ".join(sorted(allowed_backends))
+            raise ValueError(f"STORAGE_BACKEND must be one of: {allowed}")
 
-        raw_bucket = require("RAW_BUCKET") if storage_backend == "gcs" else os.getenv(
+        remote_required = storage_backend != "local"
+        raw_bucket = require("RAW_BUCKET") if remote_required else os.getenv(
             "RAW_BUCKET", ""
         )
         graph_bucket = (
-            require("GRAPH_BUCKET")
-            if storage_backend == "gcs"
-            else os.getenv("GRAPH_BUCKET", "")
+            require("GRAPH_BUCKET") if remote_required else os.getenv("GRAPH_BUCKET", "")
         )
         graph_prefix = (
-            require("GRAPH_PREFIX")
-            if storage_backend == "gcs"
-            else os.getenv("GRAPH_PREFIX", "")
+            require("GRAPH_PREFIX") if remote_required else os.getenv("GRAPH_PREFIX", "")
         )
         local_graph_root = os.getenv("LOCAL_GRAPH_ROOT")
         if storage_backend == "local" and not local_graph_root:
@@ -158,6 +183,18 @@ class Config:
             edition=edition,
             override=os.getenv("RETIKON_CAPABILITIES"),
         )
+
+        if remote_required and backend_scheme(storage_backend) is None:
+            if raw_bucket and not has_uri_scheme(raw_bucket):
+                raise ValueError(
+                    "RAW_BUCKET must include a URI scheme when STORAGE_BACKEND="
+                    f"{storage_backend} (example: s3://bucket)"
+                )
+            if graph_bucket and not has_uri_scheme(graph_bucket):
+                raise ValueError(
+                    "GRAPH_BUCKET must include a URI scheme when STORAGE_BACKEND="
+                    f"{storage_backend} (example: s3://bucket)"
+                )
 
         if missing:
             missing_str = ", ".join(missing)

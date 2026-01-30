@@ -148,7 +148,8 @@ resource "google_cloud_run_service" "ingestion_service" {
         args    = ["-b", "0.0.0.0:8080", "gcp_adapter.ingestion_service:app"]
         resources { limits = { memory = "4Gi" } }
         env = [
-          { name = "GRAPH_BUCKET", value = google_storage_bucket.graph_data_bucket.name }
+          { name = "GRAPH_BUCKET", value = google_storage_bucket.graph_data_bucket.name },
+          { name = "STORAGE_BACKEND", value = "gcs" }
         ]
       }
     }
@@ -170,7 +171,8 @@ resource "google_cloud_run_service" "query_service" {
         args    = ["-b", "0.0.0.0:8080", "gcp_adapter.query_service:app"]
         resources { limits = { memory = "2Gi" } }
         env = [
-          { name = "GRAPH_BUCKET", value = google_storage_bucket.graph_data_bucket.name }
+          { name = "GRAPH_BUCKET", value = google_storage_bucket.graph_data_bucket.name },
+          { name = "STORAGE_BACKEND", value = "gcs" }
         ]
       }
     }
@@ -202,7 +204,8 @@ resource "google_cloud_run_v2_job" "index_builder" {
         args    = ["-m", "retikon_core.query_engine.index_builder"]
         serviceAccountName = google_service_account.query_sa.email
         env = [
-          { name = "GRAPH_BUCKET", value = google_storage_bucket.graph_data_bucket.name }
+          { name = "GRAPH_BUCKET", value = google_storage_bucket.graph_data_bucket.name },
+          { name = "STORAGE_BACKEND", value = "gcs" }
         ]
         resources { limits = { memory = "2Gi" } }
       }

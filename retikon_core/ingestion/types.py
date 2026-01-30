@@ -2,6 +2,9 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from pathlib import Path
+from urllib.parse import urlparse
+
+from retikon_core.storage.paths import join_uri
 
 
 @dataclass(frozen=True)
@@ -27,7 +30,14 @@ class IngestSource:
             if scheme in {"file", "local"}:
                 return Path(self.local_path).resolve().as_uri()
             return f"{scheme}://{self.bucket}/{self.name}"
-        return f"gs://{self.bucket}/{self.name}"
+        parsed = urlparse(self.bucket)
+        if parsed.scheme == "file":
+            return Path(parsed.path).joinpath(self.name).resolve().as_uri()
+        if parsed.scheme:
+            return join_uri(self.bucket, self.name)
+        raise ValueError(
+            "IngestSource.uri requires uri_scheme or a bucket with a URI scheme"
+        )
 
     @property
     def extension(self) -> str:

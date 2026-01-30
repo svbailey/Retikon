@@ -14,6 +14,29 @@ def _join_parts(parts: Iterable[str]) -> str:
     return "/".join(_strip_slashes(part) for part in parts if part)
 
 
+def has_uri_scheme(value: str) -> bool:
+    return bool(urlparse(value).scheme)
+
+
+def backend_scheme(storage_backend: str | None) -> str | None:
+    if not storage_backend:
+        return None
+    backend = storage_backend.strip().lower()
+    if backend in {"gcs", "gs"}:
+        return "gs"
+    if backend == "s3":
+        return "s3"
+    return None
+
+
+def normalize_bucket_uri(bucket: str, scheme: str | None = None) -> str:
+    if has_uri_scheme(bucket):
+        return bucket
+    if scheme:
+        return f"{scheme}://{_strip_slashes(bucket)}"
+    return bucket
+
+
 def graph_root(bucket: str, prefix: str) -> str:
     parsed = urlparse(bucket)
     if parsed.scheme:
@@ -26,7 +49,7 @@ def graph_root(bucket: str, prefix: str) -> str:
         else:
             base = bucket.rstrip("/")
     else:
-        base = f"gs://{_strip_slashes(bucket)}"
+        base = bucket.rstrip("/")
     if not prefix:
         return base
     return f"{base}/{_strip_slashes(prefix)}"

@@ -12,6 +12,7 @@ from retikon_core.ingestion.storage_event import StorageEvent
 from retikon_core.ingestion.types import IngestSource
 from retikon_core.tenancy import scope_from_metadata
 from retikon_core.tenancy.types import TenantScope
+from retikon_core.storage.paths import has_uri_scheme, join_uri
 
 
 @dataclass(frozen=True)
@@ -146,6 +147,15 @@ def _make_source(
         stream_id=config.default_stream_id,
     )
     scope = scope_from_metadata(download.metadata, defaults=default_scope)
+    uri_scheme = None
+    if not has_uri_scheme(event.bucket):
+        uri_scheme = config.storage_scheme()
+        if config.storage_backend != "local" and uri_scheme is None:
+            raise PermanentError(
+                "Bucket must include a URI scheme when STORAGE_BACKEND="
+                f"{config.storage_backend} (example: s3://bucket)"
+            )
+
     return IngestSource(
         bucket=event.bucket,
         name=event.name,
@@ -159,6 +169,7 @@ def _make_source(
         site_id=scope.site_id,
         stream_id=scope.stream_id,
         metadata=download.metadata,
+        uri_scheme=uri_scheme,
     )
 
 
@@ -256,7 +267,13 @@ def process_event(
     pipeline_version_value = pipeline_version()
     schema_version = _schema_version()
 
-    object_uri = f"gs://{event.bucket}/{event.name}"
+    try:
+        if config.storage_backend == "local":
+            object_uri = join_uri(event.bucket, event.name)
+        else:
+            object_uri = config.raw_object_uri(event.name, bucket=event.bucket)
+    except ValueError as exc:
+        raise PermanentError(str(exc)) from exc
     download = download_to_tmp(object_uri, config.max_raw_bytes)
     try:
         source = _make_source(event, download, config)

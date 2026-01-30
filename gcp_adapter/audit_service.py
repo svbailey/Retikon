@@ -27,7 +27,7 @@ from retikon_core.services.fastapi_scaffolding import (
     apply_cors_middleware,
     build_health_response,
 )
-from retikon_core.storage.paths import graph_root, join_uri
+from retikon_core.storage.paths import graph_root, join_uri, normalize_bucket_uri
 
 SERVICE_NAME = "retikon-audit"
 
@@ -84,7 +84,7 @@ def _graph_uri() -> str:
     graph_bucket = os.getenv("GRAPH_BUCKET")
     graph_prefix = os.getenv("GRAPH_PREFIX", "")
     if graph_bucket:
-        return graph_root(graph_bucket, graph_prefix)
+        return graph_root(normalize_bucket_uri(graph_bucket, scheme="gs"), graph_prefix)
     local_root = os.getenv("LOCAL_GRAPH_ROOT")
     if local_root:
         return local_root

@@ -56,6 +56,7 @@ Defaults shown match current code where applicable.
 
 - `GOOGLE_CLOUD_PROJECT`
 - `GOOGLE_CLOUD_REGION`
+- `STORAGE_BACKEND=gcs`
 - `RAW_BUCKET`
 - `GRAPH_BUCKET`
 - `GRAPH_PREFIX`
@@ -91,3 +92,5 @@ Defaults shown match current code where applicable.
 
 - Core local development uses `.env` and defaults in `retikon_cli`.
 - Pro deployments should use Secret Manager for API keys in production.
+- For non-GCS object stores, set `STORAGE_BACKEND=remote` and provide full URI
+  schemes in `RAW_BUCKET`/`GRAPH_BUCKET` (e.g., `s3://bucket`).

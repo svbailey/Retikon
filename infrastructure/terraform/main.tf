@@ -413,6 +413,10 @@ resource "google_cloud_run_service" "ingestion" {
           value = var.log_level
         }
         env {
+          name  = "STORAGE_BACKEND"
+          value = "gcs"
+        }
+        env {
           name  = "USE_REAL_MODELS"
           value = var.use_real_models ? "1" : "0"
         }
@@ -595,6 +599,10 @@ resource "google_cloud_run_service" "query" {
           value = var.log_level
         }
         env {
+          name  = "STORAGE_BACKEND"
+          value = "gcs"
+        }
+        env {
           name  = "USE_REAL_MODELS"
           value = var.use_real_models ? "1" : "0"
         }
@@ -771,6 +779,10 @@ resource "google_cloud_run_service" "query_gpu" {
         env {
           name  = "LOG_LEVEL"
           value = var.log_level
+        }
+        env {
+          name  = "STORAGE_BACKEND"
+          value = "gcs"
         }
         env {
           name  = "USE_REAL_MODELS"
@@ -955,6 +967,10 @@ resource "google_cloud_run_service" "audit" {
           value = var.log_level
         }
         env {
+          name  = "STORAGE_BACKEND"
+          value = "gcs"
+        }
+        env {
           name  = "GRAPH_BUCKET"
           value = google_storage_bucket.graph.name
         }
@@ -1038,6 +1054,10 @@ resource "google_cloud_run_service" "workflow" {
         env {
           name  = "LOG_LEVEL"
           value = var.log_level
+        }
+        env {
+          name  = "STORAGE_BACKEND"
+          value = "gcs"
         }
         env {
           name  = "RAW_BUCKET"
@@ -1162,6 +1182,10 @@ resource "google_cloud_run_service" "chaos" {
           value = var.log_level
         }
         env {
+          name  = "STORAGE_BACKEND"
+          value = "gcs"
+        }
+        env {
           name  = "RAW_BUCKET"
           value = google_storage_bucket.raw.name
         }
@@ -1259,6 +1283,10 @@ resource "google_cloud_run_service" "dev_console" {
         env {
           name  = "LOG_LEVEL"
           value = var.log_level
+        }
+        env {
+          name  = "STORAGE_BACKEND"
+          value = "gcs"
         }
         env {
           name  = "PROJECT_ID"
@@ -1364,6 +1392,10 @@ resource "google_cloud_run_service" "edge_gateway" {
           value = var.log_level
         }
         env {
+          name  = "STORAGE_BACKEND"
+          value = "gcs"
+        }
+        env {
           name  = "RAW_BUCKET"
           value = google_storage_bucket.raw.name
         }
@@ -1460,6 +1492,10 @@ resource "google_cloud_run_service" "stream_ingest" {
         env {
           name  = "LOG_LEVEL"
           value = var.log_level
+        }
+        env {
+          name  = "STORAGE_BACKEND"
+          value = "gcs"
         }
         env {
           name  = "USE_REAL_MODELS"
@@ -1737,6 +1773,10 @@ resource "google_cloud_run_v2_job" "index_builder" {
           value = var.log_level
         }
         env {
+          name  = "STORAGE_BACKEND"
+          value = "gcs"
+        }
+        env {
           name  = "GRAPH_BUCKET"
           value = google_storage_bucket.graph.name
         }
@@ -1800,6 +1840,10 @@ resource "google_cloud_run_v2_job" "compaction" {
         env {
           name  = "LOG_LEVEL"
           value = var.log_level
+        }
+        env {
+          name  = "STORAGE_BACKEND"
+          value = "gcs"
         }
         env {
           name  = "GRAPH_BUCKET"

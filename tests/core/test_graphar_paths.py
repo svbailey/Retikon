@@ -7,7 +7,7 @@ from retikon_core.storage.paths import (
 
 
 def test_graph_paths():
-    base = graph_root("retikon-graph", "retikon_v2")
+    base = graph_root("gs://retikon-graph", "retikon_v2")
     assert base == "gs://retikon-graph/retikon_v2"
 
     vertex_path = vertex_part_uri(base, "DocChunk", "core", "abc123")

@@ -3,7 +3,7 @@ from pathlib import Path
 from retikon_core.ingestion.types import IngestSource
 
 
-def test_ingest_source_default_uri():
+def test_ingest_source_gs_uri():
     source = IngestSource(
         bucket="demo-bucket",
         name="raw/docs/sample.pdf",
@@ -13,6 +13,7 @@ def test_ingest_source_default_uri():
         md5_hash=None,
         crc32c=None,
         local_path="tests/fixtures/sample.pdf",
+        uri_scheme="gs",
     )
     assert source.uri == "gs://demo-bucket/raw/docs/sample.pdf"
 

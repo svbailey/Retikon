@@ -15,7 +15,13 @@ import fsspec
 
 from retikon_core.logging import configure_logging, get_logger
 from retikon_core.query_engine.warm_start import load_extensions
-from retikon_core.storage.paths import graph_root, join_uri
+from retikon_core.storage.paths import (
+    backend_scheme,
+    graph_root,
+    has_uri_scheme,
+    join_uri,
+    normalize_bucket_uri,
+)
 
 SERVICE_NAME = "retikon-index-builder"
 
@@ -899,6 +905,7 @@ def build_snapshot(
 
 
 def _config_from_env() -> dict[str, Any]:
+    storage_backend = os.getenv("STORAGE_BACKEND", "local").strip().lower()
     graph_uri = os.getenv("GRAPH_URI")
     if not graph_uri:
         local_graph_root = os.getenv("LOCAL_GRAPH_ROOT")
@@ -909,7 +916,16 @@ def _config_from_env() -> dict[str, Any]:
             graph_prefix = os.getenv("GRAPH_PREFIX", "")
             if not graph_bucket:
                 raise ValueError("GRAPH_BUCKET is required")
-            graph_uri = graph_root(graph_bucket, graph_prefix)
+            scheme = backend_scheme(storage_backend)
+            if scheme is None and not has_uri_scheme(graph_bucket):
+                raise ValueError(
+                    "GRAPH_BUCKET must include a URI scheme when STORAGE_BACKEND="
+                    f"{storage_backend} (example: s3://bucket)"
+                )
+            graph_uri = graph_root(
+                normalize_bucket_uri(graph_bucket, scheme=scheme),
+                graph_prefix,
+            )
     snapshot_uri = os.getenv("SNAPSHOT_URI")
     if not snapshot_uri:
         raise ValueError("SNAPSHOT_URI is required")

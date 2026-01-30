@@ -32,7 +32,14 @@ from retikon_core.compaction.types import (
 from retikon_core.logging import configure_logging, get_logger
 from retikon_core.retention import RetentionPolicy
 from retikon_core.storage import build_manifest, manifest_uri, write_manifest
-from retikon_core.storage.paths import GraphPaths, join_uri
+from retikon_core.storage.paths import (
+    GraphPaths,
+    backend_scheme,
+    graph_root,
+    has_uri_scheme,
+    join_uri,
+    normalize_bucket_uri,
+)
 from retikon_core.storage.writer import WriteResult
 
 SERVICE_NAME = "retikon-compaction"
@@ -470,7 +477,17 @@ def main() -> None:
         graph_bucket = os.getenv("GRAPH_BUCKET")
         graph_prefix = os.getenv("GRAPH_PREFIX", "")
         if graph_bucket:
-            graph_uri = f"gs://{graph_bucket.strip('/')}/{graph_prefix.strip('/')}"
+            storage_backend = os.getenv("STORAGE_BACKEND", "local").strip().lower()
+            scheme = backend_scheme(storage_backend)
+            if scheme is None and not has_uri_scheme(graph_bucket):
+                raise ValueError(
+                    "GRAPH_BUCKET must include a URI scheme when STORAGE_BACKEND="
+                    f"{storage_backend} (example: s3://bucket)"
+                )
+            graph_uri = graph_root(
+                normalize_bucket_uri(graph_bucket, scheme=scheme),
+                graph_prefix,
+            )
         else:
             local_root = os.getenv("LOCAL_GRAPH_ROOT")
             if not local_root:

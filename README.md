@@ -120,6 +120,7 @@ Core (local) variables:
 Pro (GCP) variables:
 
 - `GOOGLE_CLOUD_PROJECT`, `GOOGLE_CLOUD_REGION`
+- `STORAGE_BACKEND=gcs`
 - `RAW_BUCKET`, `GRAPH_BUCKET`, `GRAPH_PREFIX`
 - `SNAPSHOT_URI`
 - `QUERY_API_KEY` (dev only; prod uses Secret Manager)

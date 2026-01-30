@@ -21,7 +21,7 @@ def _has_google_imports(root: Path) -> list[str]:
 
 
 @pytest.mark.skipif(
-    os.getenv("RETIKON_ALLOW_GCP_IMPORTS", "1") == "1",
+    os.getenv("RETIKON_ALLOW_GCP_IMPORTS", "0") == "1",
     reason="Boundary enforcement disabled until Core decoupling is complete",
 )
 def test_core_has_no_google_imports() -> None:

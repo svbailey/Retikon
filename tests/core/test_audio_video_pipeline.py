@@ -57,6 +57,7 @@ def test_audio_pipeline_writes_graphar(tmp_path, monkeypatch):
         md5_hash=None,
         crc32c=None,
         local_path=str(fixture),
+        uri_scheme="gs",
     )
 
     result = audio_pipeline.ingest_audio(
@@ -141,6 +142,7 @@ def test_audio_pipeline_empty_transcript_skips_embeddings(tmp_path, monkeypatch)
         md5_hash=None,
         crc32c=None,
         local_path=str(fixture),
+        uri_scheme="gs",
     )
 
     result = audio_pipeline.ingest_audio(
@@ -184,6 +186,7 @@ def test_audio_duration_cap(monkeypatch):
         md5_hash=None,
         crc32c=None,
         local_path="dummy",
+        uri_scheme="gs",
     )
     with pytest.raises(PermanentError):
         audio_pipeline.ingest_audio(
@@ -211,6 +214,7 @@ def test_audio_corrupt_file(monkeypatch):
         md5_hash=None,
         crc32c=None,
         local_path="dummy",
+        uri_scheme="gs",
     )
     with pytest.raises(RecoverableError):
         audio_pipeline.ingest_audio(
@@ -270,6 +274,7 @@ def test_video_pipeline_writes_graphar(tmp_path, monkeypatch):
         md5_hash=None,
         crc32c=None,
         local_path=str(video_fixture),
+        uri_scheme="gs",
     )
 
     result = video_pipeline.ingest_video(
@@ -371,6 +376,7 @@ def test_video_pipeline_empty_transcript_skips_embeddings(tmp_path, monkeypatch)
         md5_hash=None,
         crc32c=None,
         local_path=str(video_fixture),
+        uri_scheme="gs",
     )
 
     result = video_pipeline.ingest_video(
@@ -414,6 +420,7 @@ def test_video_duration_cap(monkeypatch):
         md5_hash=None,
         crc32c=None,
         local_path="dummy",
+        uri_scheme="gs",
     )
     with pytest.raises(PermanentError):
         video_pipeline.ingest_video(
@@ -441,6 +448,7 @@ def test_video_corrupt_file(monkeypatch):
         md5_hash=None,
         crc32c=None,
         local_path="dummy",
+        uri_scheme="gs",
     )
     with pytest.raises(RecoverableError):
         video_pipeline.ingest_video(
@@ -486,6 +494,7 @@ def test_video_frame_cap(monkeypatch):
         md5_hash=None,
         crc32c=None,
         local_path="dummy",
+        uri_scheme="gs",
     )
     with pytest.raises(PermanentError):
         video_pipeline.ingest_video(

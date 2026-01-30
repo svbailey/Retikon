@@ -77,9 +77,10 @@ def download_to_tmp(
                 if size > max_bytes:
                     raise PermanentError("Download exceeded MAX_RAW_BYTES")
                 writer.write(chunk)
-    except PermanentError:
-        raise
     except Exception as exc:
+        cleanup_tmp(tmp_path)
+        if isinstance(exc, PermanentError):
+            raise
         raise RecoverableError(f"Failed downloading {uri}: {exc}") from exc
 
     return DownloadResult(
