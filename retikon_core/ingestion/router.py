@@ -10,9 +10,9 @@ from retikon_core.ingestion.pipelines import audio, document, image, video
 from retikon_core.ingestion.rate_limit import enforce_rate_limit
 from retikon_core.ingestion.storage_event import StorageEvent
 from retikon_core.ingestion.types import IngestSource
+from retikon_core.storage.paths import has_uri_scheme, join_uri
 from retikon_core.tenancy import scope_from_metadata
 from retikon_core.tenancy.types import TenantScope
-from retikon_core.storage.paths import has_uri_scheme, join_uri
 
 
 @dataclass(frozen=True)

@@ -44,6 +44,7 @@ jobs:
       - name: Core tests
         env:
           PYTHONPATH: .
+          LOCAL_GRAPH_ROOT: /tmp/retikon_test_graph
         run: python -m pytest tests/core
 
   test-pro:
@@ -61,4 +62,5 @@ jobs:
       - name: Pro tests
         env:
           PYTHONPATH: .
+          LOCAL_GRAPH_ROOT: /tmp/retikon_test_graph
         run: python -m pytest tests/pro

@@ -112,11 +112,11 @@ class Config:
         raw_bucket = require("RAW_BUCKET") if remote_required else os.getenv(
             "RAW_BUCKET", ""
         )
-        graph_bucket = (
-            require("GRAPH_BUCKET") if remote_required else os.getenv("GRAPH_BUCKET", "")
+        graph_bucket = require("GRAPH_BUCKET") if remote_required else os.getenv(
+            "GRAPH_BUCKET", ""
         )
-        graph_prefix = (
-            require("GRAPH_PREFIX") if remote_required else os.getenv("GRAPH_PREFIX", "")
+        graph_prefix = require("GRAPH_PREFIX") if remote_required else os.getenv(
+            "GRAPH_PREFIX", ""
         )
         local_graph_root = os.getenv("LOCAL_GRAPH_ROOT")
         if storage_backend == "local" and not local_graph_root:

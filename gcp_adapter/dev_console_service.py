@@ -113,7 +113,10 @@ def _parse_gs_uri(uri: str) -> ObjectRef:
 
 def _ensure_graph_uri(uri: str) -> None:
     bucket, prefix = _graph_settings()
-    root = graph_root(normalize_bucket_uri(bucket, scheme="gs"), prefix).rstrip("/") + "/"
+    root = (
+        graph_root(normalize_bucket_uri(bucket, scheme="gs"), prefix).rstrip("/")
+        + "/"
+    )
     if not uri.startswith(root):
         raise HTTPException(status_code=403, detail="Path outside graph prefix")
 
