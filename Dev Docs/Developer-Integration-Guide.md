@@ -86,6 +86,8 @@ Notes:
 - All IDs are UUIDv4.
 - `schema_version` is required for compatibility.
 - `embeddings` may be omitted in webhook payloads; provide references instead.
+- Core local mode returns `file://` (or absolute) paths for asset URIs, while
+  cloud deployments return `gs://`, `s3://`, or equivalent schemes.
 
 ## 4) Webhook Delivery
 
@@ -119,31 +121,12 @@ modality=video
 
 ## 6) Export Patterns
 
-### A) Incremental Export (Preferred)
-Provide `since` and `until` timestamps.
+Exports are available through the audit service in Pro:
+- `GET /audit/export` for audit logs
+- `GET /access/export` for access logs
 
-CLI example:
-```
-retikon export --format parquet --since 2026-01-25T00:00:00Z --until 2026-01-26T00:00:00Z
-```
-
-API example:
-```
-POST /export
-{
-  "format": "parquet",
-  "since": "2026-01-25T00:00:00Z",
-  "until": "2026-01-26T00:00:00Z",
-  "filters": {"site_id": "site_01"}
-}
-```
-
-### B) Full Export
-Use for backfills or migration.
-
-### C) Warehouse Export
-- BigQuery: load Parquet exports into partitioned tables.
-- Snowflake: stage Parquet in S3/GCS and load via COPY INTO.
+There is no `retikon export` CLI command or `/export` endpoint in the current
+codebase.
 
 ## 7) Query API Usage
 
@@ -220,20 +203,20 @@ Graph exploration:
 
 ### Python
 ```
-from retikon import Client
+from retikon_sdk import RetikonClient
 
-client = Client(api_key="...")
-results = client.query_text("forklift in zone 3")
-print(results)
+client = RetikonClient(api_key="...")
+results = client.query(query_text="forklift in zone 3")
+print(results["results"])
 ```
 
 ### JavaScript
 ```
-import { RetikonClient } from "retikon";
+import { RetikonClient } from "@retikon/core-sdk";
 
 const client = new RetikonClient({ apiKey: "..." });
-const results = await client.queryText("forklift in zone 3");
-console.log(results);
+const results = await client.query({ queryText: "forklift in zone 3" });
+console.log(results.results);
 ```
 
 ## 11) Error Handling and Idempotency

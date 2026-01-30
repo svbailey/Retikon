@@ -12,7 +12,7 @@ This runbook covers routine checks and incident response for Retikon services.
 ## Daily checks
 
 - Cloud Run health:
-  - Query `/health` or `/healthz` endpoints (ingest, query, audit).
+  - Query `/health` endpoints (ingest, query, audit).
 - Error rates:
   - Ingestion 5xx and query p95 alerts.
 - DLQ backlog:
@@ -43,7 +43,7 @@ This runbook covers routine checks and incident response for Retikon services.
   - Prod: rebuild snapshot every 1 hour.
 - Trigger:
   - Scheduled Cloud Run Job (index builder) via Cloud Scheduler.
-  - Manual on-demand trigger via Dev Console `/dev/index-build` or CLI.
+  - Manual on-demand trigger via Dev Console `/dev/index-build`.
 - Validation:
   - After build, call `/admin/reload-snapshot` on the query service.
   - Run one smoke query to confirm results and response time.

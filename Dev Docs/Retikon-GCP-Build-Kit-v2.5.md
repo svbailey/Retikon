@@ -254,29 +254,29 @@ FROM python:3.10-slim
 
 # System dependencies
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    poppler-utils ffmpeg libsndfile1 git && \
-    rm -rf /var/lib/apt/lists/*
+    ffmpeg \
+    git \
+    libsndfile1 \
+    poppler-utils \
+    && rm -rf /var/lib/apt/lists/*
 
 # Python dependencies
-COPY requirements.txt /tmp/requirements.txt
-RUN pip install --no-cache-dir -r /tmp/requirements.txt
+COPY requirements.txt /app/requirements.txt
+RUN pip install --no-cache-dir -r /app/requirements.txt
 
 # Application code
 COPY retikon_core/ /app/retikon_core/
 COPY gcp_adapter/ /app/gcp_adapter/
 
-# Optional: download model weights at build time into /app/models/
-
 ENV PYTHONPATH=/app
 WORKDIR /app
 
 # Default entrypoint for Query service
-CMD ["gunicorn", "-b", "0.0.0.0:8080", "gcp_adapter.query_service:app"]
+CMD ["sh", "-c", "uvicorn gcp_adapter.query_service:app --host 0.0.0.0 --port 8080"]
 ```
 
-Required packages include `torch`, `torchaudio`, `transformers`,
-`laion-clap==1.1.7`, `openai-whisper`, `decord==0.6.0`, `Pillow`, `pandas`,
-`python-docx`, and `python-pptx`.
+Dependencies are pinned in `requirements.txt` (and `requirements-ml.txt` for
+optional heavy ML stacks like torch/transformers/whisper/onnx).
 
 ## Ingestion Pipelines (retikon_core.ingestion.pipelines)
 

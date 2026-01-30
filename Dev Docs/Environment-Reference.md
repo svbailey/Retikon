@@ -38,7 +38,7 @@ Defaults shown match current code where applicable.
 - `MAX_IMAGE_BASE64_BYTES=2000000`
 - `SLOW_QUERY_MS=2000`
 - `LOG_QUERY_TIMINGS=0|1`
-- `QUERY_WARMUP=0|1`
+- `QUERY_WARMUP=0|1` (defaults to `1`)
 - `QUERY_WARMUP_TEXT="retikon warmup"`
 - `QUERY_WARMUP_STEPS=text,image_text,audio_text,image`
 
