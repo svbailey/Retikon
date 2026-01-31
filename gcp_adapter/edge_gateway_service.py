@@ -301,7 +301,7 @@ async def update_config(payload: ConfigUpdate, request: Request) -> ConfigRespon
             max_backlog=STATE.backpressure.max_backlog,
             hard_limit=payload.backpressure_hard_limit,
         )
-    return await get_config()
+    return await get_config(request)
 
 
 @app.get("/edge/buffer/status", response_model=BufferStatus)

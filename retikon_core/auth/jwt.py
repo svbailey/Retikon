@@ -4,15 +4,31 @@ import json
 import os
 import urllib.request
 from dataclasses import dataclass
-from typing import Any, cast
+from typing import Any, TYPE_CHECKING, cast
 
 import jwt
-from cryptography import x509
-from cryptography.hazmat.primitives.asymmetric.ec import EllipticCurvePublicKey
-from cryptography.hazmat.primitives.asymmetric.ed448 import Ed448PublicKey
-from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PublicKey
-from cryptography.hazmat.primitives.asymmetric.rsa import RSAPublicKey
 from jwt import PyJWK, PyJWKClient
+
+if TYPE_CHECKING:
+    from cryptography.hazmat.primitives.asymmetric.dsa import DSAPublicKey
+    from cryptography.hazmat.primitives.asymmetric.ec import EllipticCurvePublicKey
+    from cryptography.hazmat.primitives.asymmetric.ed448 import Ed448PublicKey
+    from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PublicKey
+    from cryptography.hazmat.primitives.asymmetric.rsa import RSAPublicKey
+    from cryptography.hazmat.primitives.asymmetric.x25519 import X25519PublicKey
+    from cryptography.hazmat.primitives.asymmetric.x448 import X448PublicKey
+
+    CryptoPublicKey = (
+        RSAPublicKey
+        | EllipticCurvePublicKey
+        | Ed25519PublicKey
+        | Ed448PublicKey
+        | DSAPublicKey
+        | X25519PublicKey
+        | X448PublicKey
+    )
+else:
+    CryptoPublicKey = Any
 
 from retikon_core.auth.types import AuthContext
 from retikon_core.errors import AuthError
@@ -40,15 +56,7 @@ class JwtConfig:
     leeway_seconds: int
 
 
-JwtKey = (
-    RSAPublicKey
-    | EllipticCurvePublicKey
-    | Ed25519PublicKey
-    | Ed448PublicKey
-    | PyJWK
-    | str
-    | bytes
-)
+JwtKey = CryptoPublicKey | PyJWK | str | bytes
 
 
 def load_jwt_config() -> JwtConfig:
@@ -79,15 +87,18 @@ def load_jwt_config() -> JwtConfig:
 def decode_jwt(token: str, *, config: JwtConfig | None = None) -> dict[str, Any]:
     config = config or load_jwt_config()
     key, algs = _resolve_key(token, config)
-    options: dict[str, object] = {}
+    options: dict[str, Any] = {}
     if config.required_claims:
         options["require"] = list(config.required_claims)
     issuers = _split_csv(config.issuer)
     audiences = _split_csv(config.audience)
     last_exc: jwt.PyJWTError | None = None
-    for issuer in issuers or [None]:
+    issuer_candidates: tuple[str | None, ...] = (
+        tuple(issuers) if issuers else (None,)
+    )
+    for issuer in issuer_candidates:
         try:
-            kwargs: dict[str, object] = {
+            kwargs: dict[str, Any] = {
                 "key": key,
                 "algorithms": list(algs),
                 "leeway": config.leeway_seconds,
@@ -240,8 +251,12 @@ def _load_x509_key(token: str, jwks_uri: str) -> JwtKey:
     if not cert_pem:
         raise AuthError("JWT kid not found in x509 JWKS")
     try:
-        cert = x509.load_pem_x509_certificate(str(cert_pem).encode("utf-8"))
-        return cert.public_key()
+        try:
+            from cryptography import x509 as crypto_x509
+        except Exception as exc:
+            raise AuthError("x509 JWKS requires cryptography") from exc
+        cert = crypto_x509.load_pem_x509_certificate(str(cert_pem).encode("utf-8"))
+        return cast(CryptoPublicKey, cert.public_key())
     except Exception as exc:
         raise AuthError("Failed to parse x509 certificate") from exc
 
