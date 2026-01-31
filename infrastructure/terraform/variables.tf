@@ -54,6 +54,26 @@ variable "chaos_service_name" {
   default = "retikon-chaos"
 }
 
+variable "privacy_service_name" {
+  type    = string
+  default = "retikon-privacy"
+}
+
+variable "fleet_service_name" {
+  type    = string
+  default = "retikon-fleet"
+}
+
+variable "data_factory_service_name" {
+  type    = string
+  default = "retikon-data-factory"
+}
+
+variable "webhook_service_name" {
+  type    = string
+  default = "retikon-webhooks"
+}
+
 variable "index_job_name" {
   type    = string
   default = "retikon-index-builder"
@@ -130,6 +150,26 @@ variable "workflow_image" {
 }
 
 variable "chaos_image" {
+  type    = string
+  default = "us-docker.pkg.dev/cloudrun/container/hello"
+}
+
+variable "privacy_image" {
+  type    = string
+  default = "us-docker.pkg.dev/cloudrun/container/hello"
+}
+
+variable "fleet_image" {
+  type    = string
+  default = "us-docker.pkg.dev/cloudrun/container/hello"
+}
+
+variable "data_factory_image" {
+  type    = string
+  default = "us-docker.pkg.dev/cloudrun/container/hello"
+}
+
+variable "webhook_image" {
   type    = string
   default = "us-docker.pkg.dev/cloudrun/container/hello"
 }
@@ -229,6 +269,26 @@ variable "chaos_timeout_seconds" {
   default = 60
 }
 
+variable "privacy_timeout_seconds" {
+  type    = number
+  default = 60
+}
+
+variable "fleet_timeout_seconds" {
+  type    = number
+  default = 60
+}
+
+variable "data_factory_timeout_seconds" {
+  type    = number
+  default = 120
+}
+
+variable "webhook_timeout_seconds" {
+  type    = number
+  default = 60
+}
+
 variable "query_slow_ms" {
   type    = number
   default = 2000
@@ -274,9 +334,44 @@ variable "chaos_require_admin" {
   default = true
 }
 
+variable "privacy_require_admin" {
+  type    = bool
+  default = true
+}
+
+variable "fleet_require_admin" {
+  type    = bool
+  default = true
+}
+
+variable "data_factory_require_admin" {
+  type    = bool
+  default = true
+}
+
+variable "webhook_require_admin" {
+  type    = bool
+  default = true
+}
+
 variable "workflow_run_mode" {
   type    = string
   default = "queue"
+}
+
+variable "data_factory_training_run_mode" {
+  type    = string
+  default = "inline"
+}
+
+variable "data_factory_office_conversion_mode" {
+  type    = string
+  default = "inline"
+}
+
+variable "data_factory_office_conversion_backend" {
+  type    = string
+  default = "stub"
 }
 
 variable "query_warmup" {
@@ -379,6 +474,46 @@ variable "chaos_min_scale" {
   default = 0
 }
 
+variable "privacy_max_scale" {
+  type    = number
+  default = 5
+}
+
+variable "privacy_min_scale" {
+  type    = number
+  default = 0
+}
+
+variable "fleet_max_scale" {
+  type    = number
+  default = 5
+}
+
+variable "fleet_min_scale" {
+  type    = number
+  default = 0
+}
+
+variable "data_factory_max_scale" {
+  type    = number
+  default = 5
+}
+
+variable "data_factory_min_scale" {
+  type    = number
+  default = 0
+}
+
+variable "webhook_max_scale" {
+  type    = number
+  default = 5
+}
+
+variable "webhook_min_scale" {
+  type    = number
+  default = 0
+}
+
 variable "audit_memory" {
   type    = string
   default = "1Gi"
@@ -420,6 +555,66 @@ variable "chaos_cpu" {
 }
 
 variable "chaos_concurrency" {
+  type    = number
+  default = 10
+}
+
+variable "privacy_memory" {
+  type    = string
+  default = "1Gi"
+}
+
+variable "privacy_cpu" {
+  type    = string
+  default = "1000m"
+}
+
+variable "privacy_concurrency" {
+  type    = number
+  default = 10
+}
+
+variable "fleet_memory" {
+  type    = string
+  default = "1Gi"
+}
+
+variable "fleet_cpu" {
+  type    = string
+  default = "1000m"
+}
+
+variable "fleet_concurrency" {
+  type    = number
+  default = 10
+}
+
+variable "data_factory_memory" {
+  type    = string
+  default = "1Gi"
+}
+
+variable "data_factory_cpu" {
+  type    = string
+  default = "1000m"
+}
+
+variable "data_factory_concurrency" {
+  type    = number
+  default = 10
+}
+
+variable "webhook_memory" {
+  type    = string
+  default = "1Gi"
+}
+
+variable "webhook_cpu" {
+  type    = string
+  default = "1000m"
+}
+
+variable "webhook_concurrency" {
   type    = number
   default = 10
 }
@@ -860,7 +1055,7 @@ variable "auth_jwt_algorithms" {
 
 variable "auth_required_claims" {
   type    = string
-  default = "sub"
+  default = "sub,iss,aud,exp,iat,org_id"
 }
 
 variable "auth_claim_sub" {
@@ -1061,6 +1256,26 @@ variable "workflow_service_account_name" {
 variable "chaos_service_account_name" {
   type    = string
   default = "retikon-chaos-sa"
+}
+
+variable "privacy_service_account_name" {
+  type    = string
+  default = "retikon-privacy-sa"
+}
+
+variable "fleet_service_account_name" {
+  type    = string
+  default = "retikon-fleet-sa"
+}
+
+variable "data_factory_service_account_name" {
+  type    = string
+  default = "retikon-data-factory-sa"
+}
+
+variable "webhook_service_account_name" {
+  type    = string
+  default = "retikon-webhooks-sa"
 }
 
 variable "dev_console_service_account_name" {

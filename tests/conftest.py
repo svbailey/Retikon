@@ -37,7 +37,7 @@ def _disable_query_warmup(monkeypatch: pytest.MonkeyPatch) -> None:
     set_default("AUTH_JWT_ALGORITHMS", "HS256")
     set_default("AUTH_ISSUER", "https://issuer.test")
     set_default("AUTH_AUDIENCE", "retikon-test")
-    set_default("AUTH_REQUIRED_CLAIMS", "sub,iss,aud,exp,iat")
+    set_default("AUTH_REQUIRED_CLAIMS", "sub,iss,aud,exp,iat,org_id")
 
 
 _TEST_SNAPSHOT_PATH: str | None = None

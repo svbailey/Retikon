@@ -285,6 +285,276 @@ paths:
       responses:
         "200":
           description: "OK"
+  /privacy:
+    get:
+      operationId: privacy_get
+      x-google-backend:
+        address: "${privacy_url}"
+        jwt_audience: "${privacy_url}"
+        path_translation: APPEND_PATH_TO_ADDRESS
+      responses:
+        "200":
+          description: "OK"
+    post:
+      operationId: privacy_post
+      x-google-backend:
+        address: "${privacy_url}"
+        jwt_audience: "${privacy_url}"
+        path_translation: APPEND_PATH_TO_ADDRESS
+      responses:
+        "200":
+          description: "OK"
+    options:
+      operationId: privacy_options
+      security: []
+      x-google-backend:
+        address: "${privacy_url}"
+        jwt_audience: "${privacy_url}"
+        path_translation: APPEND_PATH_TO_ADDRESS
+      responses:
+        "200":
+          description: "OK"
+  /privacy/{proxy}:
+    parameters:
+      - name: proxy
+        in: path
+        required: true
+        type: string
+    get:
+      operationId: privacy_proxy_get
+      x-google-backend:
+        address: "${privacy_url}"
+        jwt_audience: "${privacy_url}"
+        path_translation: APPEND_PATH_TO_ADDRESS
+      responses:
+        "200":
+          description: "OK"
+    post:
+      operationId: privacy_proxy_post
+      x-google-backend:
+        address: "${privacy_url}"
+        jwt_audience: "${privacy_url}"
+        path_translation: APPEND_PATH_TO_ADDRESS
+      responses:
+        "200":
+          description: "OK"
+    put:
+      operationId: privacy_proxy_put
+      x-google-backend:
+        address: "${privacy_url}"
+        jwt_audience: "${privacy_url}"
+        path_translation: APPEND_PATH_TO_ADDRESS
+      responses:
+        "200":
+          description: "OK"
+    patch:
+      operationId: privacy_proxy_patch
+      x-google-backend:
+        address: "${privacy_url}"
+        jwt_audience: "${privacy_url}"
+        path_translation: APPEND_PATH_TO_ADDRESS
+      responses:
+        "200":
+          description: "OK"
+    delete:
+      operationId: privacy_proxy_delete
+      x-google-backend:
+        address: "${privacy_url}"
+        jwt_audience: "${privacy_url}"
+        path_translation: APPEND_PATH_TO_ADDRESS
+      responses:
+        "200":
+          description: "OK"
+    options:
+      operationId: privacy_proxy_options
+      security: []
+      x-google-backend:
+        address: "${privacy_url}"
+        jwt_audience: "${privacy_url}"
+        path_translation: APPEND_PATH_TO_ADDRESS
+      responses:
+        "200":
+          description: "OK"
+  /fleet:
+    get:
+      operationId: fleet_get
+      x-google-backend:
+        address: "${fleet_url}"
+        jwt_audience: "${fleet_url}"
+        path_translation: APPEND_PATH_TO_ADDRESS
+      responses:
+        "200":
+          description: "OK"
+    post:
+      operationId: fleet_post
+      x-google-backend:
+        address: "${fleet_url}"
+        jwt_audience: "${fleet_url}"
+        path_translation: APPEND_PATH_TO_ADDRESS
+      responses:
+        "200":
+          description: "OK"
+    options:
+      operationId: fleet_options
+      security: []
+      x-google-backend:
+        address: "${fleet_url}"
+        jwt_audience: "${fleet_url}"
+        path_translation: APPEND_PATH_TO_ADDRESS
+      responses:
+        "200":
+          description: "OK"
+  /fleet/{proxy}:
+    parameters:
+      - name: proxy
+        in: path
+        required: true
+        type: string
+    get:
+      operationId: fleet_proxy_get
+      x-google-backend:
+        address: "${fleet_url}"
+        jwt_audience: "${fleet_url}"
+        path_translation: APPEND_PATH_TO_ADDRESS
+      responses:
+        "200":
+          description: "OK"
+    post:
+      operationId: fleet_proxy_post
+      x-google-backend:
+        address: "${fleet_url}"
+        jwt_audience: "${fleet_url}"
+        path_translation: APPEND_PATH_TO_ADDRESS
+      responses:
+        "200":
+          description: "OK"
+    put:
+      operationId: fleet_proxy_put
+      x-google-backend:
+        address: "${fleet_url}"
+        jwt_audience: "${fleet_url}"
+        path_translation: APPEND_PATH_TO_ADDRESS
+      responses:
+        "200":
+          description: "OK"
+    patch:
+      operationId: fleet_proxy_patch
+      x-google-backend:
+        address: "${fleet_url}"
+        jwt_audience: "${fleet_url}"
+        path_translation: APPEND_PATH_TO_ADDRESS
+      responses:
+        "200":
+          description: "OK"
+    delete:
+      operationId: fleet_proxy_delete
+      x-google-backend:
+        address: "${fleet_url}"
+        jwt_audience: "${fleet_url}"
+        path_translation: APPEND_PATH_TO_ADDRESS
+      responses:
+        "200":
+          description: "OK"
+    options:
+      operationId: fleet_proxy_options
+      security: []
+      x-google-backend:
+        address: "${fleet_url}"
+        jwt_audience: "${fleet_url}"
+        path_translation: APPEND_PATH_TO_ADDRESS
+      responses:
+        "200":
+          description: "OK"
+  /data-factory:
+    get:
+      operationId: data_factory_get
+      x-google-backend:
+        address: "${data_factory_url}"
+        jwt_audience: "${data_factory_url}"
+        path_translation: APPEND_PATH_TO_ADDRESS
+      responses:
+        "200":
+          description: "OK"
+    post:
+      operationId: data_factory_post
+      x-google-backend:
+        address: "${data_factory_url}"
+        jwt_audience: "${data_factory_url}"
+        path_translation: APPEND_PATH_TO_ADDRESS
+      responses:
+        "200":
+          description: "OK"
+    options:
+      operationId: data_factory_options
+      security: []
+      x-google-backend:
+        address: "${data_factory_url}"
+        jwt_audience: "${data_factory_url}"
+        path_translation: APPEND_PATH_TO_ADDRESS
+      responses:
+        "200":
+          description: "OK"
+  /data-factory/{proxy}:
+    parameters:
+      - name: proxy
+        in: path
+        required: true
+        type: string
+    get:
+      operationId: data_factory_proxy_get
+      x-google-backend:
+        address: "${data_factory_url}"
+        jwt_audience: "${data_factory_url}"
+        path_translation: APPEND_PATH_TO_ADDRESS
+      responses:
+        "200":
+          description: "OK"
+    post:
+      operationId: data_factory_proxy_post
+      x-google-backend:
+        address: "${data_factory_url}"
+        jwt_audience: "${data_factory_url}"
+        path_translation: APPEND_PATH_TO_ADDRESS
+      responses:
+        "200":
+          description: "OK"
+    put:
+      operationId: data_factory_proxy_put
+      x-google-backend:
+        address: "${data_factory_url}"
+        jwt_audience: "${data_factory_url}"
+        path_translation: APPEND_PATH_TO_ADDRESS
+      responses:
+        "200":
+          description: "OK"
+    patch:
+      operationId: data_factory_proxy_patch
+      x-google-backend:
+        address: "${data_factory_url}"
+        jwt_audience: "${data_factory_url}"
+        path_translation: APPEND_PATH_TO_ADDRESS
+      responses:
+        "200":
+          description: "OK"
+    delete:
+      operationId: data_factory_proxy_delete
+      x-google-backend:
+        address: "${data_factory_url}"
+        jwt_audience: "${data_factory_url}"
+        path_translation: APPEND_PATH_TO_ADDRESS
+      responses:
+        "200":
+          description: "OK"
+    options:
+      operationId: data_factory_proxy_options
+      security: []
+      x-google-backend:
+        address: "${data_factory_url}"
+        jwt_audience: "${data_factory_url}"
+        path_translation: APPEND_PATH_TO_ADDRESS
+      responses:
+        "200":
+          description: "OK"
   /audit:
     get:
       operationId: audit_get
@@ -366,6 +636,420 @@ paths:
         jwt_audience: "${audit_url}"
         path_translation: APPEND_PATH_TO_ADDRESS
         deadline: 120.0
+      responses:
+        "200":
+          description: "OK"
+  /webhooks:
+    get:
+      operationId: webhooks_get
+      x-google-backend:
+        address: "${webhook_url}"
+        jwt_audience: "${webhook_url}"
+        path_translation: APPEND_PATH_TO_ADDRESS
+      responses:
+        "200":
+          description: "OK"
+    post:
+      operationId: webhooks_post
+      x-google-backend:
+        address: "${webhook_url}"
+        jwt_audience: "${webhook_url}"
+        path_translation: APPEND_PATH_TO_ADDRESS
+      responses:
+        "200":
+          description: "OK"
+    options:
+      operationId: webhooks_options
+      security: []
+      x-google-backend:
+        address: "${webhook_url}"
+        jwt_audience: "${webhook_url}"
+        path_translation: APPEND_PATH_TO_ADDRESS
+      responses:
+        "200":
+          description: "OK"
+  /webhooks/{proxy}:
+    parameters:
+      - name: proxy
+        in: path
+        required: true
+        type: string
+    get:
+      operationId: webhooks_proxy_get
+      x-google-backend:
+        address: "${webhook_url}"
+        jwt_audience: "${webhook_url}"
+        path_translation: APPEND_PATH_TO_ADDRESS
+      responses:
+        "200":
+          description: "OK"
+    post:
+      operationId: webhooks_proxy_post
+      x-google-backend:
+        address: "${webhook_url}"
+        jwt_audience: "${webhook_url}"
+        path_translation: APPEND_PATH_TO_ADDRESS
+      responses:
+        "200":
+          description: "OK"
+    put:
+      operationId: webhooks_proxy_put
+      x-google-backend:
+        address: "${webhook_url}"
+        jwt_audience: "${webhook_url}"
+        path_translation: APPEND_PATH_TO_ADDRESS
+      responses:
+        "200":
+          description: "OK"
+    patch:
+      operationId: webhooks_proxy_patch
+      x-google-backend:
+        address: "${webhook_url}"
+        jwt_audience: "${webhook_url}"
+        path_translation: APPEND_PATH_TO_ADDRESS
+      responses:
+        "200":
+          description: "OK"
+    delete:
+      operationId: webhooks_proxy_delete
+      x-google-backend:
+        address: "${webhook_url}"
+        jwt_audience: "${webhook_url}"
+        path_translation: APPEND_PATH_TO_ADDRESS
+      responses:
+        "200":
+          description: "OK"
+    options:
+      operationId: webhooks_proxy_options
+      security: []
+      x-google-backend:
+        address: "${webhook_url}"
+        jwt_audience: "${webhook_url}"
+        path_translation: APPEND_PATH_TO_ADDRESS
+      responses:
+        "200":
+          description: "OK"
+  /alerts:
+    get:
+      operationId: alerts_get
+      x-google-backend:
+        address: "${webhook_url}"
+        jwt_audience: "${webhook_url}"
+        path_translation: APPEND_PATH_TO_ADDRESS
+      responses:
+        "200":
+          description: "OK"
+    post:
+      operationId: alerts_post
+      x-google-backend:
+        address: "${webhook_url}"
+        jwt_audience: "${webhook_url}"
+        path_translation: APPEND_PATH_TO_ADDRESS
+      responses:
+        "200":
+          description: "OK"
+    options:
+      operationId: alerts_options
+      security: []
+      x-google-backend:
+        address: "${webhook_url}"
+        jwt_audience: "${webhook_url}"
+        path_translation: APPEND_PATH_TO_ADDRESS
+      responses:
+        "200":
+          description: "OK"
+  /alerts/{proxy}:
+    parameters:
+      - name: proxy
+        in: path
+        required: true
+        type: string
+    get:
+      operationId: alerts_proxy_get
+      x-google-backend:
+        address: "${webhook_url}"
+        jwt_audience: "${webhook_url}"
+        path_translation: APPEND_PATH_TO_ADDRESS
+      responses:
+        "200":
+          description: "OK"
+    post:
+      operationId: alerts_proxy_post
+      x-google-backend:
+        address: "${webhook_url}"
+        jwt_audience: "${webhook_url}"
+        path_translation: APPEND_PATH_TO_ADDRESS
+      responses:
+        "200":
+          description: "OK"
+    put:
+      operationId: alerts_proxy_put
+      x-google-backend:
+        address: "${webhook_url}"
+        jwt_audience: "${webhook_url}"
+        path_translation: APPEND_PATH_TO_ADDRESS
+      responses:
+        "200":
+          description: "OK"
+    patch:
+      operationId: alerts_proxy_patch
+      x-google-backend:
+        address: "${webhook_url}"
+        jwt_audience: "${webhook_url}"
+        path_translation: APPEND_PATH_TO_ADDRESS
+      responses:
+        "200":
+          description: "OK"
+    delete:
+      operationId: alerts_proxy_delete
+      x-google-backend:
+        address: "${webhook_url}"
+        jwt_audience: "${webhook_url}"
+        path_translation: APPEND_PATH_TO_ADDRESS
+      responses:
+        "200":
+          description: "OK"
+    options:
+      operationId: alerts_proxy_options
+      security: []
+      x-google-backend:
+        address: "${webhook_url}"
+        jwt_audience: "${webhook_url}"
+        path_translation: APPEND_PATH_TO_ADDRESS
+      responses:
+        "200":
+          description: "OK"
+  /events:
+    post:
+      operationId: events_post
+      x-google-backend:
+        address: "${webhook_url}"
+        jwt_audience: "${webhook_url}"
+        path_translation: APPEND_PATH_TO_ADDRESS
+      responses:
+        "200":
+          description: "OK"
+    options:
+      operationId: events_options
+      security: []
+      x-google-backend:
+        address: "${webhook_url}"
+        jwt_audience: "${webhook_url}"
+        path_translation: APPEND_PATH_TO_ADDRESS
+      responses:
+        "200":
+          description: "OK"
+  /events/{proxy}:
+    parameters:
+      - name: proxy
+        in: path
+        required: true
+        type: string
+    get:
+      operationId: events_proxy_get
+      x-google-backend:
+        address: "${webhook_url}"
+        jwt_audience: "${webhook_url}"
+        path_translation: APPEND_PATH_TO_ADDRESS
+      responses:
+        "200":
+          description: "OK"
+    post:
+      operationId: events_proxy_post
+      x-google-backend:
+        address: "${webhook_url}"
+        jwt_audience: "${webhook_url}"
+        path_translation: APPEND_PATH_TO_ADDRESS
+      responses:
+        "200":
+          description: "OK"
+    options:
+      operationId: events_proxy_options
+      security: []
+      x-google-backend:
+        address: "${webhook_url}"
+        jwt_audience: "${webhook_url}"
+        path_translation: APPEND_PATH_TO_ADDRESS
+      responses:
+        "200":
+          description: "OK"
+  /dev:
+    get:
+      operationId: dev_get
+      x-google-backend:
+        address: "${dev_console_url}"
+        jwt_audience: "${dev_console_url}"
+        path_translation: APPEND_PATH_TO_ADDRESS
+      responses:
+        "200":
+          description: "OK"
+    post:
+      operationId: dev_post
+      x-google-backend:
+        address: "${dev_console_url}"
+        jwt_audience: "${dev_console_url}"
+        path_translation: APPEND_PATH_TO_ADDRESS
+      responses:
+        "200":
+          description: "OK"
+    options:
+      operationId: dev_options
+      security: []
+      x-google-backend:
+        address: "${dev_console_url}"
+        jwt_audience: "${dev_console_url}"
+        path_translation: APPEND_PATH_TO_ADDRESS
+      responses:
+        "200":
+          description: "OK"
+  /dev/{proxy}:
+    parameters:
+      - name: proxy
+        in: path
+        required: true
+        type: string
+    get:
+      operationId: dev_proxy_get
+      x-google-backend:
+        address: "${dev_console_url}"
+        jwt_audience: "${dev_console_url}"
+        path_translation: APPEND_PATH_TO_ADDRESS
+      responses:
+        "200":
+          description: "OK"
+    post:
+      operationId: dev_proxy_post
+      x-google-backend:
+        address: "${dev_console_url}"
+        jwt_audience: "${dev_console_url}"
+        path_translation: APPEND_PATH_TO_ADDRESS
+      responses:
+        "200":
+          description: "OK"
+    put:
+      operationId: dev_proxy_put
+      x-google-backend:
+        address: "${dev_console_url}"
+        jwt_audience: "${dev_console_url}"
+        path_translation: APPEND_PATH_TO_ADDRESS
+      responses:
+        "200":
+          description: "OK"
+    patch:
+      operationId: dev_proxy_patch
+      x-google-backend:
+        address: "${dev_console_url}"
+        jwt_audience: "${dev_console_url}"
+        path_translation: APPEND_PATH_TO_ADDRESS
+      responses:
+        "200":
+          description: "OK"
+    delete:
+      operationId: dev_proxy_delete
+      x-google-backend:
+        address: "${dev_console_url}"
+        jwt_audience: "${dev_console_url}"
+        path_translation: APPEND_PATH_TO_ADDRESS
+      responses:
+        "200":
+          description: "OK"
+    options:
+      operationId: dev_proxy_options
+      security: []
+      x-google-backend:
+        address: "${dev_console_url}"
+        jwt_audience: "${dev_console_url}"
+        path_translation: APPEND_PATH_TO_ADDRESS
+      responses:
+        "200":
+          description: "OK"
+  /edge:
+    get:
+      operationId: edge_get
+      x-google-backend:
+        address: "${edge_gateway_url}"
+        jwt_audience: "${edge_gateway_url}"
+        path_translation: APPEND_PATH_TO_ADDRESS
+      responses:
+        "200":
+          description: "OK"
+    post:
+      operationId: edge_post
+      x-google-backend:
+        address: "${edge_gateway_url}"
+        jwt_audience: "${edge_gateway_url}"
+        path_translation: APPEND_PATH_TO_ADDRESS
+      responses:
+        "200":
+          description: "OK"
+    options:
+      operationId: edge_options
+      security: []
+      x-google-backend:
+        address: "${edge_gateway_url}"
+        jwt_audience: "${edge_gateway_url}"
+        path_translation: APPEND_PATH_TO_ADDRESS
+      responses:
+        "200":
+          description: "OK"
+  /edge/{proxy}:
+    parameters:
+      - name: proxy
+        in: path
+        required: true
+        type: string
+    get:
+      operationId: edge_proxy_get
+      x-google-backend:
+        address: "${edge_gateway_url}"
+        jwt_audience: "${edge_gateway_url}"
+        path_translation: APPEND_PATH_TO_ADDRESS
+      responses:
+        "200":
+          description: "OK"
+    post:
+      operationId: edge_proxy_post
+      x-google-backend:
+        address: "${edge_gateway_url}"
+        jwt_audience: "${edge_gateway_url}"
+        path_translation: APPEND_PATH_TO_ADDRESS
+      responses:
+        "200":
+          description: "OK"
+    put:
+      operationId: edge_proxy_put
+      x-google-backend:
+        address: "${edge_gateway_url}"
+        jwt_audience: "${edge_gateway_url}"
+        path_translation: APPEND_PATH_TO_ADDRESS
+      responses:
+        "200":
+          description: "OK"
+    patch:
+      operationId: edge_proxy_patch
+      x-google-backend:
+        address: "${edge_gateway_url}"
+        jwt_audience: "${edge_gateway_url}"
+        path_translation: APPEND_PATH_TO_ADDRESS
+      responses:
+        "200":
+          description: "OK"
+    delete:
+      operationId: edge_proxy_delete
+      x-google-backend:
+        address: "${edge_gateway_url}"
+        jwt_audience: "${edge_gateway_url}"
+        path_translation: APPEND_PATH_TO_ADDRESS
+      responses:
+        "200":
+          description: "OK"
+    options:
+      operationId: edge_proxy_options
+      security: []
+      x-google-backend:
+        address: "${edge_gateway_url}"
+        jwt_audience: "${edge_gateway_url}"
+        path_translation: APPEND_PATH_TO_ADDRESS
       responses:
         "200":
           description: "OK"

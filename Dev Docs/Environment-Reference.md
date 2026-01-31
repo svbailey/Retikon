@@ -72,7 +72,7 @@ Defaults shown match current code where applicable.
 - `AUTH_JWT_ALGORITHMS` (defaults to `RS256`)
 - `AUTH_JWT_HS256_SECRET` (local/test only)
 - `AUTH_JWT_PUBLIC_KEY` (optional RSA/EC public key)
-- `AUTH_REQUIRED_CLAIMS` (defaults to `sub`)
+- `AUTH_REQUIRED_CLAIMS` (defaults to `sub,iss,aud,exp,iat,org_id`)
 - `AUTH_CLAIM_SUB` (defaults to `sub`)
 - `AUTH_CLAIM_EMAIL` (defaults to `email`)
 - `AUTH_CLAIM_ROLES` (defaults to `roles`)
@@ -84,6 +84,13 @@ Defaults shown match current code where applicable.
 - `AUTH_ADMIN_GROUPS` (defaults to `admins`)
 - `AUTH_JWT_LEEWAY_SECONDS` (clock skew)
 - `AUDIT_REQUIRE_ADMIN=0|1`
+- `PRIVACY_REQUIRE_ADMIN=0|1`
+- `FLEET_REQUIRE_ADMIN=0|1`
+- `DATA_FACTORY_REQUIRE_ADMIN=0|1`
+- `WEBHOOK_REQUIRE_ADMIN=0|1`
+- `TRAINING_RUN_MODE=inline|queue`
+- `OFFICE_CONVERSION_MODE=inline|queue`
+- `OFFICE_CONVERSION_BACKEND=stub|libreoffice`
 - `AUDIT_BATCH_SIZE` (defaults to `1`)
 - `AUDIT_BATCH_FLUSH_SECONDS` (defaults to `5`)
 - `AUDIT_DIAGNOSTICS=0|1` (log audit query timings)
@@ -103,6 +110,11 @@ Defaults shown match current code where applicable.
 - `AUDIT_COMPACTION_STRICT=0|1`
 - `COMPACTION_SKIP_MISSING=0|1`
 - `COMPACTION_RELAX_NULLS=0|1`
+
+Repo defaults:
+- `terraform.tfvars` and `terraform.tfvars.staging` set Google Identity Platform
+  values for `AUTH_ISSUER`, `AUTH_AUDIENCE`, `AUTH_JWKS_URI`. Override per
+  environment, especially prod.
 
 ## CLI/SDK defaults
 

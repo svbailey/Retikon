@@ -59,7 +59,10 @@ def load_jwt_config() -> JwtConfig:
         algorithms=_split_env("AUTH_JWT_ALGORITHMS", default="RS256"),
         hs256_secret=_env_str("AUTH_JWT_HS256_SECRET"),
         public_key=_env_str("AUTH_JWT_PUBLIC_KEY"),
-        required_claims=_split_env("AUTH_REQUIRED_CLAIMS", default="sub"),
+        required_claims=_split_env(
+            "AUTH_REQUIRED_CLAIMS",
+            default="sub,iss,aud,exp,iat,org_id",
+        ),
         claim_sub=os.getenv("AUTH_CLAIM_SUB", "sub"),
         claim_email=os.getenv("AUTH_CLAIM_EMAIL", "email"),
         claim_roles=os.getenv("AUTH_CLAIM_ROLES", "roles"),

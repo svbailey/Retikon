@@ -15,6 +15,12 @@ locals {
       audit_url    = google_cloud_run_service.audit.status[0].url
       workflow_url = google_cloud_run_service.workflow.status[0].url
       chaos_url    = google_cloud_run_service.chaos.status[0].url
+      privacy_url  = google_cloud_run_service.privacy.status[0].url
+      fleet_url    = google_cloud_run_service.fleet.status[0].url
+      data_factory_url = google_cloud_run_service.data_factory.status[0].url
+      webhook_url  = google_cloud_run_service.webhook.status[0].url
+      dev_console_url = google_cloud_run_service.dev_console.status[0].url
+      edge_gateway_url = google_cloud_run_service.edge_gateway.status[0].url
     }
   )
   api_gateway_invoker = "serviceAccount:service-${data.google_project.project.number}@gcp-sa-apigateway.iam.gserviceaccount.com"
@@ -148,6 +154,26 @@ resource "google_service_account" "workflow" {
 resource "google_service_account" "chaos" {
   account_id   = var.chaos_service_account_name
   display_name = "Retikon Chaos Service Account"
+}
+
+resource "google_service_account" "privacy" {
+  account_id   = var.privacy_service_account_name
+  display_name = "Retikon Privacy Service Account"
+}
+
+resource "google_service_account" "fleet" {
+  account_id   = var.fleet_service_account_name
+  display_name = "Retikon Fleet Service Account"
+}
+
+resource "google_service_account" "data_factory" {
+  account_id   = var.data_factory_service_account_name
+  display_name = "Retikon Data Factory Service Account"
+}
+
+resource "google_service_account" "webhook" {
+  account_id   = var.webhook_service_account_name
+  display_name = "Retikon Webhook Service Account"
 }
 
 resource "google_service_account" "dev_console" {
@@ -306,6 +332,30 @@ resource "google_storage_bucket_iam_member" "chaos_graph_admin" {
   member = "serviceAccount:${google_service_account.chaos.email}"
 }
 
+resource "google_storage_bucket_iam_member" "privacy_graph_admin" {
+  bucket = google_storage_bucket.graph.name
+  role   = "roles/storage.objectAdmin"
+  member = "serviceAccount:${google_service_account.privacy.email}"
+}
+
+resource "google_storage_bucket_iam_member" "fleet_graph_admin" {
+  bucket = google_storage_bucket.graph.name
+  role   = "roles/storage.objectAdmin"
+  member = "serviceAccount:${google_service_account.fleet.email}"
+}
+
+resource "google_storage_bucket_iam_member" "data_factory_graph_admin" {
+  bucket = google_storage_bucket.graph.name
+  role   = "roles/storage.objectAdmin"
+  member = "serviceAccount:${google_service_account.data_factory.email}"
+}
+
+resource "google_storage_bucket_iam_member" "webhook_graph_admin" {
+  bucket = google_storage_bucket.graph.name
+  role   = "roles/storage.objectAdmin"
+  member = "serviceAccount:${google_service_account.webhook.email}"
+}
+
 resource "google_storage_bucket_iam_member" "dev_console_raw_view" {
   bucket = google_storage_bucket.raw.name
   role   = "roles/storage.objectViewer"
@@ -418,6 +468,10 @@ resource "google_cloud_run_service" "ingestion" {
         env {
           name  = "AUTH_JWKS_URI"
           value = var.auth_jwks_uri
+        }
+        env {
+          name  = "AUTH_GATEWAY_USERINFO"
+          value = var.auth_gateway_userinfo ? "1" : "0"
         }
         env {
           name  = "AUTH_JWT_ALGORITHMS"
@@ -923,6 +977,10 @@ resource "google_cloud_run_service" "query_gpu" {
         env {
           name  = "AUTH_JWKS_URI"
           value = var.auth_jwks_uri
+        }
+        env {
+          name  = "AUTH_GATEWAY_USERINFO"
+          value = var.auth_gateway_userinfo ? "1" : "0"
         }
         env {
           name  = "AUTH_JWT_ALGORITHMS"
@@ -1604,6 +1662,658 @@ resource "google_cloud_run_service" "chaos" {
   autogenerate_revision_name = true
 }
 
+resource "google_cloud_run_service" "privacy" {
+  name     = "${var.privacy_service_name}-${var.env}"
+  location = var.region
+
+  metadata {
+    annotations = {
+      "run.googleapis.com/ingress" = "all"
+    }
+  }
+
+  template {
+    metadata {
+      annotations = {
+        "autoscaling.knative.dev/maxScale" = tostring(var.privacy_max_scale)
+        "autoscaling.knative.dev/minScale" = tostring(var.privacy_min_scale)
+      }
+    }
+
+    spec {
+      service_account_name  = google_service_account.privacy.email
+      container_concurrency = var.privacy_concurrency
+      timeout_seconds       = var.privacy_timeout_seconds
+
+      containers {
+        image = var.privacy_image
+
+        resources {
+          limits = {
+            cpu    = var.privacy_cpu
+            memory = var.privacy_memory
+          }
+        }
+
+        env {
+          name  = "APP_MODULE"
+          value = "gcp_adapter.privacy_service:app"
+        }
+        env {
+          name  = "ENV"
+          value = var.env
+        }
+        env {
+          name  = "LOG_LEVEL"
+          value = var.log_level
+        }
+        env {
+          name  = "AUTH_ISSUER"
+          value = var.auth_issuer
+        }
+        env {
+          name  = "AUTH_AUDIENCE"
+          value = var.auth_audience
+        }
+        env {
+          name  = "AUTH_JWKS_URI"
+          value = var.auth_jwks_uri
+        }
+        env {
+          name  = "AUTH_GATEWAY_USERINFO"
+          value = var.auth_gateway_userinfo ? "1" : "0"
+        }
+        env {
+          name  = "AUTH_JWT_ALGORITHMS"
+          value = var.auth_jwt_algorithms
+        }
+        env {
+          name  = "AUTH_REQUIRED_CLAIMS"
+          value = var.auth_required_claims
+        }
+        env {
+          name  = "AUTH_CLAIM_SUB"
+          value = var.auth_claim_sub
+        }
+        env {
+          name  = "AUTH_CLAIM_EMAIL"
+          value = var.auth_claim_email
+        }
+        env {
+          name  = "AUTH_CLAIM_ROLES"
+          value = var.auth_claim_roles
+        }
+        env {
+          name  = "AUTH_CLAIM_GROUPS"
+          value = var.auth_claim_groups
+        }
+        env {
+          name  = "AUTH_CLAIM_ORG_ID"
+          value = var.auth_claim_org_id
+        }
+        env {
+          name  = "AUTH_CLAIM_SITE_ID"
+          value = var.auth_claim_site_id
+        }
+        env {
+          name  = "AUTH_CLAIM_STREAM_ID"
+          value = var.auth_claim_stream_id
+        }
+        env {
+          name  = "AUTH_ADMIN_ROLES"
+          value = var.auth_admin_roles
+        }
+        env {
+          name  = "AUTH_ADMIN_GROUPS"
+          value = var.auth_admin_groups
+        }
+        env {
+          name  = "AUTH_JWT_LEEWAY_SECONDS"
+          value = tostring(var.auth_jwt_leeway_seconds)
+        }
+        env {
+          name  = "STORAGE_BACKEND"
+          value = "gcs"
+        }
+        env {
+          name  = "RAW_BUCKET"
+          value = google_storage_bucket.raw.name
+        }
+        env {
+          name  = "GRAPH_BUCKET"
+          value = google_storage_bucket.graph.name
+        }
+        env {
+          name  = "GRAPH_PREFIX"
+          value = var.graph_prefix
+        }
+        env {
+          name  = "MAX_RAW_BYTES"
+          value = tostring(var.max_raw_bytes)
+        }
+        env {
+          name  = "MAX_VIDEO_SECONDS"
+          value = tostring(var.max_video_seconds)
+        }
+        env {
+          name  = "MAX_AUDIO_SECONDS"
+          value = tostring(var.max_audio_seconds)
+        }
+        env {
+          name  = "MAX_FRAMES_PER_VIDEO"
+          value = tostring(var.max_frames_per_video)
+        }
+        env {
+          name  = "CHUNK_TARGET_TOKENS"
+          value = tostring(var.chunk_target_tokens)
+        }
+        env {
+          name  = "CHUNK_OVERLAP_TOKENS"
+          value = tostring(var.chunk_overlap_tokens)
+        }
+        env {
+          name  = "PRIVACY_REQUIRE_ADMIN"
+          value = var.privacy_require_admin ? "1" : "0"
+        }
+      }
+    }
+  }
+
+  autogenerate_revision_name = true
+}
+
+resource "google_cloud_run_service" "fleet" {
+  name     = "${var.fleet_service_name}-${var.env}"
+  location = var.region
+
+  metadata {
+    annotations = {
+      "run.googleapis.com/ingress" = "all"
+    }
+  }
+
+  template {
+    metadata {
+      annotations = {
+        "autoscaling.knative.dev/maxScale" = tostring(var.fleet_max_scale)
+        "autoscaling.knative.dev/minScale" = tostring(var.fleet_min_scale)
+      }
+    }
+
+    spec {
+      service_account_name  = google_service_account.fleet.email
+      container_concurrency = var.fleet_concurrency
+      timeout_seconds       = var.fleet_timeout_seconds
+
+      containers {
+        image = var.fleet_image
+
+        resources {
+          limits = {
+            cpu    = var.fleet_cpu
+            memory = var.fleet_memory
+          }
+        }
+
+        env {
+          name  = "APP_MODULE"
+          value = "gcp_adapter.fleet_service:app"
+        }
+        env {
+          name  = "ENV"
+          value = var.env
+        }
+        env {
+          name  = "LOG_LEVEL"
+          value = var.log_level
+        }
+        env {
+          name  = "AUTH_ISSUER"
+          value = var.auth_issuer
+        }
+        env {
+          name  = "AUTH_AUDIENCE"
+          value = var.auth_audience
+        }
+        env {
+          name  = "AUTH_JWKS_URI"
+          value = var.auth_jwks_uri
+        }
+        env {
+          name  = "AUTH_GATEWAY_USERINFO"
+          value = var.auth_gateway_userinfo ? "1" : "0"
+        }
+        env {
+          name  = "AUTH_JWT_ALGORITHMS"
+          value = var.auth_jwt_algorithms
+        }
+        env {
+          name  = "AUTH_REQUIRED_CLAIMS"
+          value = var.auth_required_claims
+        }
+        env {
+          name  = "AUTH_CLAIM_SUB"
+          value = var.auth_claim_sub
+        }
+        env {
+          name  = "AUTH_CLAIM_EMAIL"
+          value = var.auth_claim_email
+        }
+        env {
+          name  = "AUTH_CLAIM_ROLES"
+          value = var.auth_claim_roles
+        }
+        env {
+          name  = "AUTH_CLAIM_GROUPS"
+          value = var.auth_claim_groups
+        }
+        env {
+          name  = "AUTH_CLAIM_ORG_ID"
+          value = var.auth_claim_org_id
+        }
+        env {
+          name  = "AUTH_CLAIM_SITE_ID"
+          value = var.auth_claim_site_id
+        }
+        env {
+          name  = "AUTH_CLAIM_STREAM_ID"
+          value = var.auth_claim_stream_id
+        }
+        env {
+          name  = "AUTH_ADMIN_ROLES"
+          value = var.auth_admin_roles
+        }
+        env {
+          name  = "AUTH_ADMIN_GROUPS"
+          value = var.auth_admin_groups
+        }
+        env {
+          name  = "AUTH_JWT_LEEWAY_SECONDS"
+          value = tostring(var.auth_jwt_leeway_seconds)
+        }
+        env {
+          name  = "STORAGE_BACKEND"
+          value = "gcs"
+        }
+        env {
+          name  = "RAW_BUCKET"
+          value = google_storage_bucket.raw.name
+        }
+        env {
+          name  = "GRAPH_BUCKET"
+          value = google_storage_bucket.graph.name
+        }
+        env {
+          name  = "GRAPH_PREFIX"
+          value = var.graph_prefix
+        }
+        env {
+          name  = "MAX_RAW_BYTES"
+          value = tostring(var.max_raw_bytes)
+        }
+        env {
+          name  = "MAX_VIDEO_SECONDS"
+          value = tostring(var.max_video_seconds)
+        }
+        env {
+          name  = "MAX_AUDIO_SECONDS"
+          value = tostring(var.max_audio_seconds)
+        }
+        env {
+          name  = "MAX_FRAMES_PER_VIDEO"
+          value = tostring(var.max_frames_per_video)
+        }
+        env {
+          name  = "CHUNK_TARGET_TOKENS"
+          value = tostring(var.chunk_target_tokens)
+        }
+        env {
+          name  = "CHUNK_OVERLAP_TOKENS"
+          value = tostring(var.chunk_overlap_tokens)
+        }
+        env {
+          name  = "FLEET_REQUIRE_ADMIN"
+          value = var.fleet_require_admin ? "1" : "0"
+        }
+      }
+    }
+  }
+
+  autogenerate_revision_name = true
+}
+
+resource "google_cloud_run_service" "data_factory" {
+  name     = "${var.data_factory_service_name}-${var.env}"
+  location = var.region
+
+  metadata {
+    annotations = {
+      "run.googleapis.com/ingress" = "all"
+    }
+  }
+
+  template {
+    metadata {
+      annotations = {
+        "autoscaling.knative.dev/maxScale" = tostring(var.data_factory_max_scale)
+        "autoscaling.knative.dev/minScale" = tostring(var.data_factory_min_scale)
+      }
+    }
+
+    spec {
+      service_account_name  = google_service_account.data_factory.email
+      container_concurrency = var.data_factory_concurrency
+      timeout_seconds       = var.data_factory_timeout_seconds
+
+      containers {
+        image = var.data_factory_image
+
+        resources {
+          limits = {
+            cpu    = var.data_factory_cpu
+            memory = var.data_factory_memory
+          }
+        }
+
+        env {
+          name  = "APP_MODULE"
+          value = "gcp_adapter.data_factory_service:app"
+        }
+        env {
+          name  = "ENV"
+          value = var.env
+        }
+        env {
+          name  = "LOG_LEVEL"
+          value = var.log_level
+        }
+        env {
+          name  = "AUTH_ISSUER"
+          value = var.auth_issuer
+        }
+        env {
+          name  = "AUTH_AUDIENCE"
+          value = var.auth_audience
+        }
+        env {
+          name  = "AUTH_JWKS_URI"
+          value = var.auth_jwks_uri
+        }
+        env {
+          name  = "AUTH_GATEWAY_USERINFO"
+          value = var.auth_gateway_userinfo ? "1" : "0"
+        }
+        env {
+          name  = "AUTH_JWT_ALGORITHMS"
+          value = var.auth_jwt_algorithms
+        }
+        env {
+          name  = "AUTH_REQUIRED_CLAIMS"
+          value = var.auth_required_claims
+        }
+        env {
+          name  = "AUTH_CLAIM_SUB"
+          value = var.auth_claim_sub
+        }
+        env {
+          name  = "AUTH_CLAIM_EMAIL"
+          value = var.auth_claim_email
+        }
+        env {
+          name  = "AUTH_CLAIM_ROLES"
+          value = var.auth_claim_roles
+        }
+        env {
+          name  = "AUTH_CLAIM_GROUPS"
+          value = var.auth_claim_groups
+        }
+        env {
+          name  = "AUTH_CLAIM_ORG_ID"
+          value = var.auth_claim_org_id
+        }
+        env {
+          name  = "AUTH_CLAIM_SITE_ID"
+          value = var.auth_claim_site_id
+        }
+        env {
+          name  = "AUTH_CLAIM_STREAM_ID"
+          value = var.auth_claim_stream_id
+        }
+        env {
+          name  = "AUTH_ADMIN_ROLES"
+          value = var.auth_admin_roles
+        }
+        env {
+          name  = "AUTH_ADMIN_GROUPS"
+          value = var.auth_admin_groups
+        }
+        env {
+          name  = "AUTH_JWT_LEEWAY_SECONDS"
+          value = tostring(var.auth_jwt_leeway_seconds)
+        }
+        env {
+          name  = "STORAGE_BACKEND"
+          value = "gcs"
+        }
+        env {
+          name  = "RAW_BUCKET"
+          value = google_storage_bucket.raw.name
+        }
+        env {
+          name  = "GRAPH_BUCKET"
+          value = google_storage_bucket.graph.name
+        }
+        env {
+          name  = "GRAPH_PREFIX"
+          value = var.graph_prefix
+        }
+        env {
+          name  = "MAX_RAW_BYTES"
+          value = tostring(var.max_raw_bytes)
+        }
+        env {
+          name  = "MAX_VIDEO_SECONDS"
+          value = tostring(var.max_video_seconds)
+        }
+        env {
+          name  = "MAX_AUDIO_SECONDS"
+          value = tostring(var.max_audio_seconds)
+        }
+        env {
+          name  = "MAX_FRAMES_PER_VIDEO"
+          value = tostring(var.max_frames_per_video)
+        }
+        env {
+          name  = "CHUNK_TARGET_TOKENS"
+          value = tostring(var.chunk_target_tokens)
+        }
+        env {
+          name  = "CHUNK_OVERLAP_TOKENS"
+          value = tostring(var.chunk_overlap_tokens)
+        }
+        env {
+          name  = "DATA_FACTORY_REQUIRE_ADMIN"
+          value = var.data_factory_require_admin ? "1" : "0"
+        }
+        env {
+          name  = "TRAINING_RUN_MODE"
+          value = var.data_factory_training_run_mode
+        }
+        env {
+          name  = "OFFICE_CONVERSION_MODE"
+          value = var.data_factory_office_conversion_mode
+        }
+        env {
+          name  = "OFFICE_CONVERSION_BACKEND"
+          value = var.data_factory_office_conversion_backend
+        }
+      }
+    }
+  }
+
+  autogenerate_revision_name = true
+}
+
+resource "google_cloud_run_service" "webhook" {
+  name     = "${var.webhook_service_name}-${var.env}"
+  location = var.region
+
+  metadata {
+    annotations = {
+      "run.googleapis.com/ingress" = "all"
+    }
+  }
+
+  template {
+    metadata {
+      annotations = {
+        "autoscaling.knative.dev/maxScale" = tostring(var.webhook_max_scale)
+        "autoscaling.knative.dev/minScale" = tostring(var.webhook_min_scale)
+      }
+    }
+
+    spec {
+      service_account_name  = google_service_account.webhook.email
+      container_concurrency = var.webhook_concurrency
+      timeout_seconds       = var.webhook_timeout_seconds
+
+      containers {
+        image = var.webhook_image
+
+        resources {
+          limits = {
+            cpu    = var.webhook_cpu
+            memory = var.webhook_memory
+          }
+        }
+
+        env {
+          name  = "APP_MODULE"
+          value = "gcp_adapter.webhook_service:app"
+        }
+        env {
+          name  = "ENV"
+          value = var.env
+        }
+        env {
+          name  = "LOG_LEVEL"
+          value = var.log_level
+        }
+        env {
+          name  = "AUTH_ISSUER"
+          value = var.auth_issuer
+        }
+        env {
+          name  = "AUTH_AUDIENCE"
+          value = var.auth_audience
+        }
+        env {
+          name  = "AUTH_JWKS_URI"
+          value = var.auth_jwks_uri
+        }
+        env {
+          name  = "AUTH_GATEWAY_USERINFO"
+          value = var.auth_gateway_userinfo ? "1" : "0"
+        }
+        env {
+          name  = "AUTH_JWT_ALGORITHMS"
+          value = var.auth_jwt_algorithms
+        }
+        env {
+          name  = "AUTH_REQUIRED_CLAIMS"
+          value = var.auth_required_claims
+        }
+        env {
+          name  = "AUTH_CLAIM_SUB"
+          value = var.auth_claim_sub
+        }
+        env {
+          name  = "AUTH_CLAIM_EMAIL"
+          value = var.auth_claim_email
+        }
+        env {
+          name  = "AUTH_CLAIM_ROLES"
+          value = var.auth_claim_roles
+        }
+        env {
+          name  = "AUTH_CLAIM_GROUPS"
+          value = var.auth_claim_groups
+        }
+        env {
+          name  = "AUTH_CLAIM_ORG_ID"
+          value = var.auth_claim_org_id
+        }
+        env {
+          name  = "AUTH_CLAIM_SITE_ID"
+          value = var.auth_claim_site_id
+        }
+        env {
+          name  = "AUTH_CLAIM_STREAM_ID"
+          value = var.auth_claim_stream_id
+        }
+        env {
+          name  = "AUTH_ADMIN_ROLES"
+          value = var.auth_admin_roles
+        }
+        env {
+          name  = "AUTH_ADMIN_GROUPS"
+          value = var.auth_admin_groups
+        }
+        env {
+          name  = "AUTH_JWT_LEEWAY_SECONDS"
+          value = tostring(var.auth_jwt_leeway_seconds)
+        }
+        env {
+          name  = "STORAGE_BACKEND"
+          value = "gcs"
+        }
+        env {
+          name  = "RAW_BUCKET"
+          value = google_storage_bucket.raw.name
+        }
+        env {
+          name  = "GRAPH_BUCKET"
+          value = google_storage_bucket.graph.name
+        }
+        env {
+          name  = "GRAPH_PREFIX"
+          value = var.graph_prefix
+        }
+        env {
+          name  = "MAX_RAW_BYTES"
+          value = tostring(var.max_raw_bytes)
+        }
+        env {
+          name  = "MAX_VIDEO_SECONDS"
+          value = tostring(var.max_video_seconds)
+        }
+        env {
+          name  = "MAX_AUDIO_SECONDS"
+          value = tostring(var.max_audio_seconds)
+        }
+        env {
+          name  = "MAX_FRAMES_PER_VIDEO"
+          value = tostring(var.max_frames_per_video)
+        }
+        env {
+          name  = "CHUNK_TARGET_TOKENS"
+          value = tostring(var.chunk_target_tokens)
+        }
+        env {
+          name  = "CHUNK_OVERLAP_TOKENS"
+          value = tostring(var.chunk_overlap_tokens)
+        }
+        env {
+          name  = "WEBHOOK_REQUIRE_ADMIN"
+          value = var.webhook_require_admin ? "1" : "0"
+        }
+      }
+    }
+  }
+
+  autogenerate_revision_name = true
+}
+
 resource "google_cloud_run_service" "dev_console" {
   name     = "${var.dev_console_service_name}-${var.env}"
   location = var.region
@@ -1658,6 +2368,10 @@ resource "google_cloud_run_service" "dev_console" {
         env {
           name  = "AUTH_JWKS_URI"
           value = var.auth_jwks_uri
+        }
+        env {
+          name  = "AUTH_GATEWAY_USERINFO"
+          value = var.auth_gateway_userinfo ? "1" : "0"
         }
         env {
           name  = "AUTH_JWT_ALGORITHMS"
@@ -2261,18 +2975,53 @@ resource "google_cloud_run_service_iam_member" "chaos_invoker" {
   member   = var.enable_api_gateway ? local.api_gateway_invoker : "allUsers"
 }
 
+resource "google_cloud_run_service_iam_member" "privacy_invoker" {
+  location = google_cloud_run_service.privacy.location
+  service  = google_cloud_run_service.privacy.name
+  role     = "roles/run.invoker"
+  member   = var.enable_api_gateway ? local.api_gateway_invoker : "allUsers"
+}
+
+resource "google_cloud_run_service_iam_member" "fleet_invoker" {
+  location = google_cloud_run_service.fleet.location
+  service  = google_cloud_run_service.fleet.name
+  role     = "roles/run.invoker"
+  member   = var.enable_api_gateway ? local.api_gateway_invoker : "allUsers"
+}
+
+resource "google_cloud_run_service_iam_member" "data_factory_invoker" {
+  location = google_cloud_run_service.data_factory.location
+  service  = google_cloud_run_service.data_factory.name
+  role     = "roles/run.invoker"
+  member   = var.enable_api_gateway ? local.api_gateway_invoker : "allUsers"
+}
+
+resource "google_cloud_run_service_iam_member" "data_factory_internal_invoker" {
+  location = google_cloud_run_service.data_factory.location
+  service  = google_cloud_run_service.data_factory.name
+  role     = "roles/run.invoker"
+  member   = "serviceAccount:${google_service_account.data_factory.email}"
+}
+
+resource "google_cloud_run_service_iam_member" "webhook_invoker" {
+  location = google_cloud_run_service.webhook.location
+  service  = google_cloud_run_service.webhook.name
+  role     = "roles/run.invoker"
+  member   = var.enable_api_gateway ? local.api_gateway_invoker : "allUsers"
+}
+
 resource "google_cloud_run_service_iam_member" "dev_console_invoker" {
   location = google_cloud_run_service.dev_console.location
   service  = google_cloud_run_service.dev_console.name
   role     = "roles/run.invoker"
-  member   = "serviceAccount:${google_service_account.dev_console.email}"
+  member   = var.enable_api_gateway ? local.api_gateway_invoker : "allUsers"
 }
 
 resource "google_cloud_run_service_iam_member" "edge_gateway_invoker" {
   location = google_cloud_run_service.edge_gateway.location
   service  = google_cloud_run_service.edge_gateway.name
   role     = "roles/run.invoker"
-  member   = "serviceAccount:${google_service_account.edge_gateway.email}"
+  member   = var.enable_api_gateway ? local.api_gateway_invoker : "allUsers"
 }
 
 resource "google_cloud_run_service_iam_member" "stream_ingest_invoker" {

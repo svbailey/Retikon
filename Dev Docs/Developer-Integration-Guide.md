@@ -205,8 +205,24 @@ Production default:
 - API Gateway enforces JWT for all user-facing traffic.
 - Services validate JWTs directly for defense-in-depth.
 
+Gateway coverage (user-facing):
+- `/query`, `/workflows`, `/chaos`, `/audit`, `/access`
+- `/privacy`, `/fleet`, `/data-factory`
+- `/webhooks`, `/alerts`, `/events`
+- `/dev`, `/edge`
+
+Validation checklist (gateway):
+- No `Authorization` header returns 401 on `/query`.
+- No `Authorization` header returns 401 on `/privacy/policies`.
+- No `Authorization` header returns 401 on `/dev/ingest-status`.
+- No `Authorization` header returns 401 on `/edge/config`.
+- No `Authorization` header returns 401 on `/webhooks`.
+
 ### JWT claims contract
-Required in production (recommended `AUTH_REQUIRED_CLAIMS`):
+Locked for v3.1: claim names and required claims are fixed. Override only for
+local/dev testing.
+
+Required in production (`AUTH_REQUIRED_CLAIMS` default):
 - `sub` (string, user or service principal id)
 - `iss` (issuer)
 - `aud` (audience)
@@ -256,6 +272,8 @@ accept `X-Forwarded-Authorization` / `X-Original-Authorization` or
 - Pub/Sub push and Cloud Scheduler should use OIDC tokens with a service account.
 - Grant `roles/iam.serviceAccountTokenCreator` to the Pub/Sub and Scheduler service agents for that service account.
 - If you rely on GCP OIDC tokens, allow their issuer/audience in `AUTH_ISSUER`/`AUTH_AUDIENCE` (comma-separated).
+- Ensure internal OIDC tokens include required claims (e.g., `org_id`) or relax
+  `AUTH_REQUIRED_CLAIMS` for internal-only services.
 
 ### Mapping to Retikon auth
 - `roles` map to RBAC roles; `AUTH_ADMIN_ROLES` controls admin elevation.
@@ -275,6 +293,10 @@ For Firebase/Identity Platform ID tokens:
 - `AUTH_ISSUER = https://securetoken.google.com/<PROJECT_ID>`
 - `AUTH_AUDIENCE = <PROJECT_ID>`
 - `AUTH_JWKS_URI = https://www.googleapis.com/service_accounts/v1/metadata/x509/securetoken@system.gserviceaccount.com`
+
+Repo defaults:
+- `terraform.tfvars` and `terraform.tfvars.staging` already set these values for
+  the dev/staging project. Set prod explicitly.
 
 ## 10) SDK Quickstarts
 
