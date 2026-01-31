@@ -6,15 +6,11 @@ from fastapi import FastAPI, HTTPException, Request
 from pydantic import BaseModel
 
 from gcp_adapter.auth import authorize_request
+from gcp_adapter.stores import get_control_plane_stores
 from retikon_core.auth import AuthContext
 from retikon_core.config import get_config
 from retikon_core.logging import configure_logging, get_logger
-from retikon_core.privacy import (
-    PrivacyPolicy,
-    load_privacy_policies,
-    register_privacy_policy,
-    update_privacy_policy,
-)
+from retikon_core.privacy import PrivacyPolicy
 from retikon_core.services.fastapi_scaffolding import (
     HealthResponse,
     apply_cors_middleware,
@@ -87,6 +83,10 @@ def _get_config():
     return get_config()
 
 
+def _stores():
+    return get_control_plane_stores(_get_config().graph_root_uri())
+
+
 def _policy_response(policy: PrivacyPolicy) -> PrivacyPolicyResponse:
     return PrivacyPolicyResponse(
         id=policy.id,
@@ -126,7 +126,7 @@ async def health() -> HealthResponse:
 @app.get("/privacy/policies", response_model=list[PrivacyPolicyResponse])
 async def list_policies(request: Request) -> list[PrivacyPolicyResponse]:
     _authorize(request)
-    policies = load_privacy_policies(_get_config().graph_root_uri())
+    policies = _stores().privacy.load_policies()
     return [_policy_response(policy) for policy in policies]
 
 
@@ -140,8 +140,7 @@ async def create_policy(
     payload: PrivacyPolicyRequest,
 ) -> PrivacyPolicyResponse:
     _authorize(request)
-    policy = register_privacy_policy(
-        base_uri=_get_config().graph_root_uri(),
+    policy = _stores().privacy.register_policy(
         name=payload.name,
         org_id=payload.org_id,
         site_id=payload.site_id,
@@ -169,8 +168,7 @@ async def update_policy(
     payload: PrivacyPolicyUpdateRequest,
 ) -> PrivacyPolicyResponse:
     _authorize(request)
-    base_uri = _get_config().graph_root_uri()
-    policies = load_privacy_policies(base_uri)
+    policies = _stores().privacy.load_policies()
     existing = next((policy for policy in policies if policy.id == policy_id), None)
     if existing is None:
         raise HTTPException(status_code=404, detail="Policy not found")
@@ -196,5 +194,5 @@ async def update_policy(
         created_at=existing.created_at,
         updated_at=datetime.now(timezone.utc).isoformat(),
     )
-    update_privacy_policy(base_uri=base_uri, policy=updated)
+    _stores().privacy.update_policy(policy=updated)
     return _policy_response(updated)

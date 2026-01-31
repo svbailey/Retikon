@@ -236,6 +236,42 @@ resource "google_project_iam_member" "dev_console_firestore_user" {
   member  = "serviceAccount:${google_service_account.dev_console.email}"
 }
 
+resource "google_project_iam_member" "query_firestore_user" {
+  project = var.project_id
+  role    = "roles/datastore.user"
+  member  = "serviceAccount:${google_service_account.query.email}"
+}
+
+resource "google_project_iam_member" "audit_firestore_user" {
+  project = var.project_id
+  role    = "roles/datastore.user"
+  member  = "serviceAccount:${google_service_account.audit.email}"
+}
+
+resource "google_project_iam_member" "workflow_firestore_user" {
+  project = var.project_id
+  role    = "roles/datastore.user"
+  member  = "serviceAccount:${google_service_account.workflow.email}"
+}
+
+resource "google_project_iam_member" "privacy_firestore_user" {
+  project = var.project_id
+  role    = "roles/datastore.user"
+  member  = "serviceAccount:${google_service_account.privacy.email}"
+}
+
+resource "google_project_iam_member" "fleet_firestore_user" {
+  project = var.project_id
+  role    = "roles/datastore.user"
+  member  = "serviceAccount:${google_service_account.fleet.email}"
+}
+
+resource "google_project_iam_member" "data_factory_firestore_user" {
+  project = var.project_id
+  role    = "roles/datastore.user"
+  member  = "serviceAccount:${google_service_account.data_factory.email}"
+}
+
 resource "google_project_iam_member" "dev_console_run_developer" {
   project = var.project_id
   role    = "roles/run.developer"
@@ -528,6 +564,26 @@ resource "google_cloud_run_service" "ingestion" {
           value = tostring(var.auth_jwt_leeway_seconds)
         }
         env {
+          name  = "CONTROL_PLANE_STORE"
+          value = var.control_plane_store
+        }
+        env {
+          name  = "CONTROL_PLANE_COLLECTION_PREFIX"
+          value = var.control_plane_collection_prefix
+        }
+        env {
+          name  = "CONTROL_PLANE_READ_MODE"
+          value = var.control_plane_read_mode
+        }
+        env {
+          name  = "CONTROL_PLANE_WRITE_MODE"
+          value = var.control_plane_write_mode
+        }
+        env {
+          name  = "CONTROL_PLANE_FALLBACK_ON_EMPTY"
+          value = var.control_plane_fallback_on_empty ? "1" : "0"
+        }
+        env {
           name  = "STORAGE_BACKEND"
           value = "gcs"
         }
@@ -786,6 +842,26 @@ resource "google_cloud_run_service" "query" {
           value = tostring(var.auth_jwt_leeway_seconds)
         }
         env {
+          name  = "CONTROL_PLANE_STORE"
+          value = var.control_plane_store
+        }
+        env {
+          name  = "CONTROL_PLANE_COLLECTION_PREFIX"
+          value = var.control_plane_collection_prefix
+        }
+        env {
+          name  = "CONTROL_PLANE_READ_MODE"
+          value = var.control_plane_read_mode
+        }
+        env {
+          name  = "CONTROL_PLANE_WRITE_MODE"
+          value = var.control_plane_write_mode
+        }
+        env {
+          name  = "CONTROL_PLANE_FALLBACK_ON_EMPTY"
+          value = var.control_plane_fallback_on_empty ? "1" : "0"
+        }
+        env {
           name  = "STORAGE_BACKEND"
           value = "gcs"
         }
@@ -1035,6 +1111,26 @@ resource "google_cloud_run_service" "query_gpu" {
           value = tostring(var.auth_jwt_leeway_seconds)
         }
         env {
+          name  = "CONTROL_PLANE_STORE"
+          value = var.control_plane_store
+        }
+        env {
+          name  = "CONTROL_PLANE_COLLECTION_PREFIX"
+          value = var.control_plane_collection_prefix
+        }
+        env {
+          name  = "CONTROL_PLANE_READ_MODE"
+          value = var.control_plane_read_mode
+        }
+        env {
+          name  = "CONTROL_PLANE_WRITE_MODE"
+          value = var.control_plane_write_mode
+        }
+        env {
+          name  = "CONTROL_PLANE_FALLBACK_ON_EMPTY"
+          value = var.control_plane_fallback_on_empty ? "1" : "0"
+        }
+        env {
           name  = "STORAGE_BACKEND"
           value = "gcs"
         }
@@ -1280,6 +1376,26 @@ resource "google_cloud_run_service" "audit" {
           value = tostring(var.auth_jwt_leeway_seconds)
         }
         env {
+          name  = "CONTROL_PLANE_STORE"
+          value = var.control_plane_store
+        }
+        env {
+          name  = "CONTROL_PLANE_COLLECTION_PREFIX"
+          value = var.control_plane_collection_prefix
+        }
+        env {
+          name  = "CONTROL_PLANE_READ_MODE"
+          value = var.control_plane_read_mode
+        }
+        env {
+          name  = "CONTROL_PLANE_WRITE_MODE"
+          value = var.control_plane_write_mode
+        }
+        env {
+          name  = "CONTROL_PLANE_FALLBACK_ON_EMPTY"
+          value = var.control_plane_fallback_on_empty ? "1" : "0"
+        }
+        env {
           name  = "STORAGE_BACKEND"
           value = "gcs"
         }
@@ -1434,6 +1550,26 @@ resource "google_cloud_run_service" "workflow" {
         env {
           name  = "AUTH_JWT_LEEWAY_SECONDS"
           value = tostring(var.auth_jwt_leeway_seconds)
+        }
+        env {
+          name  = "CONTROL_PLANE_STORE"
+          value = var.control_plane_store
+        }
+        env {
+          name  = "CONTROL_PLANE_COLLECTION_PREFIX"
+          value = var.control_plane_collection_prefix
+        }
+        env {
+          name  = "CONTROL_PLANE_READ_MODE"
+          value = var.control_plane_read_mode
+        }
+        env {
+          name  = "CONTROL_PLANE_WRITE_MODE"
+          value = var.control_plane_write_mode
+        }
+        env {
+          name  = "CONTROL_PLANE_FALLBACK_ON_EMPTY"
+          value = var.control_plane_fallback_on_empty ? "1" : "0"
         }
         env {
           name  = "STORAGE_BACKEND"
@@ -1608,6 +1744,26 @@ resource "google_cloud_run_service" "chaos" {
           value = tostring(var.auth_jwt_leeway_seconds)
         }
         env {
+          name  = "CONTROL_PLANE_STORE"
+          value = var.control_plane_store
+        }
+        env {
+          name  = "CONTROL_PLANE_COLLECTION_PREFIX"
+          value = var.control_plane_collection_prefix
+        }
+        env {
+          name  = "CONTROL_PLANE_READ_MODE"
+          value = var.control_plane_read_mode
+        }
+        env {
+          name  = "CONTROL_PLANE_WRITE_MODE"
+          value = var.control_plane_write_mode
+        }
+        env {
+          name  = "CONTROL_PLANE_FALLBACK_ON_EMPTY"
+          value = var.control_plane_fallback_on_empty ? "1" : "0"
+        }
+        env {
           name  = "STORAGE_BACKEND"
           value = "gcs"
         }
@@ -1766,6 +1922,26 @@ resource "google_cloud_run_service" "privacy" {
         env {
           name  = "AUTH_JWT_LEEWAY_SECONDS"
           value = tostring(var.auth_jwt_leeway_seconds)
+        }
+        env {
+          name  = "CONTROL_PLANE_STORE"
+          value = var.control_plane_store
+        }
+        env {
+          name  = "CONTROL_PLANE_COLLECTION_PREFIX"
+          value = var.control_plane_collection_prefix
+        }
+        env {
+          name  = "CONTROL_PLANE_READ_MODE"
+          value = var.control_plane_read_mode
+        }
+        env {
+          name  = "CONTROL_PLANE_WRITE_MODE"
+          value = var.control_plane_write_mode
+        }
+        env {
+          name  = "CONTROL_PLANE_FALLBACK_ON_EMPTY"
+          value = var.control_plane_fallback_on_empty ? "1" : "0"
         }
         env {
           name  = "STORAGE_BACKEND"
@@ -1928,6 +2104,26 @@ resource "google_cloud_run_service" "fleet" {
           value = tostring(var.auth_jwt_leeway_seconds)
         }
         env {
+          name  = "CONTROL_PLANE_STORE"
+          value = var.control_plane_store
+        }
+        env {
+          name  = "CONTROL_PLANE_COLLECTION_PREFIX"
+          value = var.control_plane_collection_prefix
+        }
+        env {
+          name  = "CONTROL_PLANE_READ_MODE"
+          value = var.control_plane_read_mode
+        }
+        env {
+          name  = "CONTROL_PLANE_WRITE_MODE"
+          value = var.control_plane_write_mode
+        }
+        env {
+          name  = "CONTROL_PLANE_FALLBACK_ON_EMPTY"
+          value = var.control_plane_fallback_on_empty ? "1" : "0"
+        }
+        env {
           name  = "STORAGE_BACKEND"
           value = "gcs"
         }
@@ -2086,6 +2282,26 @@ resource "google_cloud_run_service" "data_factory" {
         env {
           name  = "AUTH_JWT_LEEWAY_SECONDS"
           value = tostring(var.auth_jwt_leeway_seconds)
+        }
+        env {
+          name  = "CONTROL_PLANE_STORE"
+          value = var.control_plane_store
+        }
+        env {
+          name  = "CONTROL_PLANE_COLLECTION_PREFIX"
+          value = var.control_plane_collection_prefix
+        }
+        env {
+          name  = "CONTROL_PLANE_READ_MODE"
+          value = var.control_plane_read_mode
+        }
+        env {
+          name  = "CONTROL_PLANE_WRITE_MODE"
+          value = var.control_plane_write_mode
+        }
+        env {
+          name  = "CONTROL_PLANE_FALLBACK_ON_EMPTY"
+          value = var.control_plane_fallback_on_empty ? "1" : "0"
         }
         env {
           name  = "STORAGE_BACKEND"
@@ -2260,6 +2476,26 @@ resource "google_cloud_run_service" "webhook" {
           value = tostring(var.auth_jwt_leeway_seconds)
         }
         env {
+          name  = "CONTROL_PLANE_STORE"
+          value = var.control_plane_store
+        }
+        env {
+          name  = "CONTROL_PLANE_COLLECTION_PREFIX"
+          value = var.control_plane_collection_prefix
+        }
+        env {
+          name  = "CONTROL_PLANE_READ_MODE"
+          value = var.control_plane_read_mode
+        }
+        env {
+          name  = "CONTROL_PLANE_WRITE_MODE"
+          value = var.control_plane_write_mode
+        }
+        env {
+          name  = "CONTROL_PLANE_FALLBACK_ON_EMPTY"
+          value = var.control_plane_fallback_on_empty ? "1" : "0"
+        }
+        env {
           name  = "STORAGE_BACKEND"
           value = "gcs"
         }
@@ -2418,6 +2654,26 @@ resource "google_cloud_run_service" "dev_console" {
           value = tostring(var.auth_jwt_leeway_seconds)
         }
         env {
+          name  = "CONTROL_PLANE_STORE"
+          value = var.control_plane_store
+        }
+        env {
+          name  = "CONTROL_PLANE_COLLECTION_PREFIX"
+          value = var.control_plane_collection_prefix
+        }
+        env {
+          name  = "CONTROL_PLANE_READ_MODE"
+          value = var.control_plane_read_mode
+        }
+        env {
+          name  = "CONTROL_PLANE_WRITE_MODE"
+          value = var.control_plane_write_mode
+        }
+        env {
+          name  = "CONTROL_PLANE_FALLBACK_ON_EMPTY"
+          value = var.control_plane_fallback_on_empty ? "1" : "0"
+        }
+        env {
           name  = "STORAGE_BACKEND"
           value = "gcs"
         }
@@ -2574,6 +2830,26 @@ resource "google_cloud_run_service" "edge_gateway" {
         env {
           name  = "AUTH_JWT_LEEWAY_SECONDS"
           value = tostring(var.auth_jwt_leeway_seconds)
+        }
+        env {
+          name  = "CONTROL_PLANE_STORE"
+          value = var.control_plane_store
+        }
+        env {
+          name  = "CONTROL_PLANE_COLLECTION_PREFIX"
+          value = var.control_plane_collection_prefix
+        }
+        env {
+          name  = "CONTROL_PLANE_READ_MODE"
+          value = var.control_plane_read_mode
+        }
+        env {
+          name  = "CONTROL_PLANE_WRITE_MODE"
+          value = var.control_plane_write_mode
+        }
+        env {
+          name  = "CONTROL_PLANE_FALLBACK_ON_EMPTY"
+          value = var.control_plane_fallback_on_empty ? "1" : "0"
         }
         env {
           name  = "STORAGE_BACKEND"
@@ -2736,6 +3012,26 @@ resource "google_cloud_run_service" "stream_ingest" {
         env {
           name  = "AUTH_JWT_LEEWAY_SECONDS"
           value = tostring(var.auth_jwt_leeway_seconds)
+        }
+        env {
+          name  = "CONTROL_PLANE_STORE"
+          value = var.control_plane_store
+        }
+        env {
+          name  = "CONTROL_PLANE_COLLECTION_PREFIX"
+          value = var.control_plane_collection_prefix
+        }
+        env {
+          name  = "CONTROL_PLANE_READ_MODE"
+          value = var.control_plane_read_mode
+        }
+        env {
+          name  = "CONTROL_PLANE_WRITE_MODE"
+          value = var.control_plane_write_mode
+        }
+        env {
+          name  = "CONTROL_PLANE_FALLBACK_ON_EMPTY"
+          value = var.control_plane_fallback_on_empty ? "1" : "0"
         }
         env {
           name  = "STORAGE_BACKEND"

@@ -24,28 +24,18 @@ from gcp_adapter.office_conversion import (
     write_conversion_output,
 )
 from gcp_adapter.queue_pubsub import PubSubPublisher, parse_pubsub_push
+from gcp_adapter.stores import get_control_plane_stores
 from retikon_core.auth import AuthContext
 from retikon_core.config import get_config
-from retikon_core.connectors import (
-    list_connectors,
-    load_ocr_connectors,
-    register_ocr_connector,
-)
+from retikon_core.connectors import list_connectors
 from retikon_core.data_factory import (
     TrainingExecutor,
     TrainingJob,
     TrainingResult,
     add_annotation,
     create_dataset,
-    execute_training_job,
-    get_training_job,
     list_annotations,
     list_datasets,
-    list_training_jobs,
-    load_models,
-    mark_training_job_failed,
-    register_model,
-    register_training_job,
 )
 from retikon_core.errors import PermanentError, RecoverableError
 from retikon_core.logging import configure_logging, get_logger
@@ -302,11 +292,20 @@ class _StubTrainingExecutor(TrainingExecutor):
 
 
 def _execute_training_job_inline(job: TrainingJob) -> TrainingJob:
-    return execute_training_job(
-        base_uri=_get_config().graph_root_uri(),
-        job_id=job.id,
-        executor=_StubTrainingExecutor(),
-    )
+    store = _stores().data_factory
+    running = store.mark_training_job_running(job_id=job.id)
+    result = _StubTrainingExecutor().execute(job=running)
+    status = result.status.lower().strip()
+    if status == "completed":
+        return store.mark_training_job_completed(
+            job_id=job.id,
+            output=result.output,
+            metrics=result.metrics,
+        )
+    if status == "canceled":
+        return store.mark_training_job_canceled(job_id=job.id)
+    error = result.error or "Training job failed"
+    return store.mark_training_job_failed(job_id=job.id, error=error)
 
 def _authorize(request: Request) -> AuthContext | None:
     return authorize_request(
@@ -317,6 +316,10 @@ def _authorize(request: Request) -> AuthContext | None:
 
 def _get_config():
     return get_config()
+
+
+def _stores():
+    return get_control_plane_stores(_get_config().graph_root_uri())
 
 
 def _connector_response(item) -> ConnectorResponse:
@@ -435,7 +438,7 @@ async def create_annotation_endpoint(
 @app.get("/data-factory/models")
 async def get_models(request: Request) -> list[dict[str, Any]]:
     _authorize(request)
-    models = load_models(_get_config().graph_root_uri())
+    models = _stores().data_factory.load_models()
     return [model.__dict__ for model in models]
 
 
@@ -445,8 +448,7 @@ async def create_model_endpoint(
     payload: ModelRequest,
 ) -> dict[str, Any]:
     _authorize(request)
-    model = register_model(
-        base_uri=_get_config().graph_root_uri(),
+    model = _stores().data_factory.register_model(
         name=payload.name,
         version=payload.version,
         description=payload.description,
@@ -472,8 +474,7 @@ async def create_training_endpoint(
     payload: TrainingRequest,
 ) -> TrainingJobResponse:
     _authorize(request)
-    job = register_training_job(
-        base_uri=_get_config().graph_root_uri(),
+    job = _stores().data_factory.register_training_job(
         dataset_id=payload.dataset_id,
         model_id=payload.model_id,
         epochs=payload.epochs,
@@ -498,8 +499,7 @@ async def list_training_jobs_endpoint(
     limit: int | None = None,
 ) -> list[TrainingJobResponse]:
     _authorize(request)
-    jobs = list_training_jobs(
-        _get_config().graph_root_uri(),
+    jobs = _stores().data_factory.list_training_jobs(
         status=status,
         limit=limit,
     )
@@ -515,7 +515,7 @@ async def get_training_job_endpoint(
     job_id: str,
 ) -> TrainingJobResponse:
     _authorize(request)
-    job = get_training_job(_get_config().graph_root_uri(), job_id)
+    job = _stores().data_factory.get_training_job(job_id)
     if job is None:
         raise HTTPException(status_code=404, detail="Training job not found")
     return _training_job_response(job)
@@ -540,18 +540,13 @@ async def training_runner(
     job_id = payload.get("job_id")
     if not isinstance(job_id, str) or not job_id:
         raise HTTPException(status_code=400, detail="Missing job_id")
-    base_uri = _get_config().graph_root_uri()
-    job = get_training_job(base_uri, job_id)
+    job = _stores().data_factory.get_training_job(job_id)
     if job is None:
         raise HTTPException(status_code=404, detail="Training job not found")
     try:
         updated = _execute_training_job_inline(job)
     except Exception as exc:
-        mark_training_job_failed(
-            base_uri=base_uri,
-            job_id=job_id,
-            error=str(exc),
-        )
+        _stores().data_factory.mark_training_job_failed(job_id=job_id, error=str(exc))
         _publish_training_dlq(
             {
                 "job_id": job_id,
@@ -581,8 +576,7 @@ async def register_ocr_connector_endpoint(
 ) -> OcrConnectorResponse:
     _authorize(request)
     try:
-        connector = register_ocr_connector(
-            base_uri=_get_config().graph_root_uri(),
+        connector = _stores().connectors.register_ocr_connector(
             name=payload.name,
             url=payload.url,
             auth_type=payload.auth_type,
@@ -602,7 +596,7 @@ async def register_ocr_connector_endpoint(
 @app.get("/data-factory/ocr/connectors", response_model=list[OcrConnectorResponse])
 async def list_ocr_connectors(request: Request) -> list[OcrConnectorResponse]:
     _authorize(request)
-    connectors = load_ocr_connectors(_get_config().graph_root_uri())
+    connectors = _stores().connectors.load_ocr_connectors()
     return [_ocr_connector_response(item) for item in connectors]
 
 

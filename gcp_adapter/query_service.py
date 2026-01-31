@@ -2,22 +2,27 @@ import os
 import time
 import uuid
 from contextlib import asynccontextmanager
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from datetime import datetime, timezone
 
 from fastapi import FastAPI, Header, HTTPException, Request
 
 from gcp_adapter.auth import authorize_request
-from retikon_core.audit import record_audit_log
-from retikon_core.auth import (
-    ACTION_QUERY,
-    AuthContext,
+from gcp_adapter.stores import (
     abac_allowed,
+    get_control_plane_stores,
     is_action_allowed,
 )
+from retikon_core.audit import record_audit_log
+from retikon_core.auth import ACTION_QUERY, AuthContext
 from retikon_core.logging import configure_logging, get_logger
 from retikon_core.metering import record_usage
-from retikon_core.query_engine import download_snapshot, get_secure_connection
+from retikon_core.privacy import PrivacyContext, redact_text_for_context
+from retikon_core.query_engine import (
+    QueryResult,
+    download_snapshot,
+    get_secure_connection,
+)
 from retikon_core.services.fastapi_scaffolding import (
     HealthResponse,
     add_correlation_id_middleware,
@@ -29,7 +34,6 @@ from retikon_core.services.query_service_core import (
     QueryRequest,
     QueryResponse,
     QueryValidationError,
-    apply_privacy_redaction,
     build_query_response,
     describe_query_modality,
     resolve_modalities,
@@ -123,6 +127,41 @@ def _enforce_access(action: str, auth_context: AuthContext | None) -> None:
     if _abac_enabled():
         if not abac_allowed(auth_context, action, base_uri):
             raise HTTPException(status_code=403, detail="Forbidden")
+
+
+def _apply_privacy_redaction(
+    *,
+    results: list[QueryResult],
+    base_uri: str,
+    scope,
+    is_admin: bool,
+) -> list[QueryResult]:
+    try:
+        policies = get_control_plane_stores(base_uri).privacy.load_policies()
+    except Exception as exc:
+        logger.warning(
+            "Failed to load privacy policies",
+            extra={"error_message": str(exc)},
+        )
+        return results
+    if not policies:
+        return results
+    context = PrivacyContext(action="query", scope=scope, is_admin=is_admin)
+    redacted: list[QueryResult] = []
+    for item in results:
+        if item.snippet is None:
+            redacted.append(item)
+            continue
+        snippet = redact_text_for_context(
+            item.snippet,
+            policies=policies,
+            context=context.with_modality(item.modality),
+        )
+        if snippet == item.snippet:
+            redacted.append(item)
+        else:
+            redacted.append(replace(item, snippet=snippet))
+    return redacted
 
 
 def _metering_enabled() -> bool:
@@ -282,12 +321,11 @@ async def query(
     except QueryValidationError as exc:
         raise HTTPException(status_code=exc.status_code, detail=exc.detail) from exc
 
-    trimmed = apply_privacy_redaction(
+    trimmed = _apply_privacy_redaction(
         results=results[: payload.top_k],
         base_uri=_graph_root_uri(),
         scope=scope,
         is_admin=bool(auth_context and auth_context.is_admin),
-        logger=logger,
     )
     duration_ms = int((time.monotonic() - start_time) * 1000)
     modality = describe_query_modality(payload, search_type)

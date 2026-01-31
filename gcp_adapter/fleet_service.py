@@ -5,16 +5,14 @@ from fastapi import FastAPI, HTTPException, Request
 from pydantic import BaseModel, Field
 
 from gcp_adapter.auth import authorize_request
+from gcp_adapter.stores import get_control_plane_stores
 from retikon_core.auth import AuthContext
 from retikon_core.config import get_config
 from retikon_core.fleet import (
     DeviceRecord,
     device_hardening,
-    load_devices,
     plan_rollout,
-    register_device,
     rollback_plan,
-    update_device_status,
 )
 from retikon_core.logging import configure_logging, get_logger
 from retikon_core.services.fastapi_scaffolding import (
@@ -119,6 +117,10 @@ def _get_config():
     return get_config()
 
 
+def _stores():
+    return get_control_plane_stores(_get_config().graph_root_uri())
+
+
 def _device_response(device: DeviceRecord) -> DeviceResponse:
     return DeviceResponse(
         id=device.id,
@@ -154,7 +156,7 @@ async def health() -> HealthResponse:
 @app.get("/fleet/devices", response_model=list[DeviceResponse])
 async def list_devices(request: Request) -> list[DeviceResponse]:
     _authorize(request)
-    devices = load_devices(_get_config().graph_root_uri())
+    devices = _stores().fleet.load_devices()
     return [_device_response(device) for device in devices]
 
 
@@ -164,8 +166,7 @@ async def create_device(
     payload: DeviceCreateRequest,
 ) -> DeviceResponse:
     _authorize(request)
-    device = register_device(
-        base_uri=_get_config().graph_root_uri(),
+    device = _stores().fleet.register_device(
         name=payload.name,
         org_id=payload.org_id,
         site_id=payload.site_id,
@@ -194,8 +195,7 @@ async def update_status(
     payload: DeviceStatusRequest,
 ) -> DeviceResponse:
     _authorize(request)
-    updated = update_device_status(
-        base_uri=_get_config().graph_root_uri(),
+    updated = _stores().fleet.update_device_status(
         device_id=device_id,
         status=payload.status,
         last_seen_at=payload.last_seen_at,
@@ -211,7 +211,7 @@ async def plan_rollouts(
     payload: RolloutRequest,
 ) -> RolloutResponse:
     _authorize(request)
-    devices = load_devices(_get_config().graph_root_uri())
+    devices = _stores().fleet.load_devices()
     devices = _filtered_devices(devices, payload.status_filter)
     plan = plan_rollout(
         devices,
@@ -238,7 +238,7 @@ async def rollback_rollout(
     payload: RollbackRequest,
 ) -> RolloutResponse:
     _authorize(request)
-    devices = load_devices(_get_config().graph_root_uri())
+    devices = _stores().fleet.load_devices()
     devices = _filtered_devices(devices, payload.status_filter)
     plan = plan_rollout(
         devices,
@@ -265,7 +265,7 @@ async def hardening_check(
     payload: HardeningRequest,
 ) -> HardeningResponse:
     _authorize(request)
-    devices = load_devices(_get_config().graph_root_uri())
+    devices = _stores().fleet.load_devices()
     match = next((device for device in devices if device.id == payload.device_id), None)
     if match is None:
         raise HTTPException(status_code=404, detail="Device not found")

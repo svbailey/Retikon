@@ -14,12 +14,12 @@ from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import StreamingResponse
 
 from gcp_adapter.auth import authorize_request
+from gcp_adapter.stores import get_control_plane_stores
 from retikon_core.auth import AuthContext
 from retikon_core.logging import configure_logging, get_logger
 from retikon_core.privacy import (
     PrivacyContext,
     PrivacyPolicy,
-    load_privacy_policies,
     redact_text_for_context,
 )
 from retikon_core.query_engine.warm_start import get_secure_connection
@@ -410,7 +410,7 @@ def _privacy_context(
 
 def _privacy_policies(base_uri: str) -> list[PrivacyPolicy]:
     try:
-        return load_privacy_policies(base_uri)
+        return get_control_plane_stores(base_uri).privacy.load_policies()
     except Exception as exc:
         logger.warning(
             "Failed to load privacy policies",

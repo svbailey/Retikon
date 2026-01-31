@@ -199,6 +199,14 @@ Graph exploration:
 - Query by text or image.
 - Open Graph Explorer to inspect related events.
 
+## 10) Control-Plane Storage (Pro)
+
+- Set `CONTROL_PLANE_STORE=firestore` to use the Firestore-backed control plane.
+- Set `CONTROL_PLANE_COLLECTION_PREFIX` (e.g. `staging_`) to isolate environments.
+- Use `CONTROL_PLANE_READ_MODE=fallback` for Firestore primary with JSON fallback.
+- Use `CONTROL_PLANE_WRITE_MODE=dual` to dual-write JSON + Firestore during migration.
+- Backfill JSON → Firestore with `scripts/firestore_backfill.py`.
+
 ## 10) Authentication (JWT everywhere)
 
 Production default:

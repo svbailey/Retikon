@@ -14,6 +14,7 @@ from pydantic import BaseModel
 
 from gcp_adapter.auth import authorize_request
 from gcp_adapter.queue_pubsub import PubSubPublisher, parse_pubsub_push
+from gcp_adapter.stores import get_control_plane_stores
 from retikon_core.auth import AuthContext
 from retikon_core.config import get_config
 from retikon_core.logging import configure_logging, get_logger
@@ -26,13 +27,6 @@ from retikon_core.workflows import (
     WorkflowRun,
     WorkflowSpec,
     WorkflowStep,
-    list_workflow_runs,
-    load_workflow_runs,
-    load_workflows,
-    register_workflow,
-    register_workflow_run,
-    update_workflow,
-    update_workflow_run,
 )
 
 SERVICE_NAME = "retikon-workflows"
@@ -134,6 +128,12 @@ def _authorize(request: Request) -> AuthContext | None:
 
 def _get_config():
     return get_config()
+
+
+def _stores(base_uri: str | None = None):
+    if base_uri is None:
+        base_uri = _get_config().graph_root_uri()
+    return get_control_plane_stores(base_uri)
 
 
 def _step_from_payload(payload: WorkflowStepPayload) -> WorkflowStep:
@@ -611,7 +611,7 @@ def _update_run(
         output=output if output is not None else run.output,
         triggered_by=run.triggered_by,
     )
-    update_workflow_run(base_uri=base_uri, run=updated)
+    _stores(base_uri).workflows.update_workflow_run(run=updated)
     return updated
 
 
@@ -665,7 +665,7 @@ async def health() -> HealthResponse:
 @app.get("/workflows", response_model=list[WorkflowResponse])
 async def list_workflows_endpoint(request: Request) -> list[WorkflowResponse]:
     _authorize(request)
-    workflows = load_workflows(_get_config().graph_root_uri())
+    workflows = _stores().workflows.load_workflows()
     return [_workflow_response(workflow) for workflow in workflows]
 
 
@@ -680,8 +680,7 @@ async def create_workflow(
         if payload.steps
         else ()
     )
-    workflow = register_workflow(
-        base_uri=_get_config().graph_root_uri(),
+    workflow = _stores().workflows.register_workflow(
         name=payload.name,
         description=payload.description,
         org_id=payload.org_id,
@@ -709,7 +708,7 @@ async def update_workflow_endpoint(
     payload: WorkflowUpdateRequest,
 ) -> WorkflowResponse:
     _authorize(request)
-    workflows = load_workflows(_get_config().graph_root_uri())
+    workflows = _stores().workflows.load_workflows()
     existing = next((wf for wf in workflows if wf.id == workflow_id), None)
     if existing is None:
         raise HTTPException(status_code=404, detail="Workflow not found")
@@ -738,7 +737,7 @@ async def update_workflow_endpoint(
         created_at=existing.created_at,
         updated_at=now,
     )
-    update_workflow(base_uri=_get_config().graph_root_uri(), workflow=updated)
+    _stores().workflows.update_workflow(workflow=updated)
     return _workflow_response(updated)
 
 
@@ -749,8 +748,7 @@ async def list_runs(
     limit: int | None = None,
 ) -> list[WorkflowRunResponse]:
     _authorize(request)
-    runs = list_workflow_runs(
-        _get_config().graph_root_uri(),
+    runs = _stores().workflows.list_workflow_runs(
         workflow_id=workflow_id,
         limit=limit,
     )
@@ -764,8 +762,8 @@ async def schedule_tick(
 ) -> ScheduleTickResponse:
     _authorize(request)
     base_uri = _get_config().graph_root_uri()
-    workflows = load_workflows(base_uri)
-    runs = load_workflow_runs(base_uri)
+    workflows = _stores(base_uri).workflows.load_workflows()
+    runs = _stores(base_uri).workflows.load_workflow_runs()
     now = datetime.now(timezone.utc)
     active = {run.workflow_id for run in runs if run.status in {"queued", "running"}}
     last_run: dict[str, datetime] = {}
@@ -795,8 +793,7 @@ async def schedule_tick(
         if dry_run:
             triggered.append(workflow.id)
             continue
-        run = register_workflow_run(
-            base_uri=base_uri,
+        run = _stores(base_uri).workflows.register_workflow_run(
             workflow_id=workflow.id,
             status="queued",
             triggered_by="schedule",
@@ -825,13 +822,12 @@ async def create_run(
 ) -> WorkflowRunResponse:
     _authorize(request)
     base_uri = _get_config().graph_root_uri()
-    workflows = load_workflows(base_uri)
+    workflows = _stores(base_uri).workflows.load_workflows()
     workflow = _find_workflow(workflows, workflow_id)
     if workflow is None:
         raise HTTPException(status_code=404, detail="Workflow not found")
     status = payload.status or "queued"
-    run = register_workflow_run(
-        base_uri=base_uri,
+    run = _stores(base_uri).workflows.register_workflow_run(
         workflow_id=workflow_id,
         status=status,
         finished_at=payload.finished_at,
@@ -866,8 +862,8 @@ async def workflow_runner(
     if not workflow_id or not run_id:
         raise HTTPException(status_code=400, detail="Missing workflow_id or run_id")
     base_uri = _get_config().graph_root_uri()
-    workflows = load_workflows(base_uri)
-    runs = load_workflow_runs(base_uri)
+    workflows = _stores(base_uri).workflows.load_workflows()
+    runs = _stores(base_uri).workflows.load_workflow_runs()
     workflow = _find_workflow(workflows, workflow_id)
     if workflow is None:
         raise HTTPException(status_code=404, detail="Workflow not found")

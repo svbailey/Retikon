@@ -1113,6 +1113,31 @@ variable "auth_gateway_userinfo" {
   default = false
 }
 
+variable "control_plane_store" {
+  type    = string
+  default = "json"
+}
+
+variable "control_plane_collection_prefix" {
+  type    = string
+  default = ""
+}
+
+variable "control_plane_read_mode" {
+  type    = string
+  default = "primary"
+}
+
+variable "control_plane_write_mode" {
+  type    = string
+  default = "single"
+}
+
+variable "control_plane_fallback_on_empty" {
+  type    = bool
+  default = true
+}
+
 variable "enable_api_gateway" {
   type    = bool
   default = false

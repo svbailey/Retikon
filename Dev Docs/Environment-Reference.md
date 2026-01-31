@@ -97,6 +97,12 @@ Defaults shown match current code where applicable.
 - `AUDIT_PARQUET_LIMIT` (limit audit files during diagnostics)
 - `RBAC_ENFORCE=0|1`
 - `ABAC_ENFORCE=0|1`
+- `CONTROL_PLANE_STORE=json|firestore` (defaults to `json`)
+- `CONTROL_PLANE_COLLECTION_PREFIX` (optional; set per env to avoid collisions)
+- `CONTROL_PLANE_READ_MODE=primary|fallback` (defaults to `primary`)
+- `CONTROL_PLANE_WRITE_MODE=single|dual` (defaults to `single`)
+- `CONTROL_PLANE_FALLBACK_ON_EMPTY=0|1` (defaults to `1` when read mode is `fallback`)
+- `CONTROL_PLANE_FALLBACK_STORE=json|firestore` (optional; defaults to JSON when primary is Firestore)
 - `METERING_ENABLED=0|1`
 - `AUDIT_LOGGING_ENABLED=0|1`
 - `AUDIT_COMPACTION_ENABLED=0|1`

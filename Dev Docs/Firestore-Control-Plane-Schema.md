@@ -17,6 +17,8 @@ interfaces, adapters, and backfill tooling. It is additive only.
   - updated_at
 - status values are domain specific; default to active unless noted.
 - Collection names are top-level and snake_case.
+- Collection prefixes are optional; set `CONTROL_PLANE_COLLECTION_PREFIX`
+  (e.g. `staging_`) to isolate environments within a shared Firestore project.
 - Queries that span schema versions must use union_by_name=true when
   reading Parquet, but Firestore docs are forward-compatible.
 
@@ -290,3 +292,7 @@ Map each JSON control file to the matching Firestore collection:
 - control/ocr_connectors.json -> ocr_connectors
 - control/rbac_bindings.json -> rbac_bindings
 - control/abac_policies.json -> abac_policies
+
+Backfill helper:
+- `scripts/firestore_backfill.py` (supports `--base-uri`, `--collection-prefix`,
+  `--dry-run`, and per-domain flags).

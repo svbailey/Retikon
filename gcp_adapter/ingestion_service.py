@@ -13,13 +13,9 @@ from gcp_adapter.auth import authorize_request
 from gcp_adapter.dlq_pubsub import PubSubDlqPublisher
 from gcp_adapter.eventarc import parse_cloudevent
 from gcp_adapter.idempotency_firestore import FirestoreIdempotency
+from gcp_adapter.stores import abac_allowed, is_action_allowed
 from retikon_core.audit import record_audit_log
-from retikon_core.auth import (
-    ACTION_INGEST,
-    AuthContext,
-    abac_allowed,
-    is_action_allowed,
-)
+from retikon_core.auth import ACTION_INGEST, AuthContext
 from retikon_core.config import Config, get_config
 from retikon_core.errors import PermanentError, RecoverableError, ValidationError
 from retikon_core.ingestion import process_event
