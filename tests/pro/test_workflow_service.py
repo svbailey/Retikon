@@ -76,7 +76,6 @@ def test_workflow_service_queue(monkeypatch, tmp_path, jwt_headers):
     monkeypatch.setenv("LOCAL_GRAPH_ROOT", tmp_path.as_posix())
     monkeypatch.setenv("WORKFLOW_RUN_MODE", "queue")
     monkeypatch.setenv("WORKFLOW_QUEUE_TOPIC", "projects/test/topics/workflows")
-    monkeypatch.setenv("WORKFLOW_RUNNER_TOKEN", "secret-token")
     get_config.cache_clear()
 
     import gcp_adapter.workflow_service as service

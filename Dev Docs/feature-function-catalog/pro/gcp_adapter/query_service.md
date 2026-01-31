@@ -4,8 +4,6 @@ Edition: Pro
 
 ## Functions
 - `lifespan`: Function that sets up startup and shutdown hooks, so queries run securely in the managed service.
-- `_api_key_required`: Internal helper that aPI key required, so queries run securely in the managed service.
-- `_get_api_key`: Internal helper that gets API key, so queries run securely in the managed service.
 - `_graph_root_uri`: Internal helper that builds the graph root URI, so queries run securely in the managed service.
 - `_authorize`: Internal helper that authorizes it, so queries run securely in the managed service.
 - `_rbac_enabled`: Internal helper that checks whether RBAC is enabled, so queries run securely in the managed service.

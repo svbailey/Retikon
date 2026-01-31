@@ -78,11 +78,6 @@ output "compaction_job_name" {
   value = google_cloud_run_v2_job.compaction.name
 }
 
-output "query_api_key" {
-  value     = local.resolved_query_api_key
-  sensitive = true
-}
-
 output "ingest_dlq_topic" {
   value = google_pubsub_topic.ingest_dlq.name
 }

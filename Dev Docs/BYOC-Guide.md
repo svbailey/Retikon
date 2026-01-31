@@ -30,7 +30,7 @@ environment variables and binds provider implementations.
 
 - `K8S_NAMESPACE` (default: `default`)
 - `RETIKON_SECRET_<NAME>` for secrets mounted as env vars
-  - Example: `RETIKON_SECRET_API_KEY=...`
+  - Example: `RETIKON_SECRET_AUTH_TOKEN=...`
 
 ## Next steps (staging validation)
 

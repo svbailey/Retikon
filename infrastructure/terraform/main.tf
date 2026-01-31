@@ -361,60 +361,11 @@ resource "google_firestore_database" "default" {
   type        = "FIRESTORE_NATIVE"
 }
 
-resource "google_secret_manager_secret" "query_api_key" {
-  secret_id = "retikon-query-api-key"
-
-  replication {
-    auto {}
-  }
-}
-
-resource "random_password" "query_api_key" {
-  length  = 48
-  special = false
-}
-
 locals {
-  resolved_query_api_key = var.query_api_key != null ? var.query_api_key : random_password.query_api_key.result
   notification_channels = concat(
     var.alert_notification_channels,
     [for channel in google_monitoring_notification_channel.email : channel.name]
   )
-}
-
-resource "google_secret_manager_secret_version" "query_api_key" {
-  secret      = google_secret_manager_secret.query_api_key.id
-  secret_data = local.resolved_query_api_key
-}
-
-resource "google_secret_manager_secret_iam_member" "query_api_key_access" {
-  secret_id = google_secret_manager_secret.query_api_key.secret_id
-  role      = "roles/secretmanager.secretAccessor"
-  member    = "serviceAccount:${google_service_account.query.email}"
-}
-
-resource "google_secret_manager_secret_iam_member" "dev_console_api_key_access" {
-  secret_id = google_secret_manager_secret.query_api_key.secret_id
-  role      = "roles/secretmanager.secretAccessor"
-  member    = "serviceAccount:${google_service_account.dev_console.email}"
-}
-
-resource "google_secret_manager_secret_iam_member" "audit_api_key_access" {
-  secret_id = google_secret_manager_secret.query_api_key.secret_id
-  role      = "roles/secretmanager.secretAccessor"
-  member    = "serviceAccount:${google_service_account.audit.email}"
-}
-
-resource "google_secret_manager_secret_iam_member" "workflow_api_key_access" {
-  secret_id = google_secret_manager_secret.query_api_key.secret_id
-  role      = "roles/secretmanager.secretAccessor"
-  member    = "serviceAccount:${google_service_account.workflow.email}"
-}
-
-resource "google_secret_manager_secret_iam_member" "chaos_api_key_access" {
-  secret_id = google_secret_manager_secret.query_api_key.secret_id
-  role      = "roles/secretmanager.secretAccessor"
-  member    = "serviceAccount:${google_service_account.chaos.email}"
 }
 
 resource "google_cloud_run_service" "ingestion" {
@@ -455,10 +406,6 @@ resource "google_cloud_run_service" "ingestion" {
         env {
           name  = "LOG_LEVEL"
           value = var.log_level
-        }
-        env {
-          name  = "AUTH_MODE"
-          value = var.auth_mode
         }
         env {
           name  = "AUTH_ISSUER"
@@ -715,10 +662,6 @@ resource "google_cloud_run_service" "query" {
           value = var.log_level
         }
         env {
-          name  = "AUTH_MODE"
-          value = var.auth_mode
-        }
-        env {
           name  = "AUTH_ISSUER"
           value = var.auth_issuer
         }
@@ -846,13 +789,6 @@ resource "google_cloud_run_service" "query" {
           name  = "CHUNK_OVERLAP_TOKENS"
           value = tostring(var.chunk_overlap_tokens)
         }
-        env {
-          name = "QUERY_API_KEY"
-          value_from {
-            secret_key_ref {
-              name = google_secret_manager_secret.query_api_key.secret_id
-              key  = "latest"
-            }
           }
         }
         env {
@@ -975,10 +911,6 @@ resource "google_cloud_run_service" "query_gpu" {
         env {
           name  = "LOG_LEVEL"
           value = var.log_level
-        }
-        env {
-          name  = "AUTH_MODE"
-          value = var.auth_mode
         }
         env {
           name  = "AUTH_ISSUER"
@@ -1104,13 +1036,6 @@ resource "google_cloud_run_service" "query_gpu" {
           name  = "EMBEDDING_DEVICE"
           value = "cuda"
         }
-        env {
-          name = "QUERY_API_KEY"
-          value_from {
-            secret_key_ref {
-              name = google_secret_manager_secret.query_api_key.secret_id
-              key  = "latest"
-            }
           }
         }
         env {
@@ -1231,10 +1156,6 @@ resource "google_cloud_run_service" "audit" {
           value = var.log_level
         }
         env {
-          name  = "AUTH_MODE"
-          value = var.auth_mode
-        }
-        env {
           name  = "AUTH_ISSUER"
           value = var.auth_issuer
         }
@@ -1322,13 +1243,6 @@ resource "google_cloud_run_service" "audit" {
           name  = "AUDIT_PARQUET_LIMIT"
           value = tostring(var.audit_parquet_limit)
         }
-        env {
-          name = "AUDIT_API_KEY"
-          value_from {
-            secret_key_ref {
-              name = google_secret_manager_secret.query_api_key.secret_id
-              key  = "latest"
-            }
           }
         }
         env {
@@ -1398,10 +1312,6 @@ resource "google_cloud_run_service" "workflow" {
         env {
           name  = "LOG_LEVEL"
           value = var.log_level
-        }
-        env {
-          name  = "AUTH_MODE"
-          value = var.auth_mode
         }
         env {
           name  = "AUTH_ISSUER"
@@ -1523,22 +1433,6 @@ resource "google_cloud_run_service" "workflow" {
           name  = "WORKFLOW_DLQ_TOPIC"
           value = "projects/${var.project_id}/topics/${var.workflow_dlq_topic_name}"
         }
-        env {
-          name = "WORKFLOW_API_KEY"
-          value_from {
-            secret_key_ref {
-              name = google_secret_manager_secret.query_api_key.secret_id
-              key  = "latest"
-            }
-          }
-        }
-        env {
-          name = "WORKFLOW_RUNNER_TOKEN"
-          value_from {
-            secret_key_ref {
-              name = google_secret_manager_secret.query_api_key.secret_id
-              key  = "latest"
-            }
           }
         }
       }
@@ -1592,10 +1486,6 @@ resource "google_cloud_run_service" "chaos" {
         env {
           name  = "LOG_LEVEL"
           value = var.log_level
-        }
-        env {
-          name  = "AUTH_MODE"
-          value = var.auth_mode
         }
         env {
           name  = "AUTH_ISSUER"
@@ -1705,13 +1595,6 @@ resource "google_cloud_run_service" "chaos" {
           name  = "CHAOS_REQUIRE_ADMIN"
           value = var.chaos_require_admin ? "1" : "0"
         }
-        env {
-          name = "CHAOS_API_KEY"
-          value_from {
-            secret_key_ref {
-              name = google_secret_manager_secret.query_api_key.secret_id
-              key  = "latest"
-            }
           }
         }
       }
@@ -1763,10 +1646,6 @@ resource "google_cloud_run_service" "dev_console" {
         env {
           name  = "LOG_LEVEL"
           value = var.log_level
-        }
-        env {
-          name  = "AUTH_MODE"
-          value = var.auth_mode
         }
         env {
           name  = "AUTH_ISSUER"
@@ -1876,13 +1755,6 @@ resource "google_cloud_run_service" "dev_console" {
           name  = "MAX_PREVIEW_BYTES"
           value = tostring(var.max_preview_bytes)
         }
-        env {
-          name = "DEV_CONSOLE_API_KEY"
-          value_from {
-            secret_key_ref {
-              name = google_secret_manager_secret.query_api_key.secret_id
-              key  = "latest"
-            }
           }
         }
       }
@@ -1934,10 +1806,6 @@ resource "google_cloud_run_service" "edge_gateway" {
         env {
           name  = "LOG_LEVEL"
           value = var.log_level
-        }
-        env {
-          name  = "AUTH_MODE"
-          value = var.auth_mode
         }
         env {
           name  = "AUTH_ISSUER"
@@ -2100,10 +1968,6 @@ resource "google_cloud_run_service" "stream_ingest" {
         env {
           name  = "LOG_LEVEL"
           value = var.log_level
-        }
-        env {
-          name  = "AUTH_MODE"
-          value = var.auth_mode
         }
         env {
           name  = "AUTH_ISSUER"

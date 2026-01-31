@@ -4,8 +4,8 @@ Edition: Core
 
 ## Functions
 - `lifespan`: Function that sets up startup and shutdown hooks, so local development workflows run.
-- `_api_key_required`: Internal helper that aPI key required, so local development workflows run.
-- `_get_api_key`: Internal helper that gets API key, so local development workflows run.
+- `_extract_bearer_tokens`: Internal helper that reads auth headers, so local development workflows run.
+- `_parse_bearer_token`: Internal helper that parses bearer tokens, so local development workflows run.
 - `_authorize`: Internal helper that authorizes it, so local development workflows run.
 - `_is_local_uri`: Internal helper that checks whether local URI, so local development workflows run.
 - `_default_snapshot_uri`: Internal helper that builds the default snapshot URI, so local development workflows run.

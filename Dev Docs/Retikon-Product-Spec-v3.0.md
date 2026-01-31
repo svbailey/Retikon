@@ -128,11 +128,11 @@ Pro:
 
 ### Access and Governance
 Core:
-- API key for query service (X-API-Key).
-- Basic API key management.
+- JWT for query service (Authorization: Bearer).
+- Basic JWT validation and claim mapping.
 
 Pro:
-- Scoped API keys by org/site/stream.
+- Scoped JWT claims by org/site/stream.
 - Metering and usage reporting.
 - Audit logs for control-plane actions.
 

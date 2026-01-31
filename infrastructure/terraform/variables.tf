@@ -838,11 +838,6 @@ variable "log_level" {
   default = "INFO"
 }
 
-variable "auth_mode" {
-  type    = string
-  default = "jwt"
-}
-
 variable "auth_issuer" {
   type    = string
   default = ""
@@ -1006,12 +1001,6 @@ variable "monitoring_dashboard_name" {
 variable "firestore_location" {
   type    = string
   default = "nam5"
-}
-
-variable "query_api_key" {
-  type      = string
-  sensitive = true
-  default   = null
 }
 
 variable "bucket_force_destroy" {

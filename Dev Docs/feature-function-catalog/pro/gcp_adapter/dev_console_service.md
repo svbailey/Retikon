@@ -3,7 +3,6 @@
 Edition: Pro
 
 ## Functions
-- `_require_api_key`: Internal helper that require API key, so the dev console can upload and inspect data.
 - `_project_id`: Internal helper that project ID, so the dev console can upload and inspect data.
 - `_graph_settings`: Internal helper that graph settings, so the dev console can upload and inspect data.
 - `_raw_bucket`: Internal helper that raw bucket, so the dev console can upload and inspect data.

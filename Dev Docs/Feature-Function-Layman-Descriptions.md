@@ -31,7 +31,7 @@ Internal helpers are included because they are still part of the codebase, but t
 
 ### Governance, privacy, and compliance
 - **RBAC and ABAC**: Enforces who can do what so access is controlled.
-- **API key management**: Stores and verifies keys so API access is secured.
+- **JWT verification**: Validates tokens so API access is secured.
 - **Privacy policy engine**: Applies privacy policies so sensitive data is protected.
 - **Redaction**: Removes sensitive content so exports and results are safe to share.
 - **Audit logs**: Records actions so compliance reviews are possible.
@@ -74,7 +74,7 @@ Internal helpers are included because they are still part of the codebase, but t
 - **Cloud Run services/jobs**: Services and jobs run in managed compute so ops is simple.
 - **Eventarc triggers**: GCS events trigger ingest so uploads auto-process.
 - **Scheduler**: Runs compaction on a schedule so storage stays efficient.
-- **Secret Manager**: Stores API keys so secrets are not baked into images.
+- **Secret Manager**: Stores secrets (JWT keys, connector tokens) so secrets are not baked into images.
 - **Monitoring + alerting**: Dashboards and alerts keep ops teams informed.
 
 ### Pro capability flags
@@ -203,8 +203,8 @@ Internal helpers are included because they are still part of the codebase, but t
 ### `local_adapter/query_service.py`
 - Functions
   - `lifespan`: Function that sets up startup and shutdown hooks, so local development workflows run.
-  - `_api_key_required`: Internal helper that aPI key required, so local development workflows run.
-  - `_get_api_key`: Internal helper that gets API key, so local development workflows run.
+  - `_extract_bearer_tokens`: Internal helper that reads auth headers, so local development workflows run.
+  - `_parse_bearer_token`: Internal helper that parses bearer tokens, so local development workflows run.
   - `_authorize`: Internal helper that authorizes it, so local development workflows run.
   - `_is_local_uri`: Internal helper that checks whether local URI, so local development workflows run.
   - `_default_snapshot_uri`: Internal helper that builds the default snapshot URI, so local development workflows run.
@@ -304,9 +304,11 @@ Internal helpers are included because they are still part of the codebase, but t
 - Classes
   - `Policy`: Data structure or helper class for Policy, so access is controlled and auditable.
 
-### `retikon_core/auth/authorize.py`
+### `retikon_core/auth/jwt.py`
 - Functions
-  - `authorize_api_key`: Function that authorizes API key, so access is controlled and auditable.
+  - `load_jwt_config`: Function that loads JWT config, so tokens are validated consistently.
+  - `decode_jwt`: Function that verifies JWTs, so access is controlled and auditable.
+  - `auth_context_from_claims`: Function that builds auth context from claims, so access is controlled and auditable.
 
 ### `retikon_core/auth/idp.py`
 - Functions
@@ -327,22 +329,9 @@ Internal helpers are included because they are still part of the codebase, but t
 - Classes
   - `Role`: Data structure or helper class for Role, so access is controlled and auditable.
 
-### `retikon_core/auth/store.py`
-- Functions
-  - `api_key_registry_uri`: Function that builds the API key registry URI, so access is controlled and auditable.
-  - `resolve_registry_base`: Function that resolves registry base, so access is controlled and auditable.
-  - `hash_key`: Function that hashes key, so access is controlled and auditable.
-  - `load_api_keys`: Function that loads API keys, so access is controlled and auditable.
-  - `save_api_keys`: Function that saves API keys, so access is controlled and auditable.
-  - `register_api_key`: Function that registers API key, so access is controlled and auditable.
-  - `find_api_key`: Function that finds API key, so access is controlled and auditable.
-  - `_api_key_from_dict`: Internal helper that builds API key from a dict, so access is controlled and auditable.
-  - `_coerce_str`: Internal helper that converts str, so access is controlled and auditable.
-
 ### `retikon_core/auth/types.py`
 - Classes
-  - `ApiKey`: Data structure or helper class for API Key, so access is controlled and auditable.
-  - `AuthContext`: Data structure or helper class for Auth Context, so access is controlled and auditable.
+  - `AuthContext`: Data structure or helper class for JWT auth context, so access is controlled and auditable.
 
 ### `retikon_core/capabilities.py`
 - Functions
@@ -1112,9 +1101,7 @@ Internal helpers are included because they are still part of the codebase, but t
 ### `gcp_adapter/audit_service.py`
 - Functions
   - `lifespan`: Function that sets up startup and shutdown hooks, so audit access and exports are available.
-  - `_api_key_required`: Internal helper that aPI key required, so audit access and exports are available.
   - `_require_admin`: Internal helper that require admin, so audit access and exports are available.
-  - `_audit_api_key`: Internal helper that audit API key, so audit access and exports are available.
   - `_graph_uri`: Internal helper that builds the graph URI, so audit access and exports are available.
   - `_healthcheck_uri`: Internal helper that builds the healthcheck URI, so audit access and exports are available.
   - `_authorize`: Internal helper that authorizes it, so audit access and exports are available.
@@ -1144,7 +1131,6 @@ Internal helpers are included because they are still part of the codebase, but t
 
 ### `gcp_adapter/dev_console_service.py`
 - Functions
-  - `_require_api_key`: Internal helper that require API key, so the dev console can upload and inspect data.
   - `_project_id`: Internal helper that project ID, so the dev console can upload and inspect data.
   - `_graph_settings`: Internal helper that graph settings, so the dev console can upload and inspect data.
   - `_raw_bucket`: Internal helper that raw bucket, so the dev console can upload and inspect data.
@@ -1213,9 +1199,7 @@ Internal helpers are included because they are still part of the codebase, but t
 
 ### `gcp_adapter/fleet_service.py`
 - Functions
-  - `_api_key_required`: Internal helper that aPI key required, so the system works as expected.
   - `_require_admin`: Internal helper that require admin, so the system works as expected.
-  - `_fleet_api_key`: Internal helper that fleet API key, so the system works as expected.
   - `_authorize`: Internal helper that authorizes it, so the system works as expected.
   - `_get_config`: Internal helper that gets config, so the system works as expected.
   - `_device_response`: Internal helper that device response, so the system works as expected.
@@ -1251,7 +1235,6 @@ Internal helpers are included because they are still part of the codebase, but t
 ### `gcp_adapter/ingestion_service.py`
 - Functions
   - `_require_ingest_auth`: Internal helper that require ingest auth, so ingestion runs securely in the managed service.
-  - `_ingest_api_key`: Internal helper that ingests API key, so ingestion runs securely in the managed service.
   - `_authorize_ingest`: Internal helper that authorizes ingest, so ingestion runs securely in the managed service.
   - `_rbac_enabled`: Internal helper that checks whether RBAC is enabled, so ingestion runs securely in the managed service.
   - `_abac_enabled`: Internal helper that checks whether ABAC is enabled, so ingestion runs securely in the managed service.
@@ -1272,9 +1255,7 @@ Internal helpers are included because they are still part of the codebase, but t
 
 ### `gcp_adapter/privacy_service.py`
 - Functions
-  - `_api_key_required`: Internal helper that aPI key required, so privacy policies can be managed.
   - `_require_admin`: Internal helper that require admin, so privacy policies can be managed.
-  - `_privacy_api_key`: Internal helper that privacy API key, so privacy policies can be managed.
   - `_authorize`: Internal helper that authorizes it, so privacy policies can be managed.
   - `_get_config`: Internal helper that gets config, so privacy policies can be managed.
   - `_policy_response`: Internal helper that policy response, so privacy policies can be managed.
@@ -1300,8 +1281,6 @@ Internal helpers are included because they are still part of the codebase, but t
 ### `gcp_adapter/query_service.py`
 - Functions
   - `lifespan`: Function that sets up startup and shutdown hooks, so queries run securely in the managed service.
-  - `_api_key_required`: Internal helper that aPI key required, so queries run securely in the managed service.
-  - `_get_api_key`: Internal helper that gets API key, so queries run securely in the managed service.
   - `_graph_root_uri`: Internal helper that builds the graph root URI, so queries run securely in the managed service.
   - `_authorize`: Internal helper that authorizes it, so queries run securely in the managed service.
   - `_rbac_enabled`: Internal helper that checks whether RBAC is enabled, so queries run securely in the managed service.

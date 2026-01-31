@@ -3,9 +3,7 @@
 Edition: Pro
 
 ## Functions
-- `_api_key_required`: Internal helper that aPI key required, so privacy policies can be managed.
 - `_require_admin`: Internal helper that require admin, so privacy policies can be managed.
-- `_privacy_api_key`: Internal helper that privacy API key, so privacy policies can be managed.
 - `_authorize`: Internal helper that authorizes it, so privacy policies can be managed.
 - `_get_config`: Internal helper that gets config, so privacy policies can be managed.
 - `_policy_response`: Internal helper that policy response, so privacy policies can be managed.

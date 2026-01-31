@@ -3,9 +3,7 @@
 Edition: Pro
 
 ## Functions
-- `_api_key_required`: Internal helper that aPI key required, so the system works as expected.
 - `_require_admin`: Internal helper that require admin, so the system works as expected.
-- `_fleet_api_key`: Internal helper that fleet API key, so the system works as expected.
 - `_authorize`: Internal helper that authorizes it, so the system works as expected.
 - `_get_config`: Internal helper that gets config, so the system works as expected.
 - `_device_response`: Internal helper that device response, so the system works as expected.

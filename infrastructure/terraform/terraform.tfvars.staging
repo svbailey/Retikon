@@ -7,7 +7,6 @@ artifact_repo_name               = "retikon-repo"
 firestore_location               = "nam5"
 snapshot_uri                     = "gs://retikon-graph-simitor-dev/retikon_v2/snapshots/retikon.duckdb"
 raw_prefix                       = "raw"
-auth_mode                        = "dual"
 auth_gateway_userinfo            = true
 auth_issuer                      = "https://securetoken.google.com/simitor"
 auth_audience                    = "simitor"

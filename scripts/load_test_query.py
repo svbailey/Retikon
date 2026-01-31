@@ -156,11 +156,6 @@ def main() -> None:
         "--auth-token",
         default=os.getenv("RETIKON_AUTH_TOKEN") or os.getenv("RETIKON_JWT"),
     )
-    parser.add_argument(
-        "--api-key",
-        default=os.getenv("QUERY_API_KEY"),
-        help=argparse.SUPPRESS,
-    )
     parser.add_argument("--qps", type=float, default=5.0)
     parser.add_argument("--duration", type=float, default=30.0)
     parser.add_argument("--concurrency", type=int, default=10)
@@ -192,7 +187,7 @@ def main() -> None:
     summary = asyncio.run(
         run_load_test(
             url=args.url,
-            auth_token=args.auth_token or args.api_key,
+            auth_token=args.auth_token,
             qps=args.qps,
             duration=args.duration,
             concurrency=args.concurrency,

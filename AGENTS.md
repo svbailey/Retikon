@@ -122,7 +122,7 @@ From `Dev Docs/Retikon-GCP-Build-Kit-v2.5.md`, ensure:
   `correlation_id`, `duration_ms`, and `version`.
 - Classify errors as `RecoverableError`, `PermanentError`, `AuthError`,
   `ValidationError`.
-- Avoid logging sensitive data (API keys, raw content).
+- Avoid logging sensitive data (auth tokens, raw content).
 
 ## CI/CD Expectations
 

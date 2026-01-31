@@ -181,7 +181,7 @@ Goal: basic tenant scoping, usage metering, and production readiness.
 
 Tasks:
 - Add tenancy model `retikon_core/tenancy/` (org/site/stream).
-- Add scoped API keys and auth enforcement `retikon_core/auth/`.
+- Add scoped JWT claims and auth enforcement `retikon_core/auth/`.
 - Add metering `retikon_core/metering/` and GraphAr schema additions.
 - Update GCP services to enforce scopes in `gcp_adapter/ingestion_service.py`, `gcp_adapter/query_service.py`.
 - Add autoscaling configuration in Terraform (`infrastructure/terraform/`).

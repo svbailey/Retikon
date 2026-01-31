@@ -23,7 +23,7 @@
 
 ### Governance, privacy, and compliance
 - **RBAC and ABAC**: Enforces who can do what so access is controlled.
-- **API key management**: Stores and verifies keys so API access is secured.
+- **JWT verification**: Validates tokens so API access is secured.
 - **Privacy policy engine**: Applies privacy policies so sensitive data is protected.
 - **Redaction**: Removes sensitive content so exports and results are safe to share.
 - **Audit logs**: Records actions so compliance reviews are possible.

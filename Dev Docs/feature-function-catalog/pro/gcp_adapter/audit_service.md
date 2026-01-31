@@ -4,9 +4,7 @@ Edition: Pro
 
 ## Functions
 - `lifespan`: Function that sets up startup and shutdown hooks, so audit access and exports are available.
-- `_api_key_required`: Internal helper that aPI key required, so audit access and exports are available.
 - `_require_admin`: Internal helper that require admin, so audit access and exports are available.
-- `_audit_api_key`: Internal helper that audit API key, so audit access and exports are available.
 - `_graph_uri`: Internal helper that builds the graph URI, so audit access and exports are available.
 - `_healthcheck_uri`: Internal helper that builds the healthcheck URI, so audit access and exports are available.
 - `_authorize`: Internal helper that authorizes it, so audit access and exports are available.

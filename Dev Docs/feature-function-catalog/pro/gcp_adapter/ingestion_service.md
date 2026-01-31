@@ -4,7 +4,6 @@ Edition: Pro
 
 ## Functions
 - `_require_ingest_auth`: Internal helper that require ingest auth, so ingestion runs securely in the managed service.
-- `_ingest_api_key`: Internal helper that ingests API key, so ingestion runs securely in the managed service.
 - `_authorize_ingest`: Internal helper that authorizes ingest, so ingestion runs securely in the managed service.
 - `_rbac_enabled`: Internal helper that checks whether RBAC is enabled, so ingestion runs securely in the managed service.
 - `_abac_enabled`: Internal helper that checks whether ABAC is enabled, so ingestion runs securely in the managed service.

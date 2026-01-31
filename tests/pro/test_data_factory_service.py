@@ -85,9 +85,8 @@ def test_data_factory_service(monkeypatch, tmp_path, jwt_headers):
         json={
             "name": "OCR Primary",
             "url": "https://ocr.example.com/v1/extract",
-            "auth_type": "header",
-            "auth_header": "X-API-Key",
-            "token_env": "OCR_API_KEY",
+            "auth_type": "bearer",
+            "token_env": "OCR_AUTH_TOKEN",
             "enabled": True,
             "is_default": True,
             "max_pages": 5,

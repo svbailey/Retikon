@@ -131,9 +131,8 @@ curl -X POST "$DATA_FACTORY_URL/data-factory/ocr/connectors" \
   -d '{
     "name": "OCR Primary",
     "url": "https://ocr.example.com/v1/extract",
-    "auth_type": "header",
-    "auth_header": "X-API-Key",
-    "token_env": "OCR_API_KEY",
+    "auth_type": "bearer",
+    "token_env": "OCR_AUTH_TOKEN",
     "enabled": true,
     "is_default": true,
     "max_pages": 5,
@@ -147,7 +146,7 @@ curl -X POST "$DATA_FACTORY_URL/data-factory/ocr/connectors" \
 - `OCR_MAX_PAGES=5` (optional)
 - `OCR_CONNECTOR_ID=<connector-id>` (optional if a single default exists)
 - Set the token value for the chosen connector:
-  - `OCR_API_KEY=<secret>` (or whatever `token_env` is set to)
+  - `OCR_AUTH_TOKEN=<secret>` (or whatever `token_env` is set to)
 
 Notes:
 - If multiple enabled connectors exist and no default is set, ingestion will

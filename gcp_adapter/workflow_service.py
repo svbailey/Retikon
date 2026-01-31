@@ -220,11 +220,6 @@ def _dlq_topic() -> str | None:
     return os.getenv("WORKFLOW_DLQ_TOPIC")
 
 
-def _runner_token() -> str | None:
-    token = os.getenv("WORKFLOW_RUNNER_TOKEN")
-    return token.strip() if token else None
-
-
 def _queue_publisher_instance() -> PubSubPublisher:
     global _queue_publisher
     if _queue_publisher is None:
@@ -242,9 +237,6 @@ def _enqueue_run(*, run: WorkflowRun, workflow: WorkflowSpec, reason: str) -> st
         "triggered_by": run.triggered_by,
         "reason": reason,
     }
-    token = _runner_token()
-    if token:
-        payload["token"] = token
     message_id = _queue_publisher_instance().publish_json(topic=topic, payload=payload)
     logger.info(
         "Enqueued workflow run",
@@ -481,12 +473,18 @@ def _execute_http_step(step: WorkflowStep) -> dict[str, object]:
         url = _append_query_params(url, params)
     method = _coerce_str(config.get("method")) or _default_step_method(step)
     headers = _coerce_mapping(config.get("headers")) or {}
-    api_key = _coerce_str(config.get("api_key")) or _coerce_str(
-        os.getenv("WORKFLOW_API_KEY")
+    auth_token = _coerce_str(config.get("auth_token")) or _coerce_str(
+        os.getenv("WORKFLOW_AUTH_TOKEN")
     )
-    if api_key:
-        header_name = _coerce_str(config.get("api_key_header")) or "x-api-key"
-        headers[header_name] = api_key
+    auth_header = _coerce_str(config.get("auth_header"))
+    if auth_token:
+        header_name = auth_header or "Authorization"
+        header_value = auth_token
+        if header_name.lower() == "authorization" and not auth_token.lower().startswith(
+            "bearer "
+        ):
+            header_value = f"Bearer {auth_token}"
+        headers[header_name] = header_value
     body = config.get("payload")
     if body is None:
         body = config.get("body")
@@ -655,13 +653,7 @@ def _execute_workflow_run(
     return finished
 
 
-def _runner_authorized(request: Request, payload: dict[str, object]) -> None:
-    token = _runner_token()
-    if token:
-        payload_token = _coerce_str(payload.get("token"))
-        if payload_token != token:
-            raise HTTPException(status_code=403, detail="Forbidden")
-        return
+def _runner_authorized(request: Request) -> None:
     _authorize(request)
 
 
@@ -868,7 +860,7 @@ async def workflow_runner(
         raise HTTPException(status_code=400, detail="Invalid payload") from exc
     if not isinstance(payload, dict):
         raise HTTPException(status_code=400, detail="Invalid payload")
-    _runner_authorized(request, payload)
+    _runner_authorized(request)
     workflow_id = _coerce_str(payload.get("workflow_id"))
     run_id = _coerce_str(payload.get("run_id"))
     if not workflow_id or not run_id:

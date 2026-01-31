@@ -16,7 +16,7 @@
 - **Cloud Run services/jobs**: Services and jobs run in managed compute so ops is simple.
 - **Eventarc triggers**: GCS events trigger ingest so uploads auto-process.
 - **Scheduler**: Runs compaction on a schedule so storage stays efficient.
-- **Secret Manager**: Stores API keys so secrets are not baked into images.
+- **Secret Manager**: Stores secrets (JWT keys, connector tokens) so secrets are not baked into images.
 - **Monitoring + alerting**: Dashboards and alerts keep ops teams informed.
 
 ### Pro capability flags
