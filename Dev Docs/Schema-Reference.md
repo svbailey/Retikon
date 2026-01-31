@@ -4,6 +4,8 @@ The canonical GraphAr schema YAMLs live under `retikon_core/schemas/graphar/`.
 
 See `retikon_core/schemas/graphar/README.md` for field and layout guidance.
 
+Control-plane Firestore schema lives in `Dev Docs/Firestore-Control-Plane-Schema.md`.
+
 ## Current YAMLs
 
 - `retikon_core/schemas/graphar/MediaAsset/prefix.yml`

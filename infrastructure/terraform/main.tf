@@ -206,6 +206,12 @@ resource "google_service_account" "smoke" {
   display_name = "Retikon Ingestion Smoke Test Service Account"
 }
 
+resource "google_secret_manager_secret_iam_member" "query_hf_token_accessor" {
+  secret_id = "retikon-hf-token"
+  role      = "roles/secretmanager.secretAccessor"
+  member    = "serviceAccount:${google_service_account.query.email}"
+}
+
 resource "google_storage_bucket_iam_member" "ingest_raw_view" {
   bucket = google_storage_bucket.raw.name
   role   = "roles/storage.objectViewer"
@@ -843,8 +849,6 @@ resource "google_cloud_run_service" "query" {
           name  = "CHUNK_OVERLAP_TOKENS"
           value = tostring(var.chunk_overlap_tokens)
         }
-          }
-        }
         env {
           name = "HF_TOKEN"
           value_from {
@@ -1094,8 +1098,6 @@ resource "google_cloud_run_service" "query_gpu" {
           name  = "EMBEDDING_DEVICE"
           value = "cuda"
         }
-          }
-        }
         env {
           name = "HF_TOKEN"
           value_from {
@@ -1301,8 +1303,6 @@ resource "google_cloud_run_service" "audit" {
           name  = "AUDIT_PARQUET_LIMIT"
           value = tostring(var.audit_parquet_limit)
         }
-          }
-        }
         env {
           name  = "DUCKDB_ALLOW_INSTALL"
           value = var.duckdb_allow_install ? "1" : "0"
@@ -1491,8 +1491,6 @@ resource "google_cloud_run_service" "workflow" {
           name  = "WORKFLOW_DLQ_TOPIC"
           value = "projects/${var.project_id}/topics/${var.workflow_dlq_topic_name}"
         }
-          }
-        }
       }
     }
   }
@@ -1652,8 +1650,6 @@ resource "google_cloud_run_service" "chaos" {
         env {
           name  = "CHAOS_REQUIRE_ADMIN"
           value = var.chaos_require_admin ? "1" : "0"
-        }
-          }
         }
       }
     }
@@ -2468,8 +2464,6 @@ resource "google_cloud_run_service" "dev_console" {
         env {
           name  = "MAX_PREVIEW_BYTES"
           value = tostring(var.max_preview_bytes)
-        }
-          }
         }
       }
     }
