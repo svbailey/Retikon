@@ -19,6 +19,8 @@ from google.auth.transport.requests import AuthorizedSession
 from google.cloud import firestore, storage
 from google.oauth2 import id_token
 
+from gcp_adapter.auth import authorize_request
+from retikon_core.auth import AuthContext
 from retikon_core.ingestion.idempotency import build_doc_id
 from retikon_core.logging import configure_logging, get_logger
 from retikon_core.services.fastapi_scaffolding import (
@@ -421,5 +423,3 @@ async def index_status(request: Request) -> dict[str, object]:
         "completion_status": latest.get("completionStatus"),
         "completion_time": latest.get("completionTimestamp"),
     }
-from gcp_adapter.auth import authorize_request
-from retikon_core.auth import AuthContext

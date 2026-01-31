@@ -5,6 +5,7 @@ uvicorn==0.30.6
 duckdb==1.1.2
 pyarrow==16.1.0
 PyYAML==6.0.2
+PyJWT==2.9.0
 fsspec==2024.6.1
 pillow==10.4.0
 pymupdf==1.24.9

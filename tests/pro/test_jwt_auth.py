@@ -5,6 +5,7 @@ from fastapi.testclient import TestClient
 from gcp_adapter.ingestion_service import app as ingest_app
 from gcp_adapter.query_service import app as query_app
 
+
 def test_query_accepts_jwt(jwt_factory):
     token = jwt_factory(roles=["reader"])
     client = TestClient(query_app)
