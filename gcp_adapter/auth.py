@@ -94,4 +94,17 @@ def _decode_gateway_userinfo(raw: str) -> object | None:
     try:
         return json.loads(decoded)
     except Exception:
+        return _decode_jwt_payload(raw)
+
+
+def _decode_jwt_payload(raw: str) -> object | None:
+    parts = raw.split(".")
+    if len(parts) != 3:
         return None
+    try:
+        padded = parts[1] + "=" * (-len(parts[1]) % 4)
+        decoded = base64.urlsafe_b64decode(padded.encode("utf-8")).decode("utf-8")
+        return json.loads(decoded)
+    except Exception:
+        return None
+

@@ -552,6 +552,18 @@ resource "google_cloud_run_service" "ingestion" {
           value = var.auth_claim_stream_id
         }
         env {
+          name  = "DEFAULT_ORG_ID"
+          value = var.default_org_id
+        }
+        env {
+          name  = "DEFAULT_SITE_ID"
+          value = var.default_site_id
+        }
+        env {
+          name  = "DEFAULT_STREAM_ID"
+          value = var.default_stream_id
+        }
+        env {
           name  = "AUTH_ADMIN_ROLES"
           value = var.auth_admin_roles
         }
@@ -830,6 +842,18 @@ resource "google_cloud_run_service" "query" {
           value = var.auth_claim_stream_id
         }
         env {
+          name  = "DEFAULT_ORG_ID"
+          value = var.default_org_id
+        }
+        env {
+          name  = "DEFAULT_SITE_ID"
+          value = var.default_site_id
+        }
+        env {
+          name  = "DEFAULT_STREAM_ID"
+          value = var.default_stream_id
+        }
+        env {
           name  = "AUTH_ADMIN_ROLES"
           value = var.auth_admin_roles
         }
@@ -1097,6 +1121,18 @@ resource "google_cloud_run_service" "query_gpu" {
         env {
           name  = "AUTH_CLAIM_STREAM_ID"
           value = var.auth_claim_stream_id
+        }
+        env {
+          name  = "DEFAULT_ORG_ID"
+          value = var.default_org_id
+        }
+        env {
+          name  = "DEFAULT_SITE_ID"
+          value = var.default_site_id
+        }
+        env {
+          name  = "DEFAULT_STREAM_ID"
+          value = var.default_stream_id
         }
         env {
           name  = "AUTH_ADMIN_ROLES"
@@ -3002,6 +3038,18 @@ resource "google_cloud_run_service" "stream_ingest" {
           value = var.auth_claim_stream_id
         }
         env {
+          name  = "DEFAULT_ORG_ID"
+          value = var.default_org_id
+        }
+        env {
+          name  = "DEFAULT_SITE_ID"
+          value = var.default_site_id
+        }
+        env {
+          name  = "DEFAULT_STREAM_ID"
+          value = var.default_stream_id
+        }
+        env {
           name  = "AUTH_ADMIN_ROLES"
           value = var.auth_admin_roles
         }
@@ -3414,6 +3462,18 @@ resource "google_cloud_run_v2_job" "index_builder" {
         env {
           name  = "GRAPH_PREFIX"
           value = var.graph_prefix
+        }
+        env {
+          name  = "DEFAULT_ORG_ID"
+          value = var.default_org_id
+        }
+        env {
+          name  = "DEFAULT_SITE_ID"
+          value = var.default_site_id
+        }
+        env {
+          name  = "DEFAULT_STREAM_ID"
+          value = var.default_stream_id
         }
         env {
           name  = "SNAPSHOT_URI"

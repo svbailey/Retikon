@@ -1093,6 +1093,21 @@ variable "auth_claim_stream_id" {
   default = "stream_id"
 }
 
+variable "default_org_id" {
+  type    = string
+  default = ""
+}
+
+variable "default_site_id" {
+  type    = string
+  default = ""
+}
+
+variable "default_stream_id" {
+  type    = string
+  default = ""
+}
+
 variable "auth_admin_roles" {
   type    = string
   default = "admin"

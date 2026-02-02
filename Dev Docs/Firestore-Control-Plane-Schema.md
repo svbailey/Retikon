@@ -19,6 +19,8 @@ interfaces, adapters, and backfill tooling. It is additive only.
 - Collection names are top-level and snake_case.
 - Collection prefixes are optional; set `CONTROL_PLANE_COLLECTION_PREFIX`
   (e.g. `staging_`) to isolate environments within a shared Firestore project.
+- After cutover, archive legacy JSON control blobs by moving
+  `control/*.json` to `control_archive/<timestamp>/` in the graph bucket.
 - Queries that span schema versions must use union_by_name=true when
   reading Parquet, but Firestore docs are forward-compatible.
 

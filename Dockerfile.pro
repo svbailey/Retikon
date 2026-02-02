@@ -33,6 +33,7 @@ ENV TRANSFORMERS_CACHE=${MODEL_DIR}
 
 COPY scripts/ /app/scripts/
 COPY retikon_core/ /app/retikon_core/
+COPY retikon_gcp/ /app/retikon_gcp/
 COPY gcp_adapter/ /app/gcp_adapter/
 
 ENV PYTHONPATH=/app

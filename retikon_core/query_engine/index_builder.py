@@ -351,6 +351,61 @@ def _table_has_column(
     return any(row[1] == column for row in rows)
 
 
+def _table_columns(conn: duckdb.DuckDBPyConnection, table: str) -> list[str]:
+    try:
+        rows = conn.execute(f"PRAGMA table_info('{table}')").fetchall()
+    except duckdb.Error:
+        return []
+    return [row[1] for row in rows]
+
+
+def _env_optional(name: str) -> str | None:
+    value = os.getenv(name)
+    if value is None:
+        return None
+    value = value.strip()
+    return value or None
+
+
+def _sql_literal(value: str) -> str:
+    escaped = value.replace("'", "''")
+    return f"'{escaped}'"
+
+
+def _media_scope_defaults() -> dict[str, str | None]:
+    return {
+        "org_id": _env_optional("DEFAULT_ORG_ID"),
+        "site_id": _env_optional("DEFAULT_SITE_ID"),
+        "stream_id": _env_optional("DEFAULT_STREAM_ID"),
+    }
+
+
+def _media_assets_select(
+    conn: duckdb.DuckDBPyConnection,
+    table: str,
+    defaults: dict[str, str | None],
+) -> str:
+    columns = _table_columns(conn, table)
+    select_parts: list[str] = []
+    for column in columns:
+        default_value = defaults.get(column)
+        if default_value is not None:
+            select_parts.append(
+                f"COALESCE({column}, {_sql_literal(default_value)}) AS {column}"
+            )
+        else:
+            select_parts.append(column)
+    for column, default_value in defaults.items():
+        if column in columns:
+            continue
+        if default_value is not None:
+            expr = _sql_literal(default_value)
+        else:
+            expr = "CAST(NULL AS VARCHAR)"
+        select_parts.append(f"{expr} AS {column}")
+    return ", ".join(select_parts)
+
+
 def build_snapshot(
     *,
     graph_uri: str,
@@ -409,25 +464,38 @@ def build_snapshot(
         tables: dict[str, dict[str, Any]] = {}
 
         media_source = TableSource(core=media_files)
-        tables["media_assets"] = {
-            "rows": _create_table(
-                conn,
-                "media_assets",
-                media_source,
-                """
-                CREATE TABLE media_assets AS
+        media_rows = 0
+        if media_source.ready():
+            conn.execute(
+                f"""
+                CREATE TEMP VIEW media_assets_src AS
                 SELECT *
-                FROM read_parquet(?, union_by_name=true)
-                """,
-                (
-                    "CREATE TABLE media_assets "
-                    "(id VARCHAR, uri VARCHAR, media_type VARCHAR, "
-                    "content_type VARCHAR, org_id VARCHAR, site_id VARCHAR, "
-                    "stream_id VARCHAR)"
-                ),
-                [media_files],
+                FROM read_parquet({_sql_list(media_files)}, union_by_name=true)
+                """
             )
-        }
+            select_list = _media_assets_select(
+                conn,
+                "media_assets_src",
+                _media_scope_defaults(),
+            )
+            conn.execute(
+                f"""
+                CREATE TABLE media_assets AS
+                SELECT {select_list}
+                FROM media_assets_src
+                """
+            )
+            row = conn.execute("SELECT COUNT(*) FROM media_assets").fetchone()
+            if row is not None:
+                media_rows = int(row[0])
+        else:
+            conn.execute(
+                "CREATE TABLE media_assets "
+                "(id VARCHAR, uri VARCHAR, media_type VARCHAR, "
+                "content_type VARCHAR, org_id VARCHAR, site_id VARCHAR, "
+                "stream_id VARCHAR)"
+            )
+        tables["media_assets"] = {"rows": media_rows}
 
         doc_groups = [
             group
