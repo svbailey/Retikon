@@ -158,6 +158,13 @@ class FirestoreAbacStore(FirestoreStoreBase, AbacStore):
                     id=policy_id,
                     effect=str(data.get("effect", "allow")),
                     conditions=_coerce_dict(data.get("conditions")),
+                    org_id=_coerce_optional_str(data.get("org_id")),
+                    site_id=_coerce_optional_str(data.get("site_id")),
+                    stream_id=_coerce_optional_str(data.get("stream_id")),
+                    status=str(data.get("status", "active")),
+                    created_at=str(data.get("created_at", "")),
+                    updated_at=str(data.get("updated_at", "")),
+                    description=_coerce_optional_str(data.get("description")),
                 )
             )
         return policies
@@ -168,16 +175,19 @@ class FirestoreAbacStore(FirestoreStoreBase, AbacStore):
         records: list[tuple[firestore.DocumentReference, dict[str, object]]] = []
         for policy in policies:
             doc_id = policy.id or str(uuid.uuid4())
+            created_at = policy.created_at or _now_iso()
+            updated_at = policy.updated_at or _now_iso()
             payload = {
                 "id": doc_id,
-                "org_id": None,
-                "site_id": None,
-                "stream_id": None,
-                "status": "active",
-                "created_at": _now_iso(),
-                "updated_at": _now_iso(),
+                "org_id": policy.org_id,
+                "site_id": policy.site_id,
+                "stream_id": policy.stream_id,
+                "status": policy.status,
+                "created_at": created_at,
+                "updated_at": updated_at,
                 "effect": policy.effect,
                 "conditions": dict(policy.conditions),
+                "description": policy.description,
             }
             records.append((collection.document(doc_id), payload))
         record_ids = {ref.id for ref, _ in records}
@@ -218,6 +228,7 @@ class FirestorePrivacyStore(FirestoreStoreBase, PrivacyStore):
         contexts: Iterable[str] | None = None,
         redaction_types: Iterable[str] | None = None,
         enabled: bool = True,
+        status: str = "active",
     ) -> PrivacyPolicy:
         now = _now_iso()
         policy = PrivacyPolicy(
@@ -232,6 +243,7 @@ class FirestorePrivacyStore(FirestoreStoreBase, PrivacyStore):
             enabled=enabled,
             created_at=now,
             updated_at=now,
+            status=status,
         )
         self._collection(self._collection_name).document(policy.id).set(
             asdict(policy)
@@ -370,6 +382,7 @@ class FirestoreWorkflowStore(FirestoreStoreBase, WorkflowStore):
         schedule: str | None = None,
         enabled: bool = True,
         steps: Iterable[WorkflowStep] | None = None,
+        status: str = "active",
     ) -> WorkflowSpec:
         now = _now_iso()
         workflow = WorkflowSpec(
@@ -384,6 +397,7 @@ class FirestoreWorkflowStore(FirestoreStoreBase, WorkflowStore):
             steps=tuple(steps) if steps else (),
             created_at=now,
             updated_at=now,
+            status=status,
         )
         self._collection(self._collection_name).document(workflow.id).set(
             asdict(workflow)
@@ -420,8 +434,18 @@ class FirestoreWorkflowStore(FirestoreStoreBase, WorkflowStore):
         error: str | None = None,
         output: dict[str, object] | None = None,
         triggered_by: str | None = None,
+        org_id: str | None = None,
+        site_id: str | None = None,
+        stream_id: str | None = None,
     ) -> WorkflowRun:
         now = _now_iso()
+        if org_id is None and site_id is None and stream_id is None:
+            doc = self._collection(self._collection_name).document(workflow_id).get()
+            if doc.exists:
+                workflow = workflow_store._workflow_from_dict(self._doc_payload(doc))
+                org_id = workflow.org_id
+                site_id = workflow.site_id
+                stream_id = workflow.stream_id
         run = WorkflowRun(
             id=str(uuid.uuid4()),
             workflow_id=workflow_id,
@@ -431,6 +455,11 @@ class FirestoreWorkflowStore(FirestoreStoreBase, WorkflowStore):
             error=error,
             output=output,
             triggered_by=triggered_by,
+            org_id=org_id,
+            site_id=site_id,
+            stream_id=stream_id,
+            created_at=now,
+            updated_at=now,
         )
         self._collection(self._run_collection_name).document(run.id).set(asdict(run))
         return run
@@ -446,15 +475,26 @@ class FirestoreWorkflowStore(FirestoreStoreBase, WorkflowStore):
         limit: int | None = None,
     ) -> list[WorkflowRun]:
         query = self._collection(self._run_collection_name)
+        org_id: str | None = None
         if workflow_id:
-            query = query.where("workflow_id", "==", workflow_id)
-        query = query.order_by("started_at", direction=firestore.Query.DESCENDING)
+            doc = self._collection(self._collection_name).document(workflow_id).get()
+            if doc.exists:
+                workflow = workflow_store._workflow_from_dict(self._doc_payload(doc))
+                org_id = workflow.org_id
+        if org_id:
+            query = query.where("org_id", "==", org_id)
+        query = query.order_by("created_at", direction=firestore.Query.DESCENDING)
         if limit is not None:
             query = query.limit(limit)
-        return [
+        runs = [
             workflow_store._run_from_dict(self._doc_payload(doc))
             for doc in query.stream()
         ]
+        if workflow_id:
+            runs = [run for run in runs if run.workflow_id == workflow_id]
+        if limit is not None:
+            runs = runs[:limit]
+        return runs
 
 
 class FirestoreDataFactoryStore(FirestoreStoreBase, DataFactoryStore):
@@ -485,6 +525,10 @@ class FirestoreDataFactoryStore(FirestoreStoreBase, DataFactoryStore):
         framework: str | None = None,
         tags: Iterable[str] | None = None,
         metrics: dict[str, object] | None = None,
+        org_id: str | None = None,
+        site_id: str | None = None,
+        stream_id: str | None = None,
+        status: str = "active",
     ) -> ModelRecord:
         now = _now_iso()
         model = ModelRecord(
@@ -498,6 +542,10 @@ class FirestoreDataFactoryStore(FirestoreStoreBase, DataFactoryStore):
             metrics=metrics,
             created_at=now,
             updated_at=now,
+            org_id=org_id,
+            site_id=site_id,
+            stream_id=stream_id,
+            status=status,
         )
         self._collection(self._model_collection_name).document(model.id).set(
             asdict(model)
@@ -536,6 +584,9 @@ class FirestoreDataFactoryStore(FirestoreStoreBase, DataFactoryStore):
         status: str = "planned",
         output: dict[str, object] | None = None,
         metrics: dict[str, object] | None = None,
+        org_id: str | None = None,
+        site_id: str | None = None,
+        stream_id: str | None = None,
     ) -> TrainingJob:
         job = training.create_training_job(
             dataset_id=dataset_id or "",
@@ -547,6 +598,9 @@ class FirestoreDataFactoryStore(FirestoreStoreBase, DataFactoryStore):
             status=status,
             output=output,
             metrics=metrics,
+            org_id=org_id,
+            site_id=site_id,
+            stream_id=stream_id,
         )
         self._collection(self._job_collection_name).document(job.id).set(asdict(job))
         return job
@@ -683,6 +737,10 @@ class FirestoreConnectorStore(FirestoreStoreBase, ConnectorStore):
         max_pages: int | None = None,
         timeout_s: float | None = None,
         notes: str | None = None,
+        org_id: str | None = None,
+        site_id: str | None = None,
+        stream_id: str | None = None,
+        status: str = "active",
     ) -> OcrConnector:
         now = _now_iso()
         connector = OcrConnector(
@@ -699,6 +757,10 @@ class FirestoreConnectorStore(FirestoreStoreBase, ConnectorStore):
             notes=notes,
             created_at=now,
             updated_at=now,
+            org_id=org_id,
+            site_id=site_id,
+            stream_id=stream_id,
+            status=status,
         )
         ocr_store._validate_connector(connector)
         self._collection(self._collection_name).document(connector.id).set(
@@ -798,3 +860,10 @@ def _coerce_dict(value: object) -> dict[str, object]:
     if not isinstance(value, dict):
         return {}
     return {str(key): item for key, item in value.items()}
+
+
+def _coerce_optional_str(value: object) -> str | None:
+    if value is None:
+        return None
+    text = str(value).strip()
+    return text or None

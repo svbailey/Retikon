@@ -60,6 +60,7 @@ class WorkflowRequest(BaseModel):
     schedule: str | None = None
     enabled: bool = True
     steps: list[WorkflowStepPayload] | None = None
+    status: str | None = None
 
 
 class WorkflowUpdateRequest(BaseModel):
@@ -71,6 +72,7 @@ class WorkflowUpdateRequest(BaseModel):
     schedule: str | None = None
     enabled: bool | None = None
     steps: list[WorkflowStepPayload] | None = None
+    status: str | None = None
 
 
 class WorkflowRunRequest(BaseModel):
@@ -94,6 +96,7 @@ class WorkflowResponse(BaseModel):
     steps: list[WorkflowStepPayload]
     created_at: str
     updated_at: str
+    status: str
 
 
 class WorkflowRunResponse(BaseModel):
@@ -105,6 +108,11 @@ class WorkflowRunResponse(BaseModel):
     error: str | None
     output: dict[str, object] | None
     triggered_by: str | None
+    org_id: str | None = None
+    site_id: str | None = None
+    stream_id: str | None = None
+    created_at: str | None = None
+    updated_at: str | None = None
 
 
 class ScheduleTickResponse(BaseModel):
@@ -171,6 +179,7 @@ def _workflow_response(workflow: WorkflowSpec) -> WorkflowResponse:
         steps=steps,
         created_at=workflow.created_at,
         updated_at=workflow.updated_at,
+        status=workflow.status,
     )
 
 
@@ -184,6 +193,11 @@ def _run_response(run: WorkflowRun) -> WorkflowRunResponse:
         error=run.error,
         output=run.output,
         triggered_by=run.triggered_by,
+        org_id=run.org_id,
+        site_id=run.site_id,
+        stream_id=run.stream_id,
+        created_at=run.created_at or None,
+        updated_at=run.updated_at or None,
     )
 
 
@@ -601,6 +615,7 @@ def _update_run(
     error: str | None = None,
     output: dict[str, object] | None = None,
 ) -> WorkflowRun:
+    now = _now_iso()
     updated = WorkflowRun(
         id=run.id,
         workflow_id=run.workflow_id,
@@ -610,6 +625,11 @@ def _update_run(
         error=error if error is not None else run.error,
         output=output if output is not None else run.output,
         triggered_by=run.triggered_by,
+        org_id=run.org_id,
+        site_id=run.site_id,
+        stream_id=run.stream_id,
+        created_at=run.created_at,
+        updated_at=now,
     )
     _stores(base_uri).workflows.update_workflow_run(run=updated)
     return updated
@@ -689,6 +709,7 @@ async def create_workflow(
         schedule=payload.schedule,
         enabled=payload.enabled,
         steps=steps,
+        status=payload.status or "active",
     )
     logger.info(
         "Workflow created",
@@ -736,6 +757,7 @@ async def update_workflow_endpoint(
         steps=steps,
         created_at=existing.created_at,
         updated_at=now,
+        status=payload.status if payload.status is not None else existing.status,
     )
     _stores().workflows.update_workflow(workflow=updated)
     return _workflow_response(updated)
@@ -797,6 +819,9 @@ async def schedule_tick(
             workflow_id=workflow.id,
             status="queued",
             triggered_by="schedule",
+            org_id=workflow.org_id,
+            site_id=workflow.site_id,
+            stream_id=workflow.stream_id,
         )
         if _run_mode() == "queue" and _queue_topic():
             _enqueue_run(run=run, workflow=workflow, reason="schedule")
@@ -834,6 +859,9 @@ async def create_run(
         error=payload.error,
         output=payload.output,
         triggered_by=payload.triggered_by,
+        org_id=workflow.org_id,
+        site_id=workflow.site_id,
+        stream_id=workflow.stream_id,
     )
     execute = payload.execute if payload.execute is not None else True
     if execute:

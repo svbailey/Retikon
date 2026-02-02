@@ -22,6 +22,10 @@ class AlertRule:
     enabled: bool
     created_at: str
     updated_at: str
+    org_id: str | None = None
+    site_id: str | None = None
+    stream_id: str | None = None
+    status: str = "active"
 
 
 @dataclass(frozen=True)

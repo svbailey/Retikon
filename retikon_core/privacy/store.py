@@ -59,6 +59,7 @@ def register_privacy_policy(
     contexts: Iterable[str] | None = None,
     redaction_types: Iterable[str] | None = None,
     enabled: bool = True,
+    status: str = "active",
 ) -> PrivacyPolicy:
     now = datetime.now(timezone.utc).isoformat()
     policy = PrivacyPolicy(
@@ -73,6 +74,7 @@ def register_privacy_policy(
         enabled=enabled,
         created_at=now,
         updated_at=now,
+        status=status,
     )
     policies = load_privacy_policies(base_uri)
     policies.append(policy)
@@ -124,6 +126,7 @@ def _policy_from_dict(payload: dict[str, object]) -> PrivacyPolicy:
         enabled=bool(payload.get("enabled", True)),
         created_at=str(payload.get("created_at", "")),
         updated_at=str(payload.get("updated_at", "")),
+        status=str(payload.get("status", "active")),
     )
 
 

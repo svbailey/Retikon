@@ -46,6 +46,7 @@ class PrivacyStore(Protocol):
         contexts: Iterable[str] | None = None,
         redaction_types: Iterable[str] | None = None,
         enabled: bool = True,
+        status: str = "active",
     ) -> PrivacyPolicy:
         ...
 
@@ -106,6 +107,7 @@ class WorkflowStore(Protocol):
         schedule: str | None = None,
         enabled: bool = True,
         steps: Iterable[WorkflowStep] | None = None,
+        status: str = "active",
     ) -> WorkflowSpec:
         ...
 
@@ -128,6 +130,9 @@ class WorkflowStore(Protocol):
         error: str | None = None,
         output: dict[str, object] | None = None,
         triggered_by: str | None = None,
+        org_id: str | None = None,
+        site_id: str | None = None,
+        stream_id: str | None = None,
     ) -> WorkflowRun:
         ...
 
@@ -160,6 +165,10 @@ class DataFactoryStore(Protocol):
         framework: str | None = None,
         tags: Iterable[str] | None = None,
         metrics: dict[str, object] | None = None,
+        org_id: str | None = None,
+        site_id: str | None = None,
+        stream_id: str | None = None,
+        status: str = "active",
     ) -> ModelRecord:
         ...
 
@@ -184,6 +193,9 @@ class DataFactoryStore(Protocol):
         status: str = "planned",
         output: dict[str, object] | None = None,
         metrics: dict[str, object] | None = None,
+        org_id: str | None = None,
+        site_id: str | None = None,
+        stream_id: str | None = None,
     ) -> TrainingJob:
         ...
 
@@ -245,6 +257,10 @@ class ConnectorStore(Protocol):
         max_pages: int | None = None,
         timeout_s: float | None = None,
         notes: str | None = None,
+        org_id: str | None = None,
+        site_id: str | None = None,
+        stream_id: str | None = None,
+        status: str = "active",
     ) -> OcrConnector:
         ...
 

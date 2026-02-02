@@ -27,6 +27,10 @@ class ModelRecord:
     metrics: dict[str, object] | None
     created_at: str
     updated_at: str
+    org_id: str | None = None
+    site_id: str | None = None
+    stream_id: str | None = None
+    status: str = "active"
 
 
 def load_models(base_uri: str) -> list[ModelRecord]:
@@ -68,6 +72,10 @@ def register_model(
     framework: str | None = None,
     tags: Iterable[str] | None = None,
     metrics: dict[str, object] | None = None,
+    org_id: str | None = None,
+    site_id: str | None = None,
+    stream_id: str | None = None,
+    status: str = "active",
 ) -> ModelRecord:
     now = datetime.now(timezone.utc).isoformat()
     model = ModelRecord(
@@ -81,6 +89,10 @@ def register_model(
         metrics=metrics,
         created_at=now,
         updated_at=now,
+        org_id=org_id,
+        site_id=site_id,
+        stream_id=stream_id,
+        status=status,
     )
     models = load_models(base_uri)
     models.append(model)
@@ -125,6 +137,10 @@ def _model_from_dict(payload: dict[str, object]) -> ModelRecord:
         metrics=_coerce_metrics(payload.get("metrics")),
         created_at=str(payload.get("created_at", "")),
         updated_at=str(payload.get("updated_at", "")),
+        org_id=_coerce_optional_str(payload.get("org_id")),
+        site_id=_coerce_optional_str(payload.get("site_id")),
+        stream_id=_coerce_optional_str(payload.get("stream_id")),
+        status=str(payload.get("status", "active")),
     )
 
 

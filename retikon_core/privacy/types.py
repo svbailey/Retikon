@@ -18,6 +18,7 @@ class PrivacyPolicy:
     enabled: bool
     created_at: str
     updated_at: str
+    status: str = "active"
 
 
 @dataclass(frozen=True)

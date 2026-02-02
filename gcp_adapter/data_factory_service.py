@@ -89,6 +89,10 @@ class ModelRequest(BaseModel):
     framework: str | None = None
     tags: list[str] | None = None
     metrics: dict[str, object] | None = None
+    org_id: str | None = None
+    site_id: str | None = None
+    stream_id: str | None = None
+    status: str | None = None
 
 
 class TrainingRequest(BaseModel):
@@ -98,6 +102,9 @@ class TrainingRequest(BaseModel):
     batch_size: int = 16
     learning_rate: float = 1e-4
     labels: list[str] | None = None
+    org_id: str | None = None
+    site_id: str | None = None
+    stream_id: str | None = None
 
     model_config = {"protected_namespaces": ()}
 
@@ -113,6 +120,9 @@ class TrainingJobResponse(BaseModel):
     output: dict[str, object] | None = None
     metrics: dict[str, object] | None = None
     spec: dict[str, object]
+    org_id: str | None = None
+    site_id: str | None = None
+    stream_id: str | None = None
 
 
 class ConnectorResponse(BaseModel):
@@ -141,6 +151,10 @@ class OcrConnectorRequest(BaseModel):
     max_pages: int | None = None
     timeout_s: float | None = None
     notes: str | None = None
+    org_id: str | None = None
+    site_id: str | None = None
+    stream_id: str | None = None
+    status: str | None = None
 
 
 class OcrConnectorResponse(BaseModel):
@@ -157,6 +171,10 @@ class OcrConnectorResponse(BaseModel):
     notes: str | None = None
     created_at: str
     updated_at: str
+    org_id: str | None = None
+    site_id: str | None = None
+    stream_id: str | None = None
+    status: str | None = None
 
 
 class OfficeConversionRequest(BaseModel):
@@ -276,6 +294,9 @@ def _training_job_response(job: TrainingJob) -> TrainingJobResponse:
         output=job.output,
         metrics=job.metrics,
         spec=spec,
+        org_id=job.org_id,
+        site_id=job.site_id,
+        stream_id=job.stream_id,
     )
 
 
@@ -354,6 +375,10 @@ def _ocr_connector_response(item) -> OcrConnectorResponse:
         notes=item.notes,
         created_at=item.created_at,
         updated_at=item.updated_at,
+        org_id=item.org_id,
+        site_id=item.site_id,
+        stream_id=item.stream_id,
+        status=item.status,
     )
 
 
@@ -456,6 +481,10 @@ async def create_model_endpoint(
         framework=payload.framework,
         tags=payload.tags,
         metrics=payload.metrics,
+        org_id=payload.org_id,
+        site_id=payload.site_id,
+        stream_id=payload.stream_id,
+        status=payload.status or "active",
     )
     logger.info(
         "Model registered",
@@ -481,6 +510,9 @@ async def create_training_endpoint(
         batch_size=payload.batch_size,
         learning_rate=payload.learning_rate,
         labels=payload.labels,
+        org_id=payload.org_id,
+        site_id=payload.site_id,
+        stream_id=payload.stream_id,
     )
     if _training_run_mode() == "queue" and _training_queue_topic():
         try:
@@ -587,6 +619,10 @@ async def register_ocr_connector_endpoint(
             max_pages=payload.max_pages,
             timeout_s=payload.timeout_s,
             notes=payload.notes,
+            org_id=payload.org_id,
+            site_id=payload.site_id,
+            stream_id=payload.stream_id,
+            status=payload.status or "active",
         )
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc

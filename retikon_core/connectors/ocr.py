@@ -29,6 +29,10 @@ class OcrConnector:
     notes: str | None
     created_at: str
     updated_at: str
+    org_id: str | None = None
+    site_id: str | None = None
+    stream_id: str | None = None
+    status: str = "active"
 
 
 def ocr_connectors_uri(base_uri: str) -> str:
@@ -80,6 +84,10 @@ def register_ocr_connector(
     max_pages: int | None = None,
     timeout_s: float | None = None,
     notes: str | None = None,
+    org_id: str | None = None,
+    site_id: str | None = None,
+    stream_id: str | None = None,
+    status: str = "active",
 ) -> OcrConnector:
     now = datetime.now(timezone.utc).isoformat()
     connector = OcrConnector(
@@ -96,6 +104,10 @@ def register_ocr_connector(
         notes=_normalize_optional_str(notes),
         created_at=now,
         updated_at=now,
+        org_id=org_id,
+        site_id=site_id,
+        stream_id=stream_id,
+        status=status,
     )
     _validate_connector(connector)
     connectors = load_ocr_connectors(base_uri)
@@ -160,6 +172,10 @@ def _unset_default(connector: OcrConnector) -> OcrConnector:
         notes=connector.notes,
         created_at=connector.created_at,
         updated_at=connector.updated_at,
+        org_id=connector.org_id,
+        site_id=connector.site_id,
+        stream_id=connector.stream_id,
+        status=connector.status,
     )
 
 
@@ -201,6 +217,10 @@ def _connector_from_dict(payload: dict[str, object]) -> OcrConnector:
         notes=_coerce_optional_str(payload.get("notes")),
         created_at=str(payload.get("created_at", "")),
         updated_at=str(payload.get("updated_at", "")),
+        org_id=_coerce_optional_str(payload.get("org_id")),
+        site_id=_coerce_optional_str(payload.get("site_id")),
+        stream_id=_coerce_optional_str(payload.get("stream_id")),
+        status=str(payload.get("status", "active")),
     )
 
 

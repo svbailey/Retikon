@@ -63,6 +63,7 @@ class ChaosPolicyRequest(BaseModel):
     max_duration_minutes: int | None = None
     max_percent_impact: int | None = None
     steps: list[ChaosStepPayload] | None = None
+    status: str | None = None
 
 
 class ChaosPolicyUpdateRequest(BaseModel):
@@ -76,6 +77,7 @@ class ChaosPolicyUpdateRequest(BaseModel):
     max_duration_minutes: int | None = None
     max_percent_impact: int | None = None
     steps: list[ChaosStepPayload] | None = None
+    status: str | None = None
 
 
 class ChaosRunRequest(BaseModel):
@@ -100,6 +102,7 @@ class ChaosPolicyResponse(BaseModel):
     steps: list[ChaosStepPayload]
     created_at: str
     updated_at: str
+    status: str
 
 
 class ChaosRunResponse(BaseModel):
@@ -111,6 +114,11 @@ class ChaosRunResponse(BaseModel):
     error: str | None
     summary: dict[str, object] | None
     triggered_by: str | None
+    org_id: str | None = None
+    site_id: str | None = None
+    stream_id: str | None = None
+    created_at: str | None = None
+    updated_at: str | None = None
 
 
 def _require_admin() -> bool:
@@ -171,6 +179,7 @@ def _policy_response(policy: ChaosPolicy) -> ChaosPolicyResponse:
         steps=steps,
         created_at=policy.created_at,
         updated_at=policy.updated_at,
+        status=policy.status,
     )
 
 
@@ -184,6 +193,11 @@ def _run_response(run: ChaosRun) -> ChaosRunResponse:
         error=run.error,
         summary=run.summary,
         triggered_by=run.triggered_by,
+        org_id=run.org_id,
+        site_id=run.site_id,
+        stream_id=run.stream_id,
+        created_at=run.created_at or None,
+        updated_at=run.updated_at or None,
     )
 
 
@@ -222,6 +236,7 @@ async def create_policy(
         max_duration_minutes=payload.max_duration_minutes,
         max_percent_impact=payload.max_percent_impact,
         steps=steps,
+        status=payload.status or "active",
     )
     logger.info(
         "Chaos policy created",
@@ -275,6 +290,7 @@ async def update_policy(
         steps=steps,
         created_at=existing.created_at,
         updated_at=now,
+        status=payload.status if payload.status is not None else existing.status,
     )
     update_chaos_policy(base_uri=_get_config().graph_root_uri(), policy=updated)
     return _policy_response(updated)

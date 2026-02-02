@@ -60,6 +60,7 @@ def register_workflow(
     schedule: str | None = None,
     enabled: bool = True,
     steps: Iterable[WorkflowStep] | None = None,
+    status: str = "active",
 ) -> WorkflowSpec:
     now = datetime.now(timezone.utc).isoformat()
     workflow = WorkflowSpec(
@@ -74,6 +75,7 @@ def register_workflow(
         steps=tuple(steps) if steps else (),
         created_at=now,
         updated_at=now,
+        status=status,
     )
     workflows = load_workflows(base_uri)
     workflows.append(workflow)
@@ -132,8 +134,17 @@ def register_workflow_run(
     error: str | None = None,
     output: dict[str, object] | None = None,
     triggered_by: str | None = None,
+    org_id: str | None = None,
+    site_id: str | None = None,
+    stream_id: str | None = None,
 ) -> WorkflowRun:
     now = datetime.now(timezone.utc).isoformat()
+    if org_id is None and site_id is None and stream_id is None:
+        existing = _find_workflow(base_uri, workflow_id)
+        if existing is not None:
+            org_id = existing.org_id
+            site_id = existing.site_id
+            stream_id = existing.stream_id
     run = WorkflowRun(
         id=str(uuid.uuid4()),
         workflow_id=workflow_id,
@@ -143,11 +154,21 @@ def register_workflow_run(
         error=error,
         output=output,
         triggered_by=triggered_by,
+        org_id=org_id,
+        site_id=site_id,
+        stream_id=stream_id,
+        created_at=now,
+        updated_at=now,
     )
     runs = load_workflow_runs(base_uri)
     runs.append(run)
     save_workflow_runs(base_uri, runs)
     return run
+
+
+def _find_workflow(base_uri: str, workflow_id: str) -> WorkflowSpec | None:
+    workflows = load_workflows(base_uri)
+    return next((workflow for workflow in workflows if workflow.id == workflow_id), None)
 
 
 def update_workflow_run(*, base_uri: str, run: WorkflowRun) -> WorkflowRun:
@@ -194,6 +215,7 @@ def _workflow_from_dict(payload: dict[str, object]) -> WorkflowSpec:
         steps=steps,
         created_at=str(payload.get("created_at", "")),
         updated_at=str(payload.get("updated_at", "")),
+        status=str(payload.get("status", "active")),
     )
 
 
@@ -207,6 +229,11 @@ def _run_from_dict(payload: dict[str, object]) -> WorkflowRun:
         error=_coerce_optional_str(payload.get("error")),
         output=_coerce_dict(payload.get("output")),
         triggered_by=_coerce_optional_str(payload.get("triggered_by")),
+        org_id=_coerce_optional_str(payload.get("org_id")),
+        site_id=_coerce_optional_str(payload.get("site_id")),
+        stream_id=_coerce_optional_str(payload.get("stream_id")),
+        created_at=str(payload.get("created_at", "")),
+        updated_at=str(payload.get("updated_at", "")),
     )
 
 

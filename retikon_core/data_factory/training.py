@@ -34,6 +34,9 @@ class TrainingJob:
     error: str | None
     output: dict[str, object] | None
     metrics: dict[str, object] | None
+    org_id: str | None = None
+    site_id: str | None = None
+    stream_id: str | None = None
 
 
 @dataclass(frozen=True)
@@ -95,6 +98,9 @@ def create_training_job(
     error: str | None = None,
     output: dict[str, object] | None = None,
     metrics: dict[str, object] | None = None,
+    org_id: str | None = None,
+    site_id: str | None = None,
+    stream_id: str | None = None,
 ) -> TrainingJob:
     now = datetime.now(timezone.utc).isoformat()
     spec = TrainingSpec(
@@ -116,6 +122,9 @@ def create_training_job(
         error=error,
         output=output,
         metrics=metrics,
+        org_id=org_id,
+        site_id=site_id,
+        stream_id=stream_id,
     )
 
 
@@ -129,6 +138,9 @@ def register_training_job(
     learning_rate: float = 1e-4,
     labels: Iterable[str] | None = None,
     status: str = "queued",
+    org_id: str | None = None,
+    site_id: str | None = None,
+    stream_id: str | None = None,
 ) -> TrainingJob:
     job = create_training_job(
         dataset_id=dataset_id,
@@ -138,6 +150,9 @@ def register_training_job(
         learning_rate=learning_rate,
         labels=labels,
         status=status,
+        org_id=org_id,
+        site_id=site_id,
+        stream_id=stream_id,
     )
     jobs = load_training_jobs(base_uri)
     jobs.append(job)
@@ -306,6 +321,9 @@ def _job_from_dict(payload: dict[str, object]) -> TrainingJob:
         error=_coerce_optional_str(payload.get("error")),
         output=_coerce_dict(payload.get("output")),
         metrics=_coerce_dict(payload.get("metrics")),
+        org_id=_coerce_optional_str(payload.get("org_id")),
+        site_id=_coerce_optional_str(payload.get("site_id")),
+        stream_id=_coerce_optional_str(payload.get("stream_id")),
     )
 
 
@@ -359,18 +377,22 @@ def _coerce_float(value: Any) -> float:
 
 def _update_training_job(
     *,
-    base_uri: str,
-    job_id: str,
     status: str,
+    base_uri: str | None = None,
+    job_id: str | None = None,
+    job: TrainingJob | None = None,
     started_at: str | None = None,
     finished_at: str | None = None,
     error: str | None = None,
     output: dict[str, object] | None = None,
     metrics: dict[str, object] | None = None,
 ) -> TrainingJob:
-    job = get_training_job(base_uri, job_id)
     if job is None:
-        raise ValueError("Training job not found")
+        if base_uri is None or job_id is None:
+            raise ValueError("Training job reference is required")
+        job = get_training_job(base_uri, job_id)
+        if job is None:
+            raise ValueError("Training job not found")
     now = _now_iso()
     updated = TrainingJob(
         id=job.id,
@@ -383,7 +405,12 @@ def _update_training_job(
         error=error if error is not None else job.error,
         output=output if output is not None else job.output,
         metrics=metrics if metrics is not None else job.metrics,
+        org_id=job.org_id,
+        site_id=job.site_id,
+        stream_id=job.stream_id,
     )
+    if base_uri is None:
+        return updated
     return update_training_job(base_uri=base_uri, job=updated)
 
 

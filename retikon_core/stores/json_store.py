@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import os
+import uuid
 from datetime import datetime, timezone
 from typing import Iterable
 
@@ -47,10 +48,23 @@ class JsonRbacStore(RbacStore):
         uri = self._bindings_uri()
         fs, path = fsspec.core.url_to_fs(uri)
         fs.makedirs("/".join(path.split("/")[:-1]), exist_ok=True)
+        now = datetime.now(timezone.utc).isoformat()
         payload = {
-            "updated_at": datetime.now(timezone.utc).isoformat(),
+            "updated_at": now,
             "bindings": [
-                {"api_key_id": key, "roles": list(roles)}
+                {
+                    "id": key or str(uuid.uuid4()),
+                    "org_id": None,
+                    "site_id": None,
+                    "stream_id": None,
+                    "status": "active",
+                    "created_at": now,
+                    "updated_at": now,
+                    "principal_type": "api_key",
+                    "principal_id": key,
+                    "api_key_id": key,
+                    "roles": list(roles),
+                }
                 for key, roles in bindings.items()
             ],
         }
@@ -76,13 +90,21 @@ class JsonAbacStore(AbacStore):
         uri = self._policies_uri()
         fs, path = fsspec.core.url_to_fs(uri)
         fs.makedirs("/".join(path.split("/")[:-1]), exist_ok=True)
+        now = datetime.now(timezone.utc).isoformat()
         payload = {
-            "updated_at": datetime.now(timezone.utc).isoformat(),
+            "updated_at": now,
             "policies": [
                 {
                     "id": policy.id,
+                    "org_id": policy.org_id,
+                    "site_id": policy.site_id,
+                    "stream_id": policy.stream_id,
+                    "status": policy.status,
+                    "created_at": policy.created_at or now,
+                    "updated_at": policy.updated_at or now,
                     "effect": policy.effect,
                     "conditions": policy.conditions,
+                    "description": policy.description,
                 }
                 for policy in policies
             ],
@@ -119,6 +141,7 @@ class JsonPrivacyStore(PrivacyStore):
         contexts: Iterable[str] | None = None,
         redaction_types: Iterable[str] | None = None,
         enabled: bool = True,
+        status: str = "active",
     ) -> PrivacyPolicy:
         return privacy_store.register_privacy_policy(
             base_uri=self._base_uri,
@@ -130,6 +153,7 @@ class JsonPrivacyStore(PrivacyStore):
             contexts=contexts,
             redaction_types=redaction_types,
             enabled=enabled,
+            status=status,
         )
 
     def update_policy(self, *, policy: PrivacyPolicy) -> PrivacyPolicy:
@@ -214,6 +238,7 @@ class JsonWorkflowStore(WorkflowStore):
         schedule: str | None = None,
         enabled: bool = True,
         steps: Iterable[WorkflowStep] | None = None,
+        status: str = "active",
     ) -> WorkflowSpec:
         return workflow_store.register_workflow(
             base_uri=self._base_uri,
@@ -225,6 +250,7 @@ class JsonWorkflowStore(WorkflowStore):
             schedule=schedule,
             enabled=enabled,
             steps=steps,
+            status=status,
         )
 
     def update_workflow(self, *, workflow: WorkflowSpec) -> WorkflowSpec:
@@ -249,6 +275,9 @@ class JsonWorkflowStore(WorkflowStore):
         error: str | None = None,
         output: dict[str, object] | None = None,
         triggered_by: str | None = None,
+        org_id: str | None = None,
+        site_id: str | None = None,
+        stream_id: str | None = None,
     ) -> WorkflowRun:
         return workflow_store.register_workflow_run(
             base_uri=self._base_uri,
@@ -259,6 +288,9 @@ class JsonWorkflowStore(WorkflowStore):
             error=error,
             output=output,
             triggered_by=triggered_by,
+            org_id=org_id,
+            site_id=site_id,
+            stream_id=stream_id,
         )
 
     def update_workflow_run(self, *, run: WorkflowRun) -> WorkflowRun:
@@ -297,6 +329,10 @@ class JsonDataFactoryStore(DataFactoryStore):
         framework: str | None = None,
         tags: Iterable[str] | None = None,
         metrics: dict[str, object] | None = None,
+        org_id: str | None = None,
+        site_id: str | None = None,
+        stream_id: str | None = None,
+        status: str = "active",
     ) -> ModelRecord:
         return model_registry.register_model(
             base_uri=self._base_uri,
@@ -307,6 +343,10 @@ class JsonDataFactoryStore(DataFactoryStore):
             framework=framework,
             tags=tags,
             metrics=metrics,
+            org_id=org_id,
+            site_id=site_id,
+            stream_id=stream_id,
+            status=status,
         )
 
     def update_model(self, model: ModelRecord) -> ModelRecord:
@@ -330,6 +370,9 @@ class JsonDataFactoryStore(DataFactoryStore):
         status: str = "planned",
         output: dict[str, object] | None = None,
         metrics: dict[str, object] | None = None,
+        org_id: str | None = None,
+        site_id: str | None = None,
+        stream_id: str | None = None,
     ) -> TrainingJob:
         return training.register_training_job(
             base_uri=self._base_uri,
@@ -342,6 +385,9 @@ class JsonDataFactoryStore(DataFactoryStore):
             status=status,
             output=output,
             metrics=metrics,
+            org_id=org_id,
+            site_id=site_id,
+            stream_id=stream_id,
         )
 
     def update_training_job(self, *, job: TrainingJob) -> TrainingJob:
@@ -424,6 +470,10 @@ class JsonConnectorStore(ConnectorStore):
         max_pages: int | None = None,
         timeout_s: float | None = None,
         notes: str | None = None,
+        org_id: str | None = None,
+        site_id: str | None = None,
+        stream_id: str | None = None,
+        status: str = "active",
     ) -> OcrConnector:
         return ocr_store.register_ocr_connector(
             base_uri=self._base_uri,
@@ -437,6 +487,10 @@ class JsonConnectorStore(ConnectorStore):
             max_pages=max_pages,
             timeout_s=timeout_s,
             notes=notes,
+            org_id=org_id,
+            site_id=site_id,
+            stream_id=stream_id,
+            status=status,
         )
 
     def update_ocr_connector(self, *, connector: OcrConnector) -> OcrConnector:

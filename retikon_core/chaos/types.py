@@ -30,6 +30,7 @@ class ChaosPolicy:
     steps: tuple[ChaosStep, ...]
     created_at: str
     updated_at: str
+    status: str = "active"
 
 
 @dataclass(frozen=True)
@@ -42,3 +43,8 @@ class ChaosRun:
     error: str | None
     summary: dict[str, object] | None
     triggered_by: str | None
+    org_id: str | None = None
+    site_id: str | None = None
+    stream_id: str | None = None
+    created_at: str = ""
+    updated_at: str = ""

@@ -92,6 +92,7 @@ def register_chaos_policy(
     max_duration_minutes: int | None = None,
     max_percent_impact: int | None = None,
     steps: Iterable[ChaosStep] | None = None,
+    status: str = "active",
 ) -> ChaosPolicy:
     now = datetime.now(timezone.utc).isoformat()
     policy = ChaosPolicy(
@@ -108,6 +109,7 @@ def register_chaos_policy(
         steps=tuple(steps) if steps else (),
         created_at=now,
         updated_at=now,
+        status=status,
     )
     _validate_policy(policy)
     policies = load_chaos_policies(base_uri)
@@ -168,6 +170,9 @@ def register_chaos_run(
     error: str | None = None,
     summary: dict[str, object] | None = None,
     triggered_by: str | None = None,
+    org_id: str | None = None,
+    site_id: str | None = None,
+    stream_id: str | None = None,
 ) -> ChaosRun:
     now = datetime.now(timezone.utc).isoformat()
     run = ChaosRun(
@@ -179,6 +184,11 @@ def register_chaos_run(
         error=error,
         summary=summary,
         triggered_by=triggered_by,
+        org_id=org_id,
+        site_id=site_id,
+        stream_id=stream_id,
+        created_at=now,
+        updated_at=now,
     )
     runs = load_chaos_runs(base_uri)
     runs.append(run)
@@ -276,6 +286,7 @@ def _policy_from_dict(payload: dict[str, object]) -> ChaosPolicy:
         steps=_normalize_steps(payload.get("steps")),
         created_at=str(payload.get("created_at", "")),
         updated_at=str(payload.get("updated_at", "")),
+        status=str(payload.get("status", "active")),
     )
 
 
@@ -289,6 +300,11 @@ def _run_from_dict(payload: dict[str, object]) -> ChaosRun:
         error=_coerce_optional_str(payload.get("error")),
         summary=_coerce_dict(payload.get("summary")),
         triggered_by=_coerce_optional_str(payload.get("triggered_by")),
+        org_id=_coerce_optional_str(payload.get("org_id")),
+        site_id=_coerce_optional_str(payload.get("site_id")),
+        stream_id=_coerce_optional_str(payload.get("stream_id")),
+        created_at=str(payload.get("created_at", "")),
+        updated_at=str(payload.get("updated_at", "")),
     )
 
 

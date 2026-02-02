@@ -26,6 +26,7 @@ class WorkflowSpec:
     steps: tuple[WorkflowStep, ...]
     created_at: str
     updated_at: str
+    status: str = "active"
 
 
 @dataclass(frozen=True)
@@ -38,3 +39,8 @@ class WorkflowRun:
     error: str | None
     output: dict[str, object] | None
     triggered_by: str | None
+    org_id: str | None = None
+    site_id: str | None = None
+    stream_id: str | None = None
+    created_at: str = ""
+    updated_at: str = ""

@@ -23,6 +23,13 @@ class Policy:
     id: str
     effect: str
     conditions: dict[str, Any]
+    org_id: str | None = None
+    site_id: str | None = None
+    stream_id: str | None = None
+    status: str = "active"
+    created_at: str = ""
+    updated_at: str = ""
+    description: str | None = None
 
 
 def load_policies(base_uri: str) -> list[Policy]:
@@ -42,6 +49,13 @@ def load_policies(base_uri: str) -> list[Policy]:
                 id=str(item.get("id", "")),
                 effect=str(item.get("effect", "allow")),
                 conditions=_coerce_dict(item.get("conditions")),
+                org_id=_coerce_optional_str(item.get("org_id")),
+                site_id=_coerce_optional_str(item.get("site_id")),
+                stream_id=_coerce_optional_str(item.get("stream_id")),
+                status=str(item.get("status", "active")),
+                created_at=str(item.get("created_at", "")),
+                updated_at=str(item.get("updated_at", "")),
+                description=_coerce_optional_str(item.get("description")),
             )
         )
     return results
@@ -128,3 +142,10 @@ def _coerce_dict(value: object) -> dict[str, Any]:
     if not isinstance(value, dict):
         return {}
     return {str(key): item for key, item in value.items()}
+
+
+def _coerce_optional_str(value: object) -> str | None:
+    if value is None:
+        return None
+    text = str(value).strip()
+    return text or None

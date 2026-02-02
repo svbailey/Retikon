@@ -55,6 +55,10 @@ def register_alert(
     tags: Iterable[str] | None,
     destinations: Iterable[AlertDestination],
     enabled: bool,
+    org_id: str | None = None,
+    site_id: str | None = None,
+    stream_id: str | None = None,
+    status: str = "active",
 ) -> AlertRule:
     now = datetime.now(timezone.utc).isoformat()
     rule = AlertRule(
@@ -68,6 +72,10 @@ def register_alert(
         enabled=enabled,
         created_at=now,
         updated_at=now,
+        org_id=org_id,
+        site_id=site_id,
+        stream_id=stream_id,
+        status=status,
     )
     rules = load_alerts(base_uri)
     rules.append(rule)
@@ -113,6 +121,10 @@ def _rule_from_dict(payload: dict[str, object]) -> AlertRule:
         enabled=bool(payload.get("enabled", True)),
         created_at=str(payload.get("created_at", "")),
         updated_at=str(payload.get("updated_at", "")),
+        org_id=_coerce_optional_str(payload.get("org_id")),
+        site_id=_coerce_optional_str(payload.get("site_id")),
+        stream_id=_coerce_optional_str(payload.get("stream_id")),
+        status=str(payload.get("status", "active")),
     )
 
 
@@ -142,6 +154,13 @@ def _coerce_iterable(value: object) -> Iterable[object] | None:
     if isinstance(value, (list, tuple, set)):
         return value
     return None
+
+
+def _coerce_optional_str(value: object) -> str | None:
+    if value is None:
+        return None
+    text = str(value).strip()
+    return text or None
 
 
 def _coerce_float(value: object) -> float | None:

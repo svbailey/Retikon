@@ -55,6 +55,10 @@ def register_webhook(
     enabled: bool,
     headers: dict[str, str] | None = None,
     timeout_s: float | None = None,
+    org_id: str | None = None,
+    site_id: str | None = None,
+    stream_id: str | None = None,
+    status: str = "active",
 ) -> WebhookRegistration:
     now = datetime.now(timezone.utc).isoformat()
     registration = WebhookRegistration(
@@ -66,6 +70,10 @@ def register_webhook(
         enabled=enabled,
         created_at=now,
         updated_at=now,
+        org_id=org_id,
+        site_id=site_id,
+        stream_id=stream_id,
+        status=status,
         headers=headers,
         timeout_s=timeout_s,
     )
@@ -113,6 +121,10 @@ def _webhook_from_dict(payload: dict[str, object]) -> WebhookRegistration:
         enabled=bool(payload.get("enabled", True)),
         created_at=str(payload.get("created_at", "")),
         updated_at=str(payload.get("updated_at", "")),
+        org_id=_coerce_optional_str(payload.get("org_id")),
+        site_id=_coerce_optional_str(payload.get("site_id")),
+        stream_id=_coerce_optional_str(payload.get("stream_id")),
+        status=str(payload.get("status", "active")),
         headers=_coerce_headers(payload.get("headers")),
         timeout_s=_coerce_float(payload.get("timeout_s")),
     )

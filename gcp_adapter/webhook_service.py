@@ -52,6 +52,10 @@ class WebhookCreateRequest(BaseModel):
     enabled: bool = True
     headers: dict[str, str] | None = None
     timeout_s: float | None = None
+    org_id: str | None = None
+    site_id: str | None = None
+    stream_id: str | None = None
+    status: str | None = None
 
 
 class WebhookResponse(BaseModel):
@@ -64,6 +68,10 @@ class WebhookResponse(BaseModel):
     updated_at: str
     headers: dict[str, str] | None = None
     timeout_s: float | None = None
+    org_id: str | None = None
+    site_id: str | None = None
+    stream_id: str | None = None
+    status: str | None = None
 
 
 class AlertDestinationRequest(BaseModel):
@@ -80,6 +88,10 @@ class AlertCreateRequest(BaseModel):
     tags: list[str] | None = None
     destinations: list[AlertDestinationRequest] = Field(default_factory=list)
     enabled: bool = True
+    org_id: str | None = None
+    site_id: str | None = None
+    stream_id: str | None = None
+    status: str | None = None
 
 
 class AlertResponse(BaseModel):
@@ -93,6 +105,10 @@ class AlertResponse(BaseModel):
     enabled: bool
     created_at: str
     updated_at: str
+    org_id: str | None = None
+    site_id: str | None = None
+    stream_id: str | None = None
+    status: str | None = None
 
 
 class EventRequest(BaseModel):
@@ -154,6 +170,10 @@ async def create_webhook(
         enabled=payload.enabled,
         headers=payload.headers,
         timeout_s=payload.timeout_s,
+        org_id=payload.org_id,
+        site_id=payload.site_id,
+        stream_id=payload.stream_id,
+        status=payload.status or "active",
     )
     logger.info(
         "Webhook registered",
@@ -195,6 +215,10 @@ async def create_alert(request: Request, payload: AlertCreateRequest) -> AlertRe
         tags=payload.tags,
         destinations=destinations,
         enabled=payload.enabled,
+        org_id=payload.org_id,
+        site_id=payload.site_id,
+        stream_id=payload.stream_id,
+        status=payload.status or "active",
     )
     logger.info(
         "Alert rule registered",
@@ -314,6 +338,10 @@ def _webhook_response(webhook: WebhookRegistration) -> WebhookResponse:
         updated_at=webhook.updated_at,
         headers=webhook.headers,
         timeout_s=webhook.timeout_s,
+        org_id=webhook.org_id,
+        site_id=webhook.site_id,
+        stream_id=webhook.stream_id,
+        status=webhook.status,
     )
 
 
@@ -336,6 +364,10 @@ def _alert_response(rule: AlertRule) -> AlertResponse:
         enabled=rule.enabled,
         created_at=rule.created_at,
         updated_at=rule.updated_at,
+        org_id=rule.org_id,
+        site_id=rule.site_id,
+        stream_id=rule.stream_id,
+        status=rule.status,
     )
 
 

@@ -39,6 +39,7 @@ class PrivacyPolicyRequest(BaseModel):
     contexts: list[str] | None = None
     redaction_types: list[str] | None = None
     enabled: bool = True
+    status: str | None = None
 
 
 class PrivacyPolicyUpdateRequest(BaseModel):
@@ -50,6 +51,7 @@ class PrivacyPolicyUpdateRequest(BaseModel):
     contexts: list[str] | None = None
     redaction_types: list[str] | None = None
     enabled: bool | None = None
+    status: str | None = None
 
 
 class PrivacyPolicyResponse(BaseModel):
@@ -64,6 +66,7 @@ class PrivacyPolicyResponse(BaseModel):
     enabled: bool
     created_at: str
     updated_at: str
+    status: str
 
 
 def _require_admin() -> bool:
@@ -102,6 +105,7 @@ def _policy_response(policy: PrivacyPolicy) -> PrivacyPolicyResponse:
         enabled=policy.enabled,
         created_at=policy.created_at,
         updated_at=policy.updated_at,
+        status=policy.status,
     )
 
 
@@ -149,6 +153,7 @@ async def create_policy(
         contexts=payload.contexts,
         redaction_types=payload.redaction_types,
         enabled=payload.enabled,
+        status=payload.status or "active",
     )
     logger.info(
         "Privacy policy created",
@@ -193,6 +198,7 @@ async def update_policy(
         enabled=payload.enabled if payload.enabled is not None else existing.enabled,
         created_at=existing.created_at,
         updated_at=datetime.now(timezone.utc).isoformat(),
+        status=payload.status if payload.status is not None else existing.status,
     )
     _stores().privacy.update_policy(policy=updated)
     return _policy_response(updated)

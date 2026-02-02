@@ -47,7 +47,7 @@ def load_role_bindings(base_uri: str) -> dict[str, list[str]]:
     for item in items:
         if not isinstance(item, dict):
             continue
-        api_key_id = str(item.get("api_key_id", ""))
+        api_key_id = str(item.get("principal_id") or item.get("api_key_id") or "")
         roles = item.get("roles", [])
         if not api_key_id or not isinstance(roles, list):
             continue

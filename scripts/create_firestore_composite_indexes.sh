@@ -2,6 +2,7 @@
 set -euo pipefail
 
 PROJECT_ID="${PROJECT_ID:-simitor}"
+COLLECTION_PREFIX="${COLLECTION_PREFIX:-}"
 
 create_index() {
   local collection="$1"
@@ -41,60 +42,61 @@ collections=(
 
 # Base indexes for every collection.
 for collection in "${collections[@]}"; do
-  create_index "${collection}" \
+  collection_name="${COLLECTION_PREFIX}${collection}"
+  create_index "${collection_name}" \
     --field-config=field-path=org_id,order=ascending \
     --field-config=field-path=created_at,order=descending
-  create_index "${collection}" \
+  create_index "${collection_name}" \
     --field-config=field-path=org_id,order=ascending \
     --field-config=field-path=status,order=ascending
 done
 
 # Additional indexes by collection.
-create_index workflow_runs \
+create_index "${COLLECTION_PREFIX}workflow_runs" \
   --field-config=field-path=org_id,order=ascending \
   --field-config=field-path=workflow_id,order=ascending \
   --field-config=field-path=created_at,order=descending
-create_index workflow_runs \
+create_index "${COLLECTION_PREFIX}workflow_runs" \
   --field-config=field-path=org_id,order=ascending \
   --field-config=field-path=status,order=ascending \
   --field-config=field-path=created_at,order=descending
 
-create_index chaos_runs \
+create_index "${COLLECTION_PREFIX}chaos_runs" \
   --field-config=field-path=org_id,order=ascending \
   --field-config=field-path=policy_id,order=ascending \
   --field-config=field-path=created_at,order=descending
-create_index chaos_runs \
+create_index "${COLLECTION_PREFIX}chaos_runs" \
   --field-config=field-path=org_id,order=ascending \
   --field-config=field-path=status,order=ascending \
   --field-config=field-path=created_at,order=descending
 
-create_index data_factory_training_jobs \
+create_index "${COLLECTION_PREFIX}data_factory_training_jobs" \
   --field-config=field-path=org_id,order=ascending \
   --field-config=field-path=status,order=ascending \
   --field-config=field-path=created_at,order=descending
-create_index data_factory_training_jobs \
+create_index "${COLLECTION_PREFIX}data_factory_training_jobs" \
   --field-config=field-path=org_id,order=ascending \
   --field-config=field-path=model_id,order=ascending \
   --field-config=field-path=created_at,order=descending
 
-create_index fleet_devices \
+create_index "${COLLECTION_PREFIX}fleet_devices" \
   --field-config=field-path=org_id,order=ascending \
   --field-config=field-path=status,order=ascending \
   --field-config=field-path=updated_at,order=descending
-create_index fleet_devices \
+create_index "${COLLECTION_PREFIX}fleet_devices" \
   --field-config=field-path=org_id,order=ascending \
   --field-config=field-path=last_seen_at,order=descending
 
-create_index webhook_registrations \
+create_index "${COLLECTION_PREFIX}webhook_registrations" \
   --field-config=field-path=org_id,order=ascending \
   --field-config=field-path=status,order=ascending \
   --field-config=field-path=created_at,order=descending
 
-create_index ocr_connectors \
+create_index "${COLLECTION_PREFIX}ocr_connectors" \
   --field-config=field-path=org_id,order=ascending \
   --field-config=field-path=enabled,order=ascending
 
-create_index rbac_bindings \
+create_index "${COLLECTION_PREFIX}rbac_bindings" \
   --field-config=field-path=org_id,order=ascending \
   --field-config=field-path=principal_id,order=ascending
 
