@@ -104,6 +104,9 @@ Defaults shown match current code where applicable.
 - `CONTROL_PLANE_FALLBACK_ON_EMPTY=0|1` (defaults to `1` when read mode is `fallback`)
 - `CONTROL_PLANE_FALLBACK_STORE=json|firestore` (optional; defaults to JSON when primary is Firestore)
 - `METERING_ENABLED=0|1`
+- `METERING_FIRESTORE_ENABLED=0|1` (also writes usage events to Firestore)
+- `METERING_FIRESTORE_COLLECTION` (defaults to `usage_events`)
+- `METERING_COLLECTION_PREFIX` (optional; defaults to `CONTROL_PLANE_COLLECTION_PREFIX`)
 - `AUDIT_LOGGING_ENABLED=0|1`
 - `AUDIT_COMPACTION_ENABLED=0|1`
 - `AUDIT_COMPACTION_TARGET_MIN_BYTES`
@@ -137,6 +140,18 @@ Repo defaults:
 - `IDEMPOTENCY_TTL_SECONDS`
 - `MAX_INGEST_ATTEMPTS`
 - `SCHEMA_VERSION`
+
+## Rate limiting
+
+- `RATE_LIMIT_BACKEND` (`none|local|redis`)
+- `RATE_LIMIT_DOC_PER_MIN`
+- `RATE_LIMIT_IMAGE_PER_MIN`
+- `RATE_LIMIT_AUDIO_PER_MIN`
+- `RATE_LIMIT_VIDEO_PER_MIN`
+- `REDIS_HOST`
+- `REDIS_PORT`
+- `REDIS_DB`
+- `REDIS_SSL`
 
 ## Notes
 

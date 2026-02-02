@@ -13,15 +13,20 @@ from gcp_adapter.auth import authorize_request
 from gcp_adapter.dlq_pubsub import PubSubDlqPublisher
 from gcp_adapter.eventarc import parse_cloudevent
 from gcp_adapter.idempotency_firestore import FirestoreIdempotency
+from gcp_adapter.metering import record_usage
 from gcp_adapter.stores import abac_allowed, is_action_allowed
 from retikon_core.audit import record_audit_log
 from retikon_core.auth import ACTION_INGEST, AuthContext
 from retikon_core.config import Config, get_config
 from retikon_core.errors import PermanentError, RecoverableError, ValidationError
 from retikon_core.ingestion import process_event
+from retikon_core.ingestion.rate_limit import (
+    RateLimitBackendError,
+    RateLimitExceeded,
+    enforce_rate_limit,
+)
 from retikon_core.ingestion.router import pipeline_version
 from retikon_core.logging import configure_logging, get_logger
-from retikon_core.metering import record_usage
 from retikon_core.services.fastapi_scaffolding import (
     HealthResponse,
     add_correlation_id_middleware,
@@ -150,14 +155,24 @@ async def ingest(
     except json.JSONDecodeError as exc:
         raise HTTPException(status_code=400, detail="Invalid JSON payload") from exc
 
-    if config.ingestion_dry_run:
-        return IngestResponse(status="accepted", trace_id=trace_id)
-
     cloudevent_payload = _coerce_cloudevent(request, body)
     try:
         gcs_event = parse_cloudevent(cloudevent_payload)
     except ValidationError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
+    modality = _modality_from_name(gcs_event.name)
+    if modality is None:
+        raise HTTPException(status_code=400, detail="Unsupported modality")
+    scope = auth_context.scope if auth_context else _default_scope(config)
+
+    if config.ingestion_dry_run:
+        try:
+            enforce_rate_limit(modality, config=config, scope=scope)
+        except RateLimitExceeded as exc:
+            raise HTTPException(status_code=429, detail=str(exc)) from exc
+        except RateLimitBackendError as exc:
+            raise HTTPException(status_code=503, detail=str(exc)) from exc
+        return IngestResponse(status="accepted", trace_id=trace_id)
 
     firestore_client = firestore.Client()
     idempotency = FirestoreIdempotency(
@@ -186,7 +201,7 @@ async def ingest(
             extra={
                 "request_id": trace_id,
                 "correlation_id": request.state.correlation_id,
-                "modality": _modality_from_name(gcs_event.name),
+                "modality": modality,
                 "bytes_downloaded": gcs_event.size,
                 "attempt_count": attempt_count,
                 "error_code": "MAX_ATTEMPTS",
@@ -205,7 +220,18 @@ async def ingest(
         return IngestResponse(status="dlq", trace_id=trace_id)
 
     try:
-        outcome = process_event(event=gcs_event, config=config)
+        try:
+            enforce_rate_limit(modality, config=config, scope=scope)
+        except RateLimitExceeded as exc:
+            raise HTTPException(status_code=429, detail=str(exc)) from exc
+        except RateLimitBackendError as exc:
+            raise HTTPException(status_code=503, detail=str(exc)) from exc
+        outcome = process_event(
+            event=gcs_event,
+            config=config,
+            rate_limit_scope=scope,
+            skip_rate_limit=True,
+        )
         idempotency.mark_completed(decision.doc_id)
         firestore_client.collection(config.firestore_collection).document(
             decision.doc_id
@@ -244,6 +270,7 @@ async def ingest(
                     bytes_in=bytes_in,
                     pipeline_version=pipeline_version(),
                     schema_version=_schema_version(),
+                    response_time_ms=duration_ms,
                 )
             except Exception as exc:
                 logger.warning(

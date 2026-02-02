@@ -45,6 +45,12 @@ class Config:
     rate_limit_image_per_min: int
     rate_limit_audio_per_min: int
     rate_limit_video_per_min: int
+    rate_limit_backend: str
+    redis_host: str | None
+    redis_port: int
+    redis_db: int
+    redis_ssl: bool
+    redis_password: str | None
     dlq_topic: str | None
     enable_ocr: bool
     ocr_max_pages: int
@@ -171,6 +177,16 @@ class Config:
         rate_limit_image_per_min = int(os.getenv("RATE_LIMIT_IMAGE_PER_MIN", "60"))
         rate_limit_audio_per_min = int(os.getenv("RATE_LIMIT_AUDIO_PER_MIN", "20"))
         rate_limit_video_per_min = int(os.getenv("RATE_LIMIT_VIDEO_PER_MIN", "10"))
+        rate_limit_backend = os.getenv("RATE_LIMIT_BACKEND", "local").strip().lower()
+        if rate_limit_backend not in {"none", "local", "redis"}:
+            raise ValueError(
+                "RATE_LIMIT_BACKEND must be one of: none, local, redis"
+            )
+        redis_host = os.getenv("REDIS_HOST")
+        redis_port = int(os.getenv("REDIS_PORT", "6379"))
+        redis_db = int(os.getenv("REDIS_DB", "0"))
+        redis_ssl = os.getenv("REDIS_SSL", "0") == "1"
+        redis_password = os.getenv("REDIS_PASSWORD")
         dlq_topic = os.getenv("DLQ_TOPIC")
         enable_ocr = os.getenv("ENABLE_OCR", "0") == "1"
         ocr_max_pages = int(os.getenv("OCR_MAX_PAGES", "5"))
@@ -232,6 +248,12 @@ class Config:
             rate_limit_image_per_min=rate_limit_image_per_min,
             rate_limit_audio_per_min=rate_limit_audio_per_min,
             rate_limit_video_per_min=rate_limit_video_per_min,
+            rate_limit_backend=rate_limit_backend,
+            redis_host=redis_host,
+            redis_port=redis_port,
+            redis_db=redis_db,
+            redis_ssl=redis_ssl,
+            redis_password=redis_password,
             dlq_topic=dlq_topic,
             enable_ocr=enable_ocr,
             ocr_max_pages=ocr_max_pages,

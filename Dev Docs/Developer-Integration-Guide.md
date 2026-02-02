@@ -211,6 +211,9 @@ Graph exploration:
 - Backfill JSON → Firestore with `scripts/firestore_backfill.py`.
 - Archive legacy JSON control blobs (e.g. move `control/*.json` to
   `control_archive/<timestamp>/` in the graph bucket).
+- Usage metering always writes GraphAr `UsageEvent` parquet. Set
+  `METERING_FIRESTORE_ENABLED=1` to also write Firestore `usage_events`
+  (optional prefix via `METERING_COLLECTION_PREFIX`).
 
 ## 10) Authentication (JWT everywhere)
 

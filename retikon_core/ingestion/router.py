@@ -257,11 +257,14 @@ def process_event(
     *,
     event: StorageEvent,
     config: Config,
+    rate_limit_scope: TenantScope | None = None,
+    skip_rate_limit: bool = False,
 ) -> PipelineOutcome:
     _check_size(event, config)
     modality = _modality_for_name(event.name)
     _ensure_allowed(event, config, modality)
-    enforce_rate_limit(modality, config)
+    if not skip_rate_limit:
+        enforce_rate_limit(modality, config, scope=rate_limit_scope)
 
     output_uri = config.graph_root_uri()
     pipeline_version_value = pipeline_version()

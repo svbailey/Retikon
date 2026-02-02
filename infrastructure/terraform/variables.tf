@@ -993,6 +993,56 @@ variable "rate_limit_video_per_min" {
   default = 10
 }
 
+variable "rate_limit_backend" {
+  type    = string
+  default = "local"
+}
+
+variable "rate_limit_redis_host" {
+  type    = string
+  default = ""
+}
+
+variable "rate_limit_redis_db" {
+  type    = number
+  default = 0
+}
+
+variable "rate_limit_redis_ssl" {
+  type    = bool
+  default = false
+}
+
+variable "redis_instance_name" {
+  type    = string
+  default = "retikon-rate-limit"
+}
+
+variable "redis_memory_gb" {
+  type    = number
+  default = 1
+}
+
+variable "redis_tier" {
+  type    = string
+  default = "BASIC"
+}
+
+variable "vpc_network_name" {
+  type    = string
+  default = "default"
+}
+
+variable "vpc_connector_name" {
+  type    = string
+  default = "retikon-serverless-connector"
+}
+
+variable "vpc_connector_cidr" {
+  type    = string
+  default = "10.8.0.0/28"
+}
+
 variable "max_query_bytes" {
   type    = number
   default = 4000000
@@ -1151,6 +1201,26 @@ variable "control_plane_write_mode" {
 variable "control_plane_fallback_on_empty" {
   type    = bool
   default = true
+}
+
+variable "metering_enabled" {
+  type    = bool
+  default = false
+}
+
+variable "metering_firestore_enabled" {
+  type    = bool
+  default = false
+}
+
+variable "metering_firestore_collection" {
+  type    = string
+  default = "usage_events"
+}
+
+variable "metering_collection_prefix" {
+  type    = string
+  default = ""
 }
 
 variable "enable_api_gateway" {

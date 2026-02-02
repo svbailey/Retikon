@@ -2,6 +2,10 @@ data "google_project" "project" {}
 
 data "google_storage_project_service_account" "gcs" {}
 
+data "google_compute_network" "default" {
+  name = var.vpc_network_name
+}
+
 locals {
   api_gateway_openapi = templatefile(
     "${path.module}/apigateway/retikon-gateway.yaml.tmpl",
@@ -24,6 +28,34 @@ locals {
     }
   )
   api_gateway_invoker = "serviceAccount:service-${data.google_project.project.number}@gcp-sa-apigateway.iam.gserviceaccount.com"
+}
+
+resource "google_vpc_access_connector" "serverless" {
+  name          = "${var.vpc_connector_name}-${var.env}"
+  region        = var.region
+  network       = data.google_compute_network.default.name
+  ip_cidr_range = var.vpc_connector_cidr
+}
+
+resource "google_redis_instance" "rate_limit" {
+  name               = "${var.redis_instance_name}-${var.env}"
+  tier               = var.redis_tier
+  memory_size_gb     = var.redis_memory_gb
+  region             = var.region
+  authorized_network = data.google_compute_network.default.id
+  redis_version      = "REDIS_6_X"
+}
+
+resource "google_compute_firewall" "redis_allow" {
+  name    = "${var.redis_instance_name}-${var.env}-allow"
+  network = data.google_compute_network.default.name
+
+  allow {
+    protocol = "tcp"
+    ports    = ["6379"]
+  }
+
+  source_ranges = [var.vpc_connector_cidr]
 }
 
 resource "google_storage_bucket" "raw" {
@@ -473,7 +505,9 @@ resource "google_cloud_run_service" "ingestion" {
   template {
     metadata {
       annotations = {
-        "autoscaling.knative.dev/maxScale" = tostring(var.ingestion_max_scale)
+        "autoscaling.knative.dev/maxScale"        = tostring(var.ingestion_max_scale)
+        "run.googleapis.com/vpc-access-connector" = google_vpc_access_connector.serverless.id
+        "run.googleapis.com/vpc-access-egress"    = "private-ranges-only"
       }
     }
 
@@ -596,6 +630,22 @@ resource "google_cloud_run_service" "ingestion" {
           value = var.control_plane_fallback_on_empty ? "1" : "0"
         }
         env {
+          name  = "METERING_ENABLED"
+          value = var.metering_enabled ? "1" : "0"
+        }
+        env {
+          name  = "METERING_FIRESTORE_ENABLED"
+          value = var.metering_firestore_enabled ? "1" : "0"
+        }
+        env {
+          name  = "METERING_FIRESTORE_COLLECTION"
+          value = var.metering_firestore_collection
+        }
+        env {
+          name  = "METERING_COLLECTION_PREFIX"
+          value = var.metering_collection_prefix != "" ? var.metering_collection_prefix : var.control_plane_collection_prefix
+        }
+        env {
           name  = "STORAGE_BACKEND"
           value = "gcs"
         }
@@ -688,6 +738,26 @@ resource "google_cloud_run_service" "ingestion" {
           value = tostring(var.rate_limit_video_per_min)
         }
         env {
+          name  = "RATE_LIMIT_BACKEND"
+          value = var.rate_limit_backend
+        }
+        env {
+          name  = "REDIS_HOST"
+          value = var.rate_limit_redis_host != "" ? var.rate_limit_redis_host : google_redis_instance.rate_limit.host
+        }
+        env {
+          name  = "REDIS_PORT"
+          value = tostring(google_redis_instance.rate_limit.port)
+        }
+        env {
+          name  = "REDIS_DB"
+          value = tostring(var.rate_limit_redis_db)
+        }
+        env {
+          name  = "REDIS_SSL"
+          value = var.rate_limit_redis_ssl ? "1" : "0"
+        }
+        env {
           name  = "DLQ_TOPIC"
           value = "projects/${var.project_id}/topics/${var.ingest_dlq_topic_name}"
         }
@@ -761,8 +831,10 @@ resource "google_cloud_run_service" "query" {
   template {
     metadata {
       annotations = {
-        "autoscaling.knative.dev/maxScale" = tostring(var.query_max_scale)
-        "autoscaling.knative.dev/minScale" = tostring(var.query_min_scale)
+        "autoscaling.knative.dev/maxScale"        = tostring(var.query_max_scale)
+        "autoscaling.knative.dev/minScale"        = tostring(var.query_min_scale)
+        "run.googleapis.com/vpc-access-connector" = google_vpc_access_connector.serverless.id
+        "run.googleapis.com/vpc-access-egress"    = "private-ranges-only"
       }
     }
 
@@ -886,6 +958,22 @@ resource "google_cloud_run_service" "query" {
           value = var.control_plane_fallback_on_empty ? "1" : "0"
         }
         env {
+          name  = "METERING_ENABLED"
+          value = var.metering_enabled ? "1" : "0"
+        }
+        env {
+          name  = "METERING_FIRESTORE_ENABLED"
+          value = var.metering_firestore_enabled ? "1" : "0"
+        }
+        env {
+          name  = "METERING_FIRESTORE_COLLECTION"
+          value = var.metering_firestore_collection
+        }
+        env {
+          name  = "METERING_COLLECTION_PREFIX"
+          value = var.metering_collection_prefix != "" ? var.metering_collection_prefix : var.control_plane_collection_prefix
+        }
+        env {
           name  = "STORAGE_BACKEND"
           value = "gcs"
         }
@@ -967,6 +1055,42 @@ resource "google_cloud_run_service" "query" {
           value = tostring(var.max_image_base64_bytes)
         }
         env {
+          name  = "RATE_LIMIT_DOC_PER_MIN"
+          value = tostring(var.rate_limit_doc_per_min)
+        }
+        env {
+          name  = "RATE_LIMIT_IMAGE_PER_MIN"
+          value = tostring(var.rate_limit_image_per_min)
+        }
+        env {
+          name  = "RATE_LIMIT_AUDIO_PER_MIN"
+          value = tostring(var.rate_limit_audio_per_min)
+        }
+        env {
+          name  = "RATE_LIMIT_VIDEO_PER_MIN"
+          value = tostring(var.rate_limit_video_per_min)
+        }
+        env {
+          name  = "RATE_LIMIT_BACKEND"
+          value = var.rate_limit_backend
+        }
+        env {
+          name  = "REDIS_HOST"
+          value = var.rate_limit_redis_host != "" ? var.rate_limit_redis_host : google_redis_instance.rate_limit.host
+        }
+        env {
+          name  = "REDIS_PORT"
+          value = tostring(google_redis_instance.rate_limit.port)
+        }
+        env {
+          name  = "REDIS_DB"
+          value = tostring(var.rate_limit_redis_db)
+        }
+        env {
+          name  = "REDIS_SSL"
+          value = var.rate_limit_redis_ssl ? "1" : "0"
+        }
+        env {
           name  = "SLOW_QUERY_MS"
           value = tostring(var.query_slow_ms)
         }
@@ -1043,6 +1167,8 @@ resource "google_cloud_run_service" "query_gpu" {
         "autoscaling.knative.dev/maxScale"                 = tostring(var.query_gpu_max_scale)
         "autoscaling.knative.dev/minScale"                 = tostring(var.query_gpu_min_scale)
         "run.googleapis.com/gpu-zonal-redundancy-disabled" = "true"
+        "run.googleapis.com/vpc-access-connector"          = google_vpc_access_connector.serverless.id
+        "run.googleapis.com/vpc-access-egress"             = "private-ranges-only"
       }
     }
 
@@ -1167,6 +1293,22 @@ resource "google_cloud_run_service" "query_gpu" {
           value = var.control_plane_fallback_on_empty ? "1" : "0"
         }
         env {
+          name  = "METERING_ENABLED"
+          value = var.metering_enabled ? "1" : "0"
+        }
+        env {
+          name  = "METERING_FIRESTORE_ENABLED"
+          value = var.metering_firestore_enabled ? "1" : "0"
+        }
+        env {
+          name  = "METERING_FIRESTORE_COLLECTION"
+          value = var.metering_firestore_collection
+        }
+        env {
+          name  = "METERING_COLLECTION_PREFIX"
+          value = var.metering_collection_prefix != "" ? var.metering_collection_prefix : var.control_plane_collection_prefix
+        }
+        env {
           name  = "STORAGE_BACKEND"
           value = "gcs"
         }
@@ -1246,6 +1388,42 @@ resource "google_cloud_run_service" "query_gpu" {
         env {
           name  = "MAX_IMAGE_BASE64_BYTES"
           value = tostring(var.max_image_base64_bytes)
+        }
+        env {
+          name  = "RATE_LIMIT_DOC_PER_MIN"
+          value = tostring(var.rate_limit_doc_per_min)
+        }
+        env {
+          name  = "RATE_LIMIT_IMAGE_PER_MIN"
+          value = tostring(var.rate_limit_image_per_min)
+        }
+        env {
+          name  = "RATE_LIMIT_AUDIO_PER_MIN"
+          value = tostring(var.rate_limit_audio_per_min)
+        }
+        env {
+          name  = "RATE_LIMIT_VIDEO_PER_MIN"
+          value = tostring(var.rate_limit_video_per_min)
+        }
+        env {
+          name  = "RATE_LIMIT_BACKEND"
+          value = var.rate_limit_backend
+        }
+        env {
+          name  = "REDIS_HOST"
+          value = var.rate_limit_redis_host != "" ? var.rate_limit_redis_host : google_redis_instance.rate_limit.host
+        }
+        env {
+          name  = "REDIS_PORT"
+          value = tostring(google_redis_instance.rate_limit.port)
+        }
+        env {
+          name  = "REDIS_DB"
+          value = tostring(var.rate_limit_redis_db)
+        }
+        env {
+          name  = "REDIS_SSL"
+          value = var.rate_limit_redis_ssl ? "1" : "0"
         }
         env {
           name  = "SLOW_QUERY_MS"
@@ -2959,7 +3137,9 @@ resource "google_cloud_run_service" "stream_ingest" {
   template {
     metadata {
       annotations = {
-        "autoscaling.knative.dev/maxScale" = tostring(var.stream_ingest_max_scale)
+        "autoscaling.knative.dev/maxScale"        = tostring(var.stream_ingest_max_scale)
+        "run.googleapis.com/vpc-access-connector" = google_vpc_access_connector.serverless.id
+        "run.googleapis.com/vpc-access-egress"    = "private-ranges-only"
       }
     }
 

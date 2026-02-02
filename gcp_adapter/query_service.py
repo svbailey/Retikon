@@ -8,6 +8,7 @@ from datetime import datetime, timezone
 from fastapi import FastAPI, Header, HTTPException, Request
 
 from gcp_adapter.auth import authorize_request
+from gcp_adapter.metering import record_usage
 from gcp_adapter.stores import (
     abac_allowed,
     get_control_plane_stores,
@@ -15,8 +16,12 @@ from gcp_adapter.stores import (
 )
 from retikon_core.audit import record_audit_log
 from retikon_core.auth import ACTION_QUERY, AuthContext
+from retikon_core.ingestion.rate_limit import (
+    RateLimitBackendError,
+    RateLimitExceeded,
+    enforce_rate_limit,
+)
 from retikon_core.logging import configure_logging, get_logger
-from retikon_core.metering import record_usage
 from retikon_core.privacy import PrivacyContext, redact_text_for_context
 from retikon_core.query_engine import (
     QueryResult,
@@ -176,6 +181,16 @@ def _schema_version() -> str:
     return os.getenv("SCHEMA_VERSION", "1")
 
 
+def _rate_limit_modality(modality: str) -> str:
+    if modality in {"image", "text+image"}:
+        return "image"
+    if modality == "audio":
+        return "audio"
+    if modality == "video":
+        return "video"
+    return "document"
+
+
 def _graph_settings() -> tuple[str, str]:
     graph_bucket = os.getenv("GRAPH_BUCKET")
     graph_prefix = os.getenv("GRAPH_PREFIX")
@@ -273,6 +288,20 @@ async def query(
             detail="query_text or image_base64 is required",
         )
 
+    rate_limit_modality = _rate_limit_modality(
+        describe_query_modality(payload, search_type)
+    )
+    try:
+        enforce_rate_limit(
+            rate_limit_modality,
+            config=None,
+            scope=scope,
+        )
+    except RateLimitExceeded as exc:
+        raise HTTPException(status_code=429, detail=str(exc)) from exc
+    except RateLimitBackendError as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
+
     if STATE.local_path is None:
         try:
             _load_snapshot()
@@ -359,6 +388,7 @@ async def query(
                 bytes_in=payload_bytes,
                 pipeline_version=os.getenv("RETIKON_VERSION", "dev"),
                 schema_version=_schema_version(),
+                response_time_ms=duration_ms,
             )
         except Exception as exc:
             logger.warning("Failed to record usage", extra={"error_message": str(exc)})

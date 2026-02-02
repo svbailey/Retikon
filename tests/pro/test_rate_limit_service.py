@@ -1,0 +1,49 @@
+from fastapi.testclient import TestClient
+
+from gcp_adapter.ingestion_service import app as ingest_app
+from gcp_adapter.query_service import app as query_app
+from retikon_core.config import get_config
+from retikon_core.ingestion.rate_limit import reset_rate_limit_state
+
+
+def test_query_rate_limit_exceeded(monkeypatch, jwt_headers):
+    monkeypatch.setenv("RATE_LIMIT_BACKEND", "local")
+    monkeypatch.setenv("RATE_LIMIT_DOC_PER_MIN", "1")
+    reset_rate_limit_state()
+
+    client = TestClient(query_app, headers=jwt_headers)
+
+    resp = client.post("/query", json={"query_text": "hello"})
+    assert resp.status_code == 200
+
+    resp = client.post("/query", json={"query_text": "hello"})
+    assert resp.status_code == 429
+
+
+def test_ingest_rate_limit_exceeded(monkeypatch, jwt_headers):
+    monkeypatch.setenv("RATE_LIMIT_BACKEND", "local")
+    monkeypatch.setenv("RATE_LIMIT_DOC_PER_MIN", "1")
+    monkeypatch.setenv("INGESTION_DRY_RUN", "1")
+    get_config.cache_clear()
+    reset_rate_limit_state()
+
+    client = TestClient(ingest_app, headers=jwt_headers)
+    payload = {
+        "id": "evt-1",
+        "type": "google.cloud.storage.object.v1.finalized",
+        "source": "//storage.googleapis.com/projects/_/buckets/test-raw",
+        "specversion": "1.0",
+        "data": {
+            "bucket": "test-raw",
+            "name": "raw/docs/sample.pdf",
+            "generation": "1",
+            "contentType": "application/pdf",
+            "size": "123",
+        },
+    }
+
+    resp = client.post("/ingest", json=payload)
+    assert resp.status_code == 202
+
+    resp = client.post("/ingest", json=payload)
+    assert resp.status_code == 429
