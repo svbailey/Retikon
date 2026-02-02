@@ -598,6 +598,12 @@ class _DualApiKeyStore(ApiKeyStore):
 def get_control_plane_stores(base_uri: str) -> StoreBundle:
     global _STORE_BUNDLE, _STORE_KEY
     backend = os.getenv("CONTROL_PLANE_STORE", "json").strip().lower()
+    env_name = os.getenv("ENV", "dev").strip().lower()
+    if backend == "json" and env_name not in ("dev", "local", "test"):
+        logger.warning(
+            "JSON control-plane store is intended for local/dev only; set CONTROL_PLANE_STORE=firestore.",
+            extra={"control_plane_store": backend, "env": env_name},
+        )
     prefix = os.getenv("CONTROL_PLANE_COLLECTION_PREFIX", "").strip()
     read_mode = _read_mode()
     write_mode = _write_mode()

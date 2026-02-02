@@ -203,10 +203,11 @@ Graph exploration:
 
 - Set `CONTROL_PLANE_STORE=firestore` to use the Firestore-backed control plane.
 - Set `CONTROL_PLANE_COLLECTION_PREFIX` (e.g. `staging_`) to isolate environments.
-- During migration, use `CONTROL_PLANE_READ_MODE=fallback` for Firestore primary with JSON fallback.
-- During migration, use `CONTROL_PLANE_WRITE_MODE=dual` to dual-write JSON + Firestore.
-- After cutover, switch to `CONTROL_PLANE_READ_MODE=primary` and
-  `CONTROL_PLANE_WRITE_MODE=single`.
+- JSON store is legacy and supported for local/dev only.
+- During migration (optional), use `CONTROL_PLANE_READ_MODE=fallback` for Firestore
+  primary with JSON fallback and `CONTROL_PLANE_WRITE_MODE=dual`.
+- After cutover (staging/prod), use `CONTROL_PLANE_READ_MODE=primary`,
+  `CONTROL_PLANE_WRITE_MODE=single`, and `CONTROL_PLANE_FALLBACK_ON_EMPTY=false`.
 - Backfill JSON → Firestore with `scripts/firestore_backfill.py`.
 - Archive legacy JSON control blobs (e.g. move `control/*.json` to
   `control_archive/<timestamp>/` in the graph bucket).
