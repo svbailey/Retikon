@@ -131,11 +131,11 @@ def create_training_job(
 def register_training_job(
     *,
     base_uri: str,
-    dataset_id: str,
+    dataset_id: str | None = None,
     model_id: str,
-    epochs: int = 10,
-    batch_size: int = 16,
-    learning_rate: float = 1e-4,
+    epochs: int | None = None,
+    batch_size: int | None = None,
+    learning_rate: float | None = None,
     labels: Iterable[str] | None = None,
     status: str = "queued",
     output: dict[str, object] | None = None,
@@ -145,11 +145,11 @@ def register_training_job(
     stream_id: str | None = None,
 ) -> TrainingJob:
     job = create_training_job(
-        dataset_id=dataset_id,
+        dataset_id=dataset_id if dataset_id is not None else "",
         model_id=model_id,
-        epochs=epochs,
-        batch_size=batch_size,
-        learning_rate=learning_rate,
+        epochs=epochs if epochs is not None else 10,
+        batch_size=batch_size if batch_size is not None else 16,
+        learning_rate=learning_rate if learning_rate is not None else 1e-4,
         labels=labels,
         status=status,
         output=output,
@@ -229,14 +229,14 @@ def mark_training_job_failed(
     *,
     base_uri: str,
     job_id: str,
-    error: str,
+    error: str | None = None,
 ) -> TrainingJob:
     return _update_training_job(
         base_uri=base_uri,
         job_id=job_id,
         status="failed",
         finished_at=_now_iso(),
-        error=error,
+        error=error or "Training job failed",
     )
 
 

@@ -4,7 +4,7 @@ import os
 import uuid
 from dataclasses import asdict
 from datetime import datetime, timezone
-from typing import Callable, Iterable
+from typing import Any, Callable, Iterable, cast
 
 from google.cloud import firestore
 
@@ -122,7 +122,7 @@ class FirestoreRbacStore(FirestoreStoreBase, RbacStore):
         records: list[tuple[firestore.DocumentReference, dict[str, object]]] = []
         for principal_id, roles in bindings.items():
             doc_id = principal_id or str(uuid.uuid4())
-            payload = {
+            payload: dict[str, object] = {
                 "id": doc_id,
                 "org_id": None,
                 "site_id": None,
@@ -177,7 +177,7 @@ class FirestoreAbacStore(FirestoreStoreBase, AbacStore):
             doc_id = policy.id or str(uuid.uuid4())
             created_at = policy.created_at or _now_iso()
             updated_at = policy.updated_at or _now_iso()
-            payload = {
+            payload: dict[str, object] = {
                 "id": doc_id,
                 "org_id": policy.org_id,
                 "site_id": policy.site_id,
@@ -842,7 +842,7 @@ def _save_dataclass_collection(
     sets: list[tuple[firestore.DocumentReference, dict[str, object]]] = []
     item_ids: set[str] = set()
     for item in items:
-        payload = asdict(item)
+        payload = cast(dict[str, object], asdict(cast(Any, item)))
         doc_id = str(payload.get("id") or uuid.uuid4())
         payload["id"] = doc_id
         sets.append((collection.document(doc_id), payload))
