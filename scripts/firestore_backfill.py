@@ -49,7 +49,10 @@ def main() -> None:
     )
     parser.add_argument(
         "--collection-prefix",
-        help="Firestore collection prefix (defaults to CONTROL_PLANE_COLLECTION_PREFIX)",
+        help=(
+            "Firestore collection prefix "
+            "(defaults to CONTROL_PLANE_COLLECTION_PREFIX)"
+        ),
     )
     parser.add_argument(
         "--domain",

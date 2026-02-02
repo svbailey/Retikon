@@ -168,7 +168,10 @@ def register_workflow_run(
 
 def _find_workflow(base_uri: str, workflow_id: str) -> WorkflowSpec | None:
     workflows = load_workflows(base_uri)
-    return next((workflow for workflow in workflows if workflow.id == workflow_id), None)
+    return next(
+        (workflow for workflow in workflows if workflow.id == workflow_id),
+        None,
+    )
 
 
 def update_workflow_run(*, base_uri: str, run: WorkflowRun) -> WorkflowRun:

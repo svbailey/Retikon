@@ -4,7 +4,7 @@ import json
 import os
 import urllib.request
 from dataclasses import dataclass
-from typing import Any, TYPE_CHECKING, cast
+from typing import TYPE_CHECKING, Any, cast
 
 import jwt
 from jwt import PyJWK, PyJWKClient
@@ -15,8 +15,8 @@ if TYPE_CHECKING:
     from cryptography.hazmat.primitives.asymmetric.ed448 import Ed448PublicKey
     from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PublicKey
     from cryptography.hazmat.primitives.asymmetric.rsa import RSAPublicKey
-    from cryptography.hazmat.primitives.asymmetric.x25519 import X25519PublicKey
     from cryptography.hazmat.primitives.asymmetric.x448 import X448PublicKey
+    from cryptography.hazmat.primitives.asymmetric.x25519 import X25519PublicKey
 
     CryptoPublicKey = (
         RSAPublicKey
