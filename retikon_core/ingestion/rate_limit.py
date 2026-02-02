@@ -106,7 +106,9 @@ def _scope_key(scope: TenantScope | None, config: Config | None) -> str:
     return f"{org_id}:{site_id}:{stream_id}"
 
 
-def _redis_settings(config: Config | None) -> tuple[str | None, int, int, bool, str | None]:
+def _redis_settings(
+    config: Config | None,
+) -> tuple[str | None, int, int, bool, str | None]:
     if config is not None:
         host = getattr(config, "redis_host", None)
         port = getattr(config, "redis_port", 6379)

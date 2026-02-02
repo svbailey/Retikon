@@ -14,9 +14,17 @@ from pydantic import BaseModel
 
 from gcp_adapter.auth import authorize_request
 from gcp_adapter.queue_pubsub import PubSubPublisher, parse_pubsub_push
-from gcp_adapter.stores import get_control_plane_stores
+from gcp_adapter.stores import abac_allowed, get_control_plane_stores, is_action_allowed
 from retikon_core.audit import record_audit_log
 from retikon_core.auth import AuthContext
+from retikon_core.auth.rbac import (
+    ACTION_WORKFLOWS_CREATE,
+    ACTION_WORKFLOWS_LIST,
+    ACTION_WORKFLOWS_RUN_CREATE,
+    ACTION_WORKFLOWS_RUNS_LIST,
+    ACTION_WORKFLOWS_SCHEDULE_TICK,
+    ACTION_WORKFLOWS_UPDATE,
+)
 from retikon_core.config import get_config
 from retikon_core.logging import configure_logging, get_logger
 from retikon_core.services.fastapi_scaffolding import (
@@ -143,6 +151,25 @@ def _stores(base_uri: str | None = None):
     if base_uri is None:
         base_uri = _get_config().graph_root_uri()
     return get_control_plane_stores(base_uri)
+
+
+def _rbac_enabled() -> bool:
+    return os.getenv("RBAC_ENFORCE", "0") == "1"
+
+
+def _abac_enabled() -> bool:
+    return os.getenv("ABAC_ENFORCE", "0") == "1"
+
+
+def _enforce_access(
+    action: str,
+    auth_context: AuthContext | None,
+) -> None:
+    base_uri = _get_config().graph_root_uri()
+    if _rbac_enabled() and not is_action_allowed(auth_context, action, base_uri):
+        raise HTTPException(status_code=403, detail="Forbidden")
+    if _abac_enabled() and not abac_allowed(auth_context, action, base_uri):
+        raise HTTPException(status_code=403, detail="Forbidden")
 
 
 def _audit_logging_enabled() -> bool:
@@ -726,6 +753,7 @@ async def health() -> HealthResponse:
 @app.get("/workflows", response_model=list[WorkflowResponse])
 async def list_workflows_endpoint(request: Request) -> list[WorkflowResponse]:
     auth_context = _authorize(request)
+    _enforce_access(ACTION_WORKFLOWS_LIST, auth_context)
     trace_id = _request_id(request)
     _record_audit(
         request=request,
@@ -744,6 +772,7 @@ async def create_workflow(
     payload: WorkflowRequest,
 ) -> WorkflowResponse:
     auth_context = _authorize(request)
+    _enforce_access(ACTION_WORKFLOWS_CREATE, auth_context)
     trace_id = _request_id(request)
     steps = (
         tuple(_step_from_payload(step) for step in payload.steps)
@@ -786,6 +815,7 @@ async def update_workflow_endpoint(
     payload: WorkflowUpdateRequest,
 ) -> WorkflowResponse:
     auth_context = _authorize(request)
+    _enforce_access(ACTION_WORKFLOWS_UPDATE, auth_context)
     trace_id = _request_id(request)
     workflows = _stores().workflows.load_workflows()
     existing = next((wf for wf in workflows if wf.id == workflow_id), None)
@@ -835,6 +865,7 @@ async def list_runs(
     limit: int | None = None,
 ) -> list[WorkflowRunResponse]:
     auth_context = _authorize(request)
+    _enforce_access(ACTION_WORKFLOWS_RUNS_LIST, auth_context)
     trace_id = _request_id(request)
     _record_audit(
         request=request,
@@ -856,6 +887,7 @@ async def schedule_tick(
     dry_run: bool = False,
 ) -> ScheduleTickResponse:
     auth_context = _authorize(request)
+    _enforce_access(ACTION_WORKFLOWS_SCHEDULE_TICK, auth_context)
     trace_id = _request_id(request)
     _record_audit(
         request=request,
@@ -927,6 +959,7 @@ async def create_run(
     payload: WorkflowRunRequest,
 ) -> WorkflowRunResponse:
     auth_context = _authorize(request)
+    _enforce_access(ACTION_WORKFLOWS_RUN_CREATE, auth_context)
     trace_id = _request_id(request)
     base_uri = _get_config().graph_root_uri()
     workflows = _stores(base_uri).workflows.load_workflows()

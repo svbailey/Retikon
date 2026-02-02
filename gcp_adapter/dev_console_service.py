@@ -20,8 +20,21 @@ from google.cloud import firestore, storage
 from google.oauth2 import id_token
 
 from gcp_adapter.auth import authorize_request
+from gcp_adapter.stores import abac_allowed, is_action_allowed
 from retikon_core.audit import record_audit_log
 from retikon_core.auth import AuthContext
+from retikon_core.auth.rbac import (
+    ACTION_DEV_GRAPH_OBJECT,
+    ACTION_DEV_INDEX_BUILD,
+    ACTION_DEV_INDEX_STATUS,
+    ACTION_DEV_INGEST_STATUS,
+    ACTION_DEV_MANIFEST,
+    ACTION_DEV_OBJECT,
+    ACTION_DEV_PARQUET_PREVIEW,
+    ACTION_DEV_SNAPSHOT_RELOAD,
+    ACTION_DEV_SNAPSHOT_STATUS,
+    ACTION_DEV_UPLOAD,
+)
 from retikon_core.ingestion.idempotency import build_doc_id
 from retikon_core.logging import configure_logging, get_logger
 from retikon_core.services.fastapi_scaffolding import (
@@ -61,6 +74,25 @@ def _require_admin() -> bool:
 
 def _authorize(request: Request) -> AuthContext | None:
     return authorize_request(request=request, require_admin=_require_admin())
+
+
+def _rbac_enabled() -> bool:
+    return os.getenv("RBAC_ENFORCE", "0") == "1"
+
+
+def _abac_enabled() -> bool:
+    return os.getenv("ABAC_ENFORCE", "0") == "1"
+
+
+def _enforce_access(
+    action: str,
+    auth_context: AuthContext | None,
+) -> None:
+    base_uri = _audit_base_uri()
+    if _rbac_enabled() and not is_action_allowed(auth_context, action, base_uri):
+        raise HTTPException(status_code=403, detail="Forbidden")
+    if _abac_enabled() and not abac_allowed(auth_context, action, base_uri):
+        raise HTTPException(status_code=403, detail="Forbidden")
 
 
 def _audit_logging_enabled() -> bool:
@@ -261,6 +293,7 @@ async def upload_file(
     category: str = CATEGORY_FORM,
 ) -> dict[str, object]:
     auth_context = _authorize(request)
+    _enforce_access(ACTION_DEV_UPLOAD, auth_context)
     trace_id = _request_id(request)
     _record_audit(
         request=request,
@@ -299,6 +332,7 @@ async def ingest_status(
     uri: str,
 ) -> dict[str, object]:
     auth_context = _authorize(request)
+    _enforce_access(ACTION_DEV_INGEST_STATUS, auth_context)
     trace_id = _request_id(request)
     _record_audit(
         request=request,
@@ -334,6 +368,7 @@ async def manifest(
     manifest_uri_value: str | None = None,
 ) -> dict[str, object]:
     auth_context = _authorize(request)
+    _enforce_access(ACTION_DEV_MANIFEST, auth_context)
     trace_id = _request_id(request)
     _record_audit(
         request=request,
@@ -366,6 +401,7 @@ async def parquet_preview(
     limit: int = 5,
 ) -> dict[str, object]:
     auth_context = _authorize(request)
+    _enforce_access(ACTION_DEV_PARQUET_PREVIEW, auth_context)
     trace_id = _request_id(request)
     _record_audit(
         request=request,
@@ -384,6 +420,7 @@ async def fetch_object(
     uri: str,
 ) -> StreamingResponse:
     auth_context = _authorize(request)
+    _enforce_access(ACTION_DEV_OBJECT, auth_context)
     trace_id = _request_id(request)
     _record_audit(
         request=request,
@@ -414,6 +451,7 @@ async def fetch_graph_object(
     uri: str,
 ) -> StreamingResponse:
     auth_context = _authorize(request)
+    _enforce_access(ACTION_DEV_GRAPH_OBJECT, auth_context)
     trace_id = _request_id(request)
     _record_audit(
         request=request,
@@ -441,6 +479,7 @@ async def fetch_graph_object(
 @app.get("/dev/snapshot-status")
 async def snapshot_status(request: Request) -> dict[str, object]:
     auth_context = _authorize(request)
+    _enforce_access(ACTION_DEV_SNAPSHOT_STATUS, auth_context)
     trace_id = _request_id(request)
     _record_audit(
         request=request,
@@ -465,6 +504,7 @@ async def snapshot_status(request: Request) -> dict[str, object]:
 @app.post("/dev/index-build")
 async def index_build(request: Request) -> dict[str, object]:
     auth_context = _authorize(request)
+    _enforce_access(ACTION_DEV_INDEX_BUILD, auth_context)
     trace_id = _request_id(request)
     _record_audit(
         request=request,
@@ -498,6 +538,7 @@ async def index_build(request: Request) -> dict[str, object]:
 @app.post("/dev/snapshot-reload")
 async def snapshot_reload(request: Request) -> dict[str, object]:
     auth_context = _authorize(request)
+    _enforce_access(ACTION_DEV_SNAPSHOT_RELOAD, auth_context)
     trace_id = _request_id(request)
     _record_audit(
         request=request,
@@ -523,6 +564,7 @@ async def snapshot_reload(request: Request) -> dict[str, object]:
 @app.get("/dev/index-status")
 async def index_status(request: Request) -> dict[str, object]:
     auth_context = _authorize(request)
+    _enforce_access(ACTION_DEV_INDEX_STATUS, auth_context)
     trace_id = _request_id(request)
     _record_audit(
         request=request,

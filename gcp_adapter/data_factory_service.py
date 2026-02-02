@@ -24,9 +24,25 @@ from gcp_adapter.office_conversion import (
     write_conversion_output,
 )
 from gcp_adapter.queue_pubsub import PubSubPublisher, parse_pubsub_push
-from gcp_adapter.stores import get_control_plane_stores
+from gcp_adapter.stores import abac_allowed, get_control_plane_stores, is_action_allowed
 from retikon_core.audit import record_audit_log
 from retikon_core.auth import AuthContext
+from retikon_core.auth.rbac import (
+    ACTION_ANNOTATION_CREATE,
+    ACTION_ANNOTATION_LIST,
+    ACTION_CONNECTORS_LIST,
+    ACTION_DATASET_CREATE,
+    ACTION_DATASET_LIST,
+    ACTION_MODEL_CREATE,
+    ACTION_MODEL_LIST,
+    ACTION_OCR_CONNECTOR_CREATE,
+    ACTION_OCR_CONNECTOR_LIST,
+    ACTION_OFFICE_CONVERSION_CREATE,
+    ACTION_OFFICE_CONVERSION_READ,
+    ACTION_TRAINING_CREATE,
+    ACTION_TRAINING_LIST,
+    ACTION_TRAINING_READ,
+)
 from retikon_core.config import get_config
 from retikon_core.connectors import list_connectors
 from retikon_core.data_factory import (
@@ -340,6 +356,25 @@ def _get_config():
     return get_config()
 
 
+def _rbac_enabled() -> bool:
+    return os.getenv("RBAC_ENFORCE", "0") == "1"
+
+
+def _abac_enabled() -> bool:
+    return os.getenv("ABAC_ENFORCE", "0") == "1"
+
+
+def _enforce_access(
+    action: str,
+    auth_context: AuthContext | None,
+) -> None:
+    base_uri = _get_config().graph_root_uri()
+    if _rbac_enabled() and not is_action_allowed(auth_context, action, base_uri):
+        raise HTTPException(status_code=403, detail="Forbidden")
+    if _abac_enabled() and not abac_allowed(auth_context, action, base_uri):
+        raise HTTPException(status_code=403, detail="Forbidden")
+
+
 def _audit_logging_enabled() -> bool:
     return os.getenv("AUDIT_LOGGING_ENABLED", "1") == "1"
 
@@ -431,6 +466,7 @@ async def health() -> HealthResponse:
 @app.get("/data-factory/datasets")
 async def get_datasets(request: Request) -> list[dict[str, Any]]:
     auth_context = _authorize(request)
+    _enforce_access(ACTION_DATASET_LIST, auth_context)
     trace_id = _request_id(request)
     _record_audit(
         request=request,
@@ -448,6 +484,7 @@ async def create_dataset_endpoint(
     payload: DatasetRequest,
 ) -> dict[str, str]:
     auth_context = _authorize(request)
+    _enforce_access(ACTION_DATASET_CREATE, auth_context)
     trace_id = _request_id(request)
     result = create_dataset(
         base_uri=_get_config().graph_root_uri(),
@@ -482,6 +519,7 @@ async def create_dataset_endpoint(
 @app.get("/data-factory/annotations")
 async def get_annotations(request: Request) -> list[dict[str, Any]]:
     auth_context = _authorize(request)
+    _enforce_access(ACTION_ANNOTATION_LIST, auth_context)
     trace_id = _request_id(request)
     _record_audit(
         request=request,
@@ -499,6 +537,7 @@ async def create_annotation_endpoint(
     payload: AnnotationRequest,
 ) -> dict[str, str]:
     auth_context = _authorize(request)
+    _enforce_access(ACTION_ANNOTATION_CREATE, auth_context)
     trace_id = _request_id(request)
     result = add_annotation(
         base_uri=_get_config().graph_root_uri(),
@@ -536,6 +575,7 @@ async def create_annotation_endpoint(
 @app.get("/data-factory/models")
 async def get_models(request: Request) -> list[dict[str, Any]]:
     auth_context = _authorize(request)
+    _enforce_access(ACTION_MODEL_LIST, auth_context)
     trace_id = _request_id(request)
     _record_audit(
         request=request,
@@ -554,6 +594,7 @@ async def create_model_endpoint(
     payload: ModelRequest,
 ) -> dict[str, Any]:
     auth_context = _authorize(request)
+    _enforce_access(ACTION_MODEL_CREATE, auth_context)
     trace_id = _request_id(request)
     model = _stores().data_factory.register_model(
         name=payload.name,
@@ -592,6 +633,7 @@ async def create_training_endpoint(
     payload: TrainingRequest,
 ) -> TrainingJobResponse:
     auth_context = _authorize(request)
+    _enforce_access(ACTION_TRAINING_CREATE, auth_context)
     trace_id = _request_id(request)
     job = _stores().data_factory.register_training_job(
         dataset_id=payload.dataset_id,
@@ -628,6 +670,7 @@ async def list_training_jobs_endpoint(
     limit: int | None = None,
 ) -> list[TrainingJobResponse]:
     auth_context = _authorize(request)
+    _enforce_access(ACTION_TRAINING_LIST, auth_context)
     trace_id = _request_id(request)
     _record_audit(
         request=request,
@@ -652,6 +695,7 @@ async def get_training_job_endpoint(
     job_id: str,
 ) -> TrainingJobResponse:
     auth_context = _authorize(request)
+    _enforce_access(ACTION_TRAINING_READ, auth_context)
     trace_id = _request_id(request)
     _record_audit(
         request=request,
@@ -710,6 +754,7 @@ async def get_connectors(
     streaming: bool | None = None,
 ) -> list[ConnectorResponse]:
     auth_context = _authorize(request)
+    _enforce_access(ACTION_CONNECTORS_LIST, auth_context)
     trace_id = _request_id(request)
     _record_audit(
         request=request,
@@ -728,6 +773,7 @@ async def register_ocr_connector_endpoint(
     payload: OcrConnectorRequest,
 ) -> OcrConnectorResponse:
     auth_context = _authorize(request)
+    _enforce_access(ACTION_OCR_CONNECTOR_CREATE, auth_context)
     trace_id = _request_id(request)
     try:
         connector = _stores().connectors.register_ocr_connector(
@@ -761,6 +807,7 @@ async def register_ocr_connector_endpoint(
 @app.get("/data-factory/ocr/connectors", response_model=list[OcrConnectorResponse])
 async def list_ocr_connectors(request: Request) -> list[OcrConnectorResponse]:
     auth_context = _authorize(request)
+    _enforce_access(ACTION_OCR_CONNECTOR_LIST, auth_context)
     trace_id = _request_id(request)
     _record_audit(
         request=request,
@@ -779,6 +826,7 @@ async def convert_office(
     payload: OfficeConversionRequest,
 ) -> OfficeConversionResponse:
     auth_context = _authorize(request)
+    _enforce_access(ACTION_OFFICE_CONVERSION_CREATE, auth_context)
     trace_id = _request_id(request)
     _record_audit(
         request=request,
@@ -869,6 +917,7 @@ async def get_conversion_job(
     job_id: str,
 ) -> OfficeConversionJobResponse:
     auth_context = _authorize(request)
+    _enforce_access(ACTION_OFFICE_CONVERSION_READ, auth_context)
     trace_id = _request_id(request)
     _record_audit(
         request=request,

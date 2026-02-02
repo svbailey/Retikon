@@ -14,8 +14,13 @@ from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import StreamingResponse
 
 from gcp_adapter.auth import authorize_request
-from gcp_adapter.stores import get_control_plane_stores
+from gcp_adapter.stores import abac_allowed, get_control_plane_stores, is_action_allowed
 from retikon_core.auth import AuthContext
+from retikon_core.auth.rbac import (
+    ACTION_ACCESS_EXPORT,
+    ACTION_AUDIT_EXPORT,
+    ACTION_AUDIT_LOGS_READ,
+)
 from retikon_core.logging import configure_logging, get_logger
 from retikon_core.privacy import (
     PrivacyContext,
@@ -116,6 +121,25 @@ def _authorize(request: Request) -> AuthContext | None:
         request=request,
         require_admin=_require_admin(),
     )
+
+
+def _rbac_enabled() -> bool:
+    return os.getenv("RBAC_ENFORCE", "0") == "1"
+
+
+def _abac_enabled() -> bool:
+    return os.getenv("ABAC_ENFORCE", "0") == "1"
+
+
+def _enforce_access(
+    action: str,
+    auth_context: AuthContext | None,
+) -> None:
+    base_uri = _graph_uri()
+    if _rbac_enabled() and not is_action_allowed(auth_context, action, base_uri):
+        raise HTTPException(status_code=403, detail="Forbidden")
+    if _abac_enabled() and not abac_allowed(auth_context, action, base_uri):
+        raise HTTPException(status_code=403, detail="Forbidden")
 
 
 def _open_conn(base_uri: str) -> duckdb.DuckDBPyConnection:
@@ -436,7 +460,8 @@ async def audit_logs(
     until: str | None = None,
     limit: int = 100,
 ) -> dict[str, object]:
-    _authorize(request)
+    auth_context = _authorize(request)
+    _enforce_access(ACTION_AUDIT_LOGS_READ, auth_context)
     base_uri = _graph_uri()
     limit = max(1, min(limit, 1000))
     where, values = _build_filters(
@@ -472,6 +497,7 @@ async def audit_export(
     format: str = "jsonl",
 ) -> StreamingResponse:
     auth_context = _authorize(request)
+    _enforce_access(ACTION_AUDIT_EXPORT, auth_context)
     base_uri = _graph_uri()
     privacy_policies = _privacy_policies(base_uri)
     privacy_ctx = _privacy_context(auth_context, "export")
@@ -515,6 +541,7 @@ async def access_export(
     format: str = "jsonl",
 ) -> StreamingResponse:
     auth_context = _authorize(request)
+    _enforce_access(ACTION_ACCESS_EXPORT, auth_context)
     base_uri = _graph_uri()
     privacy_policies = _privacy_policies(base_uri)
     privacy_ctx = _privacy_context(auth_context, "export")

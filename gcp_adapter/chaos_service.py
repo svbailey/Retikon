@@ -6,8 +6,17 @@ from fastapi import FastAPI, HTTPException, Request
 from pydantic import BaseModel
 
 from gcp_adapter.auth import authorize_request
+from gcp_adapter.stores import abac_allowed, is_action_allowed
 from retikon_core.audit import record_audit_log
 from retikon_core.auth import AuthContext
+from retikon_core.auth.rbac import (
+    ACTION_CHAOS_CONFIG_READ,
+    ACTION_CHAOS_POLICY_CREATE,
+    ACTION_CHAOS_POLICY_LIST,
+    ACTION_CHAOS_POLICY_UPDATE,
+    ACTION_CHAOS_RUN_CREATE,
+    ACTION_CHAOS_RUN_LIST,
+)
 from retikon_core.chaos import (
     ChaosPolicy,
     ChaosRun,
@@ -139,6 +148,25 @@ def _get_config():
     return get_config()
 
 
+def _rbac_enabled() -> bool:
+    return os.getenv("RBAC_ENFORCE", "0") == "1"
+
+
+def _abac_enabled() -> bool:
+    return os.getenv("ABAC_ENFORCE", "0") == "1"
+
+
+def _enforce_access(
+    action: str,
+    auth_context: AuthContext | None,
+) -> None:
+    base_uri = _get_config().graph_root_uri()
+    if _rbac_enabled() and not is_action_allowed(auth_context, action, base_uri):
+        raise HTTPException(status_code=403, detail="Forbidden")
+    if _abac_enabled() and not abac_allowed(auth_context, action, base_uri):
+        raise HTTPException(status_code=403, detail="Forbidden")
+
+
 def _audit_logging_enabled() -> bool:
     return os.getenv("AUDIT_LOGGING_ENABLED", "1") == "1"
 
@@ -250,6 +278,7 @@ async def health() -> HealthResponse:
 @app.get("/chaos/policies", response_model=list[ChaosPolicyResponse])
 async def list_policies(request: Request) -> list[ChaosPolicyResponse]:
     auth_context = _authorize(request)
+    _enforce_access(ACTION_CHAOS_POLICY_LIST, auth_context)
     trace_id = _request_id(request)
     _record_audit(
         request=request,
@@ -268,6 +297,7 @@ async def create_policy(
     payload: ChaosPolicyRequest,
 ) -> ChaosPolicyResponse:
     auth_context = _authorize(request)
+    _enforce_access(ACTION_CHAOS_POLICY_CREATE, auth_context)
     trace_id = _request_id(request)
     steps = (
         tuple(_step_from_payload(step) for step in payload.steps)
@@ -313,6 +343,7 @@ async def update_policy(
     payload: ChaosPolicyUpdateRequest,
 ) -> ChaosPolicyResponse:
     auth_context = _authorize(request)
+    _enforce_access(ACTION_CHAOS_POLICY_UPDATE, auth_context)
     trace_id = _request_id(request)
     policies = load_chaos_policies(_get_config().graph_root_uri())
     existing = next((policy for policy in policies if policy.id == policy_id), None)
@@ -368,6 +399,7 @@ async def list_runs(
     limit: int | None = None,
 ) -> list[ChaosRunResponse]:
     auth_context = _authorize(request)
+    _enforce_access(ACTION_CHAOS_RUN_LIST, auth_context)
     trace_id = _request_id(request)
     _record_audit(
         request=request,
@@ -395,6 +427,7 @@ async def create_run(
     payload: ChaosRunRequest,
 ) -> ChaosRunResponse:
     auth_context = _authorize(request)
+    _enforce_access(ACTION_CHAOS_RUN_CREATE, auth_context)
     trace_id = _request_id(request)
     run = register_chaos_run(
         base_uri=_get_config().graph_root_uri(),
@@ -418,6 +451,7 @@ async def create_run(
 @app.get("/chaos/config")
 async def chaos_config(request: Request) -> dict[str, object]:
     auth_context = _authorize(request)
+    _enforce_access(ACTION_CHAOS_CONFIG_READ, auth_context)
     trace_id = _request_id(request)
     _record_audit(
         request=request,

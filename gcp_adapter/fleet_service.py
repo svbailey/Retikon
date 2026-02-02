@@ -5,9 +5,17 @@ from fastapi import FastAPI, HTTPException, Request
 from pydantic import BaseModel, Field
 
 from gcp_adapter.auth import authorize_request
-from gcp_adapter.stores import get_control_plane_stores
+from gcp_adapter.stores import abac_allowed, get_control_plane_stores, is_action_allowed
 from retikon_core.audit import record_audit_log
 from retikon_core.auth import AuthContext
+from retikon_core.auth.rbac import (
+    ACTION_FLEET_DEVICE_CREATE,
+    ACTION_FLEET_DEVICE_LIST,
+    ACTION_FLEET_DEVICE_STATUS_UPDATE,
+    ACTION_FLEET_ROLLOUT_PLAN,
+    ACTION_FLEET_ROLLOUT_ROLLBACK,
+    ACTION_FLEET_SECURITY_CHECK,
+)
 from retikon_core.config import get_config
 from retikon_core.fleet import (
     DeviceRecord,
@@ -118,6 +126,25 @@ def _get_config():
     return get_config()
 
 
+def _rbac_enabled() -> bool:
+    return os.getenv("RBAC_ENFORCE", "0") == "1"
+
+
+def _abac_enabled() -> bool:
+    return os.getenv("ABAC_ENFORCE", "0") == "1"
+
+
+def _enforce_access(
+    action: str,
+    auth_context: AuthContext | None,
+) -> None:
+    base_uri = _get_config().graph_root_uri()
+    if _rbac_enabled() and not is_action_allowed(auth_context, action, base_uri):
+        raise HTTPException(status_code=403, detail="Forbidden")
+    if _abac_enabled() and not abac_allowed(auth_context, action, base_uri):
+        raise HTTPException(status_code=403, detail="Forbidden")
+
+
 def _audit_logging_enabled() -> bool:
     return os.getenv("AUDIT_LOGGING_ENABLED", "1") == "1"
 
@@ -197,6 +224,7 @@ async def health() -> HealthResponse:
 @app.get("/fleet/devices", response_model=list[DeviceResponse])
 async def list_devices(request: Request) -> list[DeviceResponse]:
     auth_context = _authorize(request)
+    _enforce_access(ACTION_FLEET_DEVICE_LIST, auth_context)
     trace_id = _request_id(request)
     _record_audit(
         request=request,
@@ -215,6 +243,7 @@ async def create_device(
     payload: DeviceCreateRequest,
 ) -> DeviceResponse:
     auth_context = _authorize(request)
+    _enforce_access(ACTION_FLEET_DEVICE_CREATE, auth_context)
     trace_id = _request_id(request)
     device = _stores().fleet.register_device(
         name=payload.name,
@@ -252,6 +281,7 @@ async def update_status(
     payload: DeviceStatusRequest,
 ) -> DeviceResponse:
     auth_context = _authorize(request)
+    _enforce_access(ACTION_FLEET_DEVICE_STATUS_UPDATE, auth_context)
     trace_id = _request_id(request)
     updated = _stores().fleet.update_device_status(
         device_id=device_id,
@@ -276,6 +306,7 @@ async def plan_rollouts(
     payload: RolloutRequest,
 ) -> RolloutResponse:
     auth_context = _authorize(request)
+    _enforce_access(ACTION_FLEET_ROLLOUT_PLAN, auth_context)
     trace_id = _request_id(request)
     _record_audit(
         request=request,
@@ -311,6 +342,7 @@ async def rollback_rollout(
     payload: RollbackRequest,
 ) -> RolloutResponse:
     auth_context = _authorize(request)
+    _enforce_access(ACTION_FLEET_ROLLOUT_ROLLBACK, auth_context)
     trace_id = _request_id(request)
     _record_audit(
         request=request,
@@ -346,6 +378,7 @@ async def hardening_check(
     payload: HardeningRequest,
 ) -> HardeningResponse:
     auth_context = _authorize(request)
+    _enforce_access(ACTION_FLEET_SECURITY_CHECK, auth_context)
     trace_id = _request_id(request)
     _record_audit(
         request=request,

@@ -9,10 +9,18 @@ from pydantic import BaseModel, Field
 
 from gcp_adapter.auth import authorize_request
 from gcp_adapter.pubsub_event_publisher import PubSubEventPublisher
+from gcp_adapter.stores import abac_allowed, is_action_allowed
 from retikon_core.alerts import evaluate_rules, load_alerts, register_alert
 from retikon_core.alerts.types import AlertDestination, AlertRule
 from retikon_core.audit import record_audit_log
 from retikon_core.auth import AuthContext
+from retikon_core.auth.rbac import (
+    ACTION_ALERTS_CREATE,
+    ACTION_ALERTS_LIST,
+    ACTION_EVENTS_DISPATCH,
+    ACTION_WEBHOOKS_CREATE,
+    ACTION_WEBHOOKS_LIST,
+)
 from retikon_core.config import get_config
 from retikon_core.logging import configure_logging, get_logger
 from retikon_core.services.fastapi_scaffolding import (
@@ -142,6 +150,25 @@ def _authorize(request: Request) -> AuthContext | None:
     return authorize_request(request=request, require_admin=_require_admin())
 
 
+def _rbac_enabled() -> bool:
+    return os.getenv("RBAC_ENFORCE", "0") == "1"
+
+
+def _abac_enabled() -> bool:
+    return os.getenv("ABAC_ENFORCE", "0") == "1"
+
+
+def _enforce_access(
+    action: str,
+    auth_context: AuthContext | None,
+) -> None:
+    base_uri = _get_config().graph_root_uri()
+    if _rbac_enabled() and not is_action_allowed(auth_context, action, base_uri):
+        raise HTTPException(status_code=403, detail="Forbidden")
+    if _abac_enabled() and not abac_allowed(auth_context, action, base_uri):
+        raise HTTPException(status_code=403, detail="Forbidden")
+
+
 def _audit_logging_enabled() -> bool:
     return os.getenv("AUDIT_LOGGING_ENABLED", "1") == "1"
 
@@ -190,6 +217,7 @@ async def health() -> HealthResponse:
 @app.get("/webhooks", response_model=list[WebhookResponse])
 async def list_webhooks(request: Request) -> list[WebhookResponse]:
     auth_context = _authorize(request)
+    _enforce_access(ACTION_WEBHOOKS_LIST, auth_context)
     trace_id = _request_id(request)
     _record_audit(
         request=request,
@@ -209,6 +237,7 @@ async def create_webhook(
     payload: WebhookCreateRequest,
 ) -> WebhookResponse:
     auth_context = _authorize(request)
+    _enforce_access(ACTION_WEBHOOKS_CREATE, auth_context)
     trace_id = _request_id(request)
     config = _get_config()
     webhook = register_webhook(
@@ -246,6 +275,7 @@ async def create_webhook(
 @app.get("/alerts", response_model=list[AlertResponse])
 async def list_alerts(request: Request) -> list[AlertResponse]:
     auth_context = _authorize(request)
+    _enforce_access(ACTION_ALERTS_LIST, auth_context)
     trace_id = _request_id(request)
     _record_audit(
         request=request,
@@ -262,6 +292,7 @@ async def list_alerts(request: Request) -> list[AlertResponse]:
 @app.post("/alerts", response_model=AlertResponse, status_code=201)
 async def create_alert(request: Request, payload: AlertCreateRequest) -> AlertResponse:
     auth_context = _authorize(request)
+    _enforce_access(ACTION_ALERTS_CREATE, auth_context)
     trace_id = _request_id(request)
     config = _get_config()
     destinations = tuple(
@@ -311,6 +342,7 @@ async def dispatch_event(
     x_request_id: str | None = Header(default=None),
 ) -> EventDeliveryResponse:
     auth_context = _authorize(request)
+    _enforce_access(ACTION_EVENTS_DISPATCH, auth_context)
     trace_id = _request_id(request)
     _record_audit(
         request=request,

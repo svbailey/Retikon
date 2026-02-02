@@ -6,9 +6,14 @@ from fastapi import FastAPI, HTTPException, Request
 from pydantic import BaseModel
 
 from gcp_adapter.auth import authorize_request
-from gcp_adapter.stores import get_control_plane_stores
+from gcp_adapter.stores import abac_allowed, get_control_plane_stores, is_action_allowed
 from retikon_core.audit import record_audit_log
 from retikon_core.auth import AuthContext
+from retikon_core.auth.rbac import (
+    ACTION_PRIVACY_POLICY_CREATE,
+    ACTION_PRIVACY_POLICY_LIST,
+    ACTION_PRIVACY_POLICY_UPDATE,
+)
 from retikon_core.config import get_config
 from retikon_core.logging import configure_logging, get_logger
 from retikon_core.privacy import PrivacyPolicy
@@ -85,6 +90,25 @@ def _authorize(request: Request) -> AuthContext | None:
 
 def _get_config():
     return get_config()
+
+
+def _rbac_enabled() -> bool:
+    return os.getenv("RBAC_ENFORCE", "0") == "1"
+
+
+def _abac_enabled() -> bool:
+    return os.getenv("ABAC_ENFORCE", "0") == "1"
+
+
+def _enforce_access(
+    action: str,
+    auth_context: AuthContext | None,
+) -> None:
+    base_uri = _get_config().graph_root_uri()
+    if _rbac_enabled() and not is_action_allowed(auth_context, action, base_uri):
+        raise HTTPException(status_code=403, detail="Forbidden")
+    if _abac_enabled() and not abac_allowed(auth_context, action, base_uri):
+        raise HTTPException(status_code=403, detail="Forbidden")
 
 
 def _audit_logging_enabled() -> bool:
@@ -171,6 +195,7 @@ async def health() -> HealthResponse:
 @app.get("/privacy/policies", response_model=list[PrivacyPolicyResponse])
 async def list_policies(request: Request) -> list[PrivacyPolicyResponse]:
     auth_context = _authorize(request)
+    _enforce_access(ACTION_PRIVACY_POLICY_LIST, auth_context)
     trace_id = _request_id(request)
     _record_audit(
         request=request,
@@ -193,6 +218,7 @@ async def create_policy(
     payload: PrivacyPolicyRequest,
 ) -> PrivacyPolicyResponse:
     auth_context = _authorize(request)
+    _enforce_access(ACTION_PRIVACY_POLICY_CREATE, auth_context)
     trace_id = _request_id(request)
     policy = _stores().privacy.register_policy(
         name=payload.name,
@@ -230,6 +256,7 @@ async def update_policy(
     payload: PrivacyPolicyUpdateRequest,
 ) -> PrivacyPolicyResponse:
     auth_context = _authorize(request)
+    _enforce_access(ACTION_PRIVACY_POLICY_UPDATE, auth_context)
     trace_id = _request_id(request)
     policies = _stores().privacy.load_policies()
     existing = next((policy for policy in policies if policy.id == policy_id), None)

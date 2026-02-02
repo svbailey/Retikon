@@ -10,7 +10,16 @@ from fastapi import FastAPI, File, Form, HTTPException, Request, UploadFile
 from pydantic import BaseModel
 
 from gcp_adapter.auth import authorize_request
+from gcp_adapter.stores import abac_allowed, is_action_allowed
 from retikon_core.auth import AuthContext
+from retikon_core.auth.rbac import (
+    ACTION_EDGE_BUFFER_PRUNE,
+    ACTION_EDGE_BUFFER_REPLAY,
+    ACTION_EDGE_BUFFER_STATUS,
+    ACTION_EDGE_CONFIG_READ,
+    ACTION_EDGE_CONFIG_UPDATE,
+    ACTION_EDGE_UPLOAD,
+)
 from retikon_core.edge.buffer import BufferItem, EdgeBuffer
 from retikon_core.edge.policies import AdaptiveBatchPolicy, BackpressurePolicy
 from retikon_core.logging import configure_logging, get_logger
@@ -18,6 +27,7 @@ from retikon_core.services.fastapi_scaffolding import (
     apply_cors_middleware,
     build_health_response,
 )
+from retikon_core.storage.paths import graph_root, normalize_bucket_uri
 
 SERVICE_NAME = "retikon-edge-gateway"
 
@@ -151,6 +161,36 @@ def _authorize(request: Request) -> AuthContext | None:
     return authorize_request(request=request, require_admin=False)
 
 
+def _rbac_enabled() -> bool:
+    return os.getenv("RBAC_ENFORCE", "0") == "1"
+
+
+def _abac_enabled() -> bool:
+    return os.getenv("ABAC_ENFORCE", "0") == "1"
+
+
+def _control_plane_base_uri() -> str:
+    local_root = os.getenv("LOCAL_GRAPH_ROOT")
+    if local_root:
+        return local_root
+    graph_bucket = os.getenv("GRAPH_BUCKET")
+    graph_prefix = os.getenv("GRAPH_PREFIX", "")
+    if not graph_bucket:
+        raise HTTPException(status_code=500, detail="Missing GRAPH_BUCKET")
+    return graph_root(normalize_bucket_uri(graph_bucket, scheme="gs"), graph_prefix)
+
+
+def _enforce_access(
+    action: str,
+    auth_context: AuthContext | None,
+) -> None:
+    base_uri = _control_plane_base_uri()
+    if _rbac_enabled() and not is_action_allowed(auth_context, action, base_uri):
+        raise HTTPException(status_code=403, detail="Forbidden")
+    if _abac_enabled() and not abac_allowed(auth_context, action, base_uri):
+        raise HTTPException(status_code=403, detail="Forbidden")
+
+
 def _object_path(
     *,
     modality: str,
@@ -243,7 +283,8 @@ async def health() -> dict[str, str]:
 
 @app.get("/edge/config", response_model=ConfigResponse)
 async def get_config(request: Request) -> ConfigResponse:
-    _authorize(request)
+    auth_context = _authorize(request)
+    _enforce_access(ACTION_EDGE_CONFIG_READ, auth_context)
     return ConfigResponse(
         buffer_dir=_buffer_dir(),
         buffer_max_bytes=STATE.buffer.max_bytes,
@@ -259,7 +300,8 @@ async def get_config(request: Request) -> ConfigResponse:
 
 @app.post("/edge/config", response_model=ConfigResponse)
 async def update_config(payload: ConfigUpdate, request: Request) -> ConfigResponse:
-    _authorize(request)
+    auth_context = _authorize(request)
+    _enforce_access(ACTION_EDGE_CONFIG_UPDATE, auth_context)
     if payload.buffer_max_bytes is not None:
         STATE.buffer.max_bytes = payload.buffer_max_bytes
     if payload.buffer_ttl_seconds is not None:
@@ -306,7 +348,8 @@ async def update_config(payload: ConfigUpdate, request: Request) -> ConfigRespon
 
 @app.get("/edge/buffer/status", response_model=BufferStatus)
 async def buffer_status(request: Request) -> BufferStatus:
-    _authorize(request)
+    auth_context = _authorize(request)
+    _enforce_access(ACTION_EDGE_BUFFER_STATUS, auth_context)
     stats = STATE.buffer.stats()
     return BufferStatus(
         count=stats.count,
@@ -318,13 +361,15 @@ async def buffer_status(request: Request) -> BufferStatus:
 
 @app.post("/edge/buffer/replay")
 async def buffer_replay(request: Request) -> dict[str, int]:
-    _authorize(request)
+    auth_context = _authorize(request)
+    _enforce_access(ACTION_EDGE_BUFFER_REPLAY, auth_context)
     return STATE.buffer.replay(_replay_item)
 
 
 @app.post("/edge/buffer/prune")
 async def buffer_prune(request: Request) -> dict[str, int]:
-    _authorize(request)
+    auth_context = _authorize(request)
+    _enforce_access(ACTION_EDGE_BUFFER_PRUNE, auth_context)
     before = STATE.buffer.stats()
     STATE.buffer.prune()
     after = STATE.buffer.stats()
@@ -340,7 +385,8 @@ async def upload(
     stream_id: Annotated[str | None, Form()] = None,
     site_id: Annotated[str | None, Form()] = None,
 ) -> UploadResponse:
-    _authorize(request)
+    auth_context = _authorize(request)
+    _enforce_access(ACTION_EDGE_UPLOAD, auth_context)
     backlog = STATE.buffer.stats().count
     if not STATE.backpressure.should_accept(backlog):
         raise HTTPException(status_code=429, detail="Gateway backpressure active")
