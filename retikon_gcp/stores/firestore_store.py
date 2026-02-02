@@ -465,8 +465,44 @@ class FirestoreWorkflowStore(FirestoreStoreBase, WorkflowStore):
         return run
 
     def update_workflow_run(self, *, run: WorkflowRun) -> WorkflowRun:
-        self._collection(self._run_collection_name).document(run.id).set(asdict(run))
-        return run
+        doc_ref = self._collection(self._run_collection_name).document(run.id)
+        transaction = self._client.transaction()
+
+        @firestore.transactional
+        def _update(transaction: firestore.Transaction) -> WorkflowRun:
+            snapshot = doc_ref.get(transaction=transaction)
+            if snapshot.exists:
+                existing = workflow_store._run_from_dict(self._doc_payload(snapshot))
+                created_at = run.created_at or existing.created_at
+                org_id = run.org_id if run.org_id is not None else existing.org_id
+                site_id = run.site_id if run.site_id is not None else existing.site_id
+                stream_id = (
+                    run.stream_id if run.stream_id is not None else existing.stream_id
+                )
+            else:
+                created_at = run.created_at or _now_iso()
+                org_id = run.org_id
+                site_id = run.site_id
+                stream_id = run.stream_id
+            updated = WorkflowRun(
+                id=run.id,
+                workflow_id=run.workflow_id,
+                status=run.status,
+                started_at=run.started_at,
+                finished_at=run.finished_at,
+                error=run.error,
+                output=run.output,
+                triggered_by=run.triggered_by,
+                org_id=org_id,
+                site_id=site_id,
+                stream_id=stream_id,
+                created_at=created_at,
+                updated_at=run.updated_at or _now_iso(),
+            )
+            transaction.set(doc_ref, asdict(updated))
+            return updated
+
+        return _update(transaction)
 
     def list_workflow_runs(
         self,

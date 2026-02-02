@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import os
+import threading
 import uuid
 from datetime import datetime, timezone
 
@@ -8,6 +9,7 @@ import pytest
 from google.cloud import firestore
 
 from gcp_adapter.stores import get_control_plane_stores
+from retikon_core.auth.abac import Policy
 from retikon_core.privacy.types import PrivacyPolicy
 
 
@@ -95,6 +97,185 @@ def test_firestore_workflow_store_roundtrip(monkeypatch):
     )
     runs = stores.workflows.list_workflow_runs(workflow_id=workflow.id, limit=5)
     assert any(item.id == run.id for item in runs)
+
+
+@pytest.mark.pro
+def test_firestore_fleet_store_roundtrip(monkeypatch):
+    _require_firestore_emulator()
+    monkeypatch.setenv("CONTROL_PLANE_STORE", "firestore")
+    monkeypatch.setenv(
+        "CONTROL_PLANE_COLLECTION_PREFIX",
+        _collection_prefix("test_fleet"),
+    )
+    project_id = os.getenv("GOOGLE_CLOUD_PROJECT") or "retikon-test"
+    monkeypatch.setenv("GOOGLE_CLOUD_PROJECT", project_id)
+    stores = get_control_plane_stores("gs://test-bucket/retikon_v2")
+    device = stores.fleet.register_device(
+        name="cam-1",
+        org_id="org",
+        status="active",
+        tags=["edge"],
+        metadata={"region": "us"},
+    )
+    devices = stores.fleet.load_devices()
+    assert any(item.id == device.id for item in devices)
+    updated = stores.fleet.update_device_status(
+        device_id=device.id,
+        status="disabled",
+    )
+    assert updated is not None
+    assert updated.metadata == {"region": "us"}
+
+
+@pytest.mark.pro
+def test_firestore_data_factory_store_roundtrip(monkeypatch):
+    _require_firestore_emulator()
+    monkeypatch.setenv("CONTROL_PLANE_STORE", "firestore")
+    monkeypatch.setenv(
+        "CONTROL_PLANE_COLLECTION_PREFIX",
+        _collection_prefix("test_data_factory"),
+    )
+    project_id = os.getenv("GOOGLE_CLOUD_PROJECT") or "retikon-test"
+    monkeypatch.setenv("GOOGLE_CLOUD_PROJECT", project_id)
+    stores = get_control_plane_stores("gs://test-bucket/retikon_v2")
+    model = stores.data_factory.register_model(
+        name="model-1",
+        version="1",
+        org_id="org",
+    )
+    models = stores.data_factory.load_models()
+    assert any(item.id == model.id for item in models)
+    job = stores.data_factory.register_training_job(
+        model_id=model.id,
+        dataset_id="dataset-1",
+        epochs=1,
+    )
+    fetched = stores.data_factory.get_training_job(job.id)
+    assert fetched is not None
+    jobs = stores.data_factory.list_training_jobs(limit=5)
+    assert any(item.id == job.id for item in jobs)
+    running = stores.data_factory.mark_training_job_running(job_id=job.id)
+    assert running.status == "running"
+
+
+@pytest.mark.pro
+def test_firestore_connector_store_roundtrip(monkeypatch):
+    _require_firestore_emulator()
+    monkeypatch.setenv("CONTROL_PLANE_STORE", "firestore")
+    monkeypatch.setenv(
+        "CONTROL_PLANE_COLLECTION_PREFIX",
+        _collection_prefix("test_connectors"),
+    )
+    project_id = os.getenv("GOOGLE_CLOUD_PROJECT") or "retikon-test"
+    monkeypatch.setenv("GOOGLE_CLOUD_PROJECT", project_id)
+    stores = get_control_plane_stores("gs://test-bucket/retikon_v2")
+    connector = stores.connectors.register_ocr_connector(
+        name="OCR Primary",
+        url="https://ocr.example.com/v1/extract",
+        auth_type="bearer",
+        token_env="OCR_TOKEN",
+        enabled=True,
+        is_default=True,
+        org_id="org",
+    )
+    connectors = stores.connectors.load_ocr_connectors()
+    assert any(item.id == connector.id for item in connectors)
+    updated = stores.connectors.update_ocr_connector(connector=connector)
+    assert updated.id == connector.id
+
+
+@pytest.mark.pro
+def test_firestore_api_key_store_roundtrip(monkeypatch):
+    _require_firestore_emulator()
+    monkeypatch.setenv("CONTROL_PLANE_STORE", "firestore")
+    monkeypatch.setenv(
+        "CONTROL_PLANE_COLLECTION_PREFIX",
+        _collection_prefix("test_api_keys"),
+    )
+    project_id = os.getenv("GOOGLE_CLOUD_PROJECT") or "retikon-test"
+    monkeypatch.setenv("GOOGLE_CLOUD_PROJECT", project_id)
+    stores = get_control_plane_stores("gs://test-bucket/retikon_v2")
+    api_key = stores.api_keys.register_api_key(
+        name="key-1",
+        key_hash="hash",
+        org_id="org",
+    )
+    keys = stores.api_keys.load_api_keys()
+    assert any(item.id == api_key.id for item in keys)
+
+
+@pytest.mark.pro
+def test_firestore_rbac_store_roundtrip(monkeypatch):
+    _require_firestore_emulator()
+    monkeypatch.setenv("CONTROL_PLANE_STORE", "firestore")
+    monkeypatch.setenv(
+        "CONTROL_PLANE_COLLECTION_PREFIX",
+        _collection_prefix("test_rbac"),
+    )
+    project_id = os.getenv("GOOGLE_CLOUD_PROJECT") or "retikon-test"
+    monkeypatch.setenv("GOOGLE_CLOUD_PROJECT", project_id)
+    stores = get_control_plane_stores("gs://test-bucket/retikon_v2")
+    bindings = {"principal-1": ["reader", "ingestor"]}
+    stores.rbac.save_role_bindings(bindings)
+    loaded = stores.rbac.load_role_bindings()
+    assert loaded == bindings
+
+
+@pytest.mark.pro
+def test_firestore_abac_store_roundtrip(monkeypatch):
+    _require_firestore_emulator()
+    monkeypatch.setenv("CONTROL_PLANE_STORE", "firestore")
+    monkeypatch.setenv(
+        "CONTROL_PLANE_COLLECTION_PREFIX",
+        _collection_prefix("test_abac"),
+    )
+    project_id = os.getenv("GOOGLE_CLOUD_PROJECT") or "retikon-test"
+    monkeypatch.setenv("GOOGLE_CLOUD_PROJECT", project_id)
+    stores = get_control_plane_stores("gs://test-bucket/retikon_v2")
+    policies = [
+        Policy(id="policy-1", effect="allow", conditions={"org_id": "org"})
+    ]
+    stores.abac.save_policies(policies)
+    loaded = stores.abac.load_policies()
+    assert any(item.id == "policy-1" for item in loaded)
+
+
+@pytest.mark.pro
+def test_firestore_device_status_transaction(monkeypatch):
+    _require_firestore_emulator()
+    monkeypatch.setenv("CONTROL_PLANE_STORE", "firestore")
+    monkeypatch.setenv(
+        "CONTROL_PLANE_COLLECTION_PREFIX",
+        _collection_prefix("test_fleet_tx"),
+    )
+    project_id = os.getenv("GOOGLE_CLOUD_PROJECT") or "retikon-test"
+    monkeypatch.setenv("GOOGLE_CLOUD_PROJECT", project_id)
+    stores = get_control_plane_stores("gs://test-bucket/retikon_v2")
+    device = stores.fleet.register_device(
+        name="cam-tx",
+        org_id="org",
+        status="active",
+        metadata={"region": "us"},
+    )
+
+    barrier = threading.Barrier(3)
+
+    def _update(status: str) -> None:
+        barrier.wait()
+        stores.fleet.update_device_status(device_id=device.id, status=status)
+
+    t1 = threading.Thread(target=_update, args=("active",))
+    t2 = threading.Thread(target=_update, args=("disabled",))
+    t1.start()
+    t2.start()
+    barrier.wait()
+    t1.join()
+    t2.join()
+
+    devices = stores.fleet.load_devices()
+    refreshed = next(item for item in devices if item.id == device.id)
+    assert refreshed.metadata == {"region": "us"}
+    assert refreshed.status in {"active", "disabled"}
 
 
 @pytest.mark.pro
