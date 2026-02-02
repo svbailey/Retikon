@@ -25,6 +25,7 @@ from gcp_adapter.office_conversion import (
 )
 from gcp_adapter.queue_pubsub import PubSubPublisher, parse_pubsub_push
 from gcp_adapter.stores import get_control_plane_stores
+from retikon_core.audit import record_audit_log
 from retikon_core.auth import AuthContext
 from retikon_core.config import get_config
 from retikon_core.connectors import list_connectors
@@ -339,6 +340,46 @@ def _get_config():
     return get_config()
 
 
+def _audit_logging_enabled() -> bool:
+    return os.getenv("AUDIT_LOGGING_ENABLED", "1") == "1"
+
+
+def _schema_version() -> str:
+    return os.getenv("SCHEMA_VERSION", "1")
+
+
+def _request_id(request: Request) -> str:
+    return request.headers.get("x-request-id") or str(uuid.uuid4())
+
+
+def _record_audit(
+    *,
+    request: Request,
+    auth_context: AuthContext | None,
+    action: str,
+    decision: str,
+    request_id: str,
+) -> None:
+    if not _audit_logging_enabled():
+        return
+    try:
+        record_audit_log(
+            base_uri=_get_config().graph_root_uri(),
+            action=action,
+            decision=decision,
+            auth_context=auth_context,
+            resource=request.url.path,
+            request_id=request_id,
+            pipeline_version=os.getenv("RETIKON_VERSION", "dev"),
+            schema_version=_schema_version(),
+        )
+    except Exception as exc:
+        logger.warning(
+            "Failed to record audit log",
+            extra={"error_message": str(exc)},
+        )
+
+
 def _stores():
     return get_control_plane_stores(_get_config().graph_root_uri())
 
@@ -389,7 +430,15 @@ async def health() -> HealthResponse:
 
 @app.get("/data-factory/datasets")
 async def get_datasets(request: Request) -> list[dict[str, Any]]:
-    _authorize(request)
+    auth_context = _authorize(request)
+    trace_id = _request_id(request)
+    _record_audit(
+        request=request,
+        auth_context=auth_context,
+        action="data_factory.dataset.list",
+        decision="allow",
+        request_id=trace_id,
+    )
     return list_datasets(_get_config().graph_root_uri())
 
 
@@ -398,7 +447,8 @@ async def create_dataset_endpoint(
     request: Request,
     payload: DatasetRequest,
 ) -> dict[str, str]:
-    _authorize(request)
+    auth_context = _authorize(request)
+    trace_id = _request_id(request)
     result = create_dataset(
         base_uri=_get_config().graph_root_uri(),
         name=payload.name,
@@ -411,10 +461,17 @@ async def create_dataset_endpoint(
         pipeline_version=os.getenv("RETIKON_VERSION", "dev"),
         schema_version=os.getenv("SCHEMA_VERSION", "1"),
     )
+    _record_audit(
+        request=request,
+        auth_context=auth_context,
+        action="data_factory.dataset.create",
+        decision="allow",
+        request_id=trace_id,
+    )
     logger.info(
         "Dataset created",
         extra={
-            "request_id": str(uuid.uuid4()),
+            "request_id": trace_id,
             "correlation_id": request.headers.get("x-correlation-id"),
             "dataset_uri": result.uri,
         },
@@ -424,7 +481,15 @@ async def create_dataset_endpoint(
 
 @app.get("/data-factory/annotations")
 async def get_annotations(request: Request) -> list[dict[str, Any]]:
-    _authorize(request)
+    auth_context = _authorize(request)
+    trace_id = _request_id(request)
+    _record_audit(
+        request=request,
+        auth_context=auth_context,
+        action="data_factory.annotation.list",
+        decision="allow",
+        request_id=trace_id,
+    )
     return list_annotations(_get_config().graph_root_uri())
 
 
@@ -433,7 +498,8 @@ async def create_annotation_endpoint(
     request: Request,
     payload: AnnotationRequest,
 ) -> dict[str, str]:
-    _authorize(request)
+    auth_context = _authorize(request)
+    trace_id = _request_id(request)
     result = add_annotation(
         base_uri=_get_config().graph_root_uri(),
         dataset_id=payload.dataset_id,
@@ -449,10 +515,17 @@ async def create_annotation_endpoint(
         pipeline_version=os.getenv("RETIKON_VERSION", "dev"),
         schema_version=os.getenv("SCHEMA_VERSION", "1"),
     )
+    _record_audit(
+        request=request,
+        auth_context=auth_context,
+        action="data_factory.annotation.create",
+        decision="allow",
+        request_id=trace_id,
+    )
     logger.info(
         "Annotation created",
         extra={
-            "request_id": str(uuid.uuid4()),
+            "request_id": trace_id,
             "correlation_id": request.headers.get("x-correlation-id"),
             "annotation_uri": result.uri,
         },
@@ -462,7 +535,15 @@ async def create_annotation_endpoint(
 
 @app.get("/data-factory/models")
 async def get_models(request: Request) -> list[dict[str, Any]]:
-    _authorize(request)
+    auth_context = _authorize(request)
+    trace_id = _request_id(request)
+    _record_audit(
+        request=request,
+        auth_context=auth_context,
+        action="data_factory.model.list",
+        decision="allow",
+        request_id=trace_id,
+    )
     models = _stores().data_factory.load_models()
     return [model.__dict__ for model in models]
 
@@ -472,7 +553,8 @@ async def create_model_endpoint(
     request: Request,
     payload: ModelRequest,
 ) -> dict[str, Any]:
-    _authorize(request)
+    auth_context = _authorize(request)
+    trace_id = _request_id(request)
     model = _stores().data_factory.register_model(
         name=payload.name,
         version=payload.version,
@@ -486,10 +568,17 @@ async def create_model_endpoint(
         stream_id=payload.stream_id,
         status=payload.status or "active",
     )
+    _record_audit(
+        request=request,
+        auth_context=auth_context,
+        action="data_factory.model.create",
+        decision="allow",
+        request_id=trace_id,
+    )
     logger.info(
         "Model registered",
         extra={
-            "request_id": str(uuid.uuid4()),
+            "request_id": trace_id,
             "correlation_id": request.headers.get("x-correlation-id"),
             "model_id": model.id,
         },
@@ -502,7 +591,8 @@ async def create_training_endpoint(
     request: Request,
     payload: TrainingRequest,
 ) -> TrainingJobResponse:
-    _authorize(request)
+    auth_context = _authorize(request)
+    trace_id = _request_id(request)
     job = _stores().data_factory.register_training_job(
         dataset_id=payload.dataset_id,
         model_id=payload.model_id,
@@ -513,6 +603,13 @@ async def create_training_endpoint(
         org_id=payload.org_id,
         site_id=payload.site_id,
         stream_id=payload.stream_id,
+    )
+    _record_audit(
+        request=request,
+        auth_context=auth_context,
+        action="data_factory.training.create",
+        decision="allow",
+        request_id=trace_id,
     )
     if _training_run_mode() == "queue" and _training_queue_topic():
         try:
@@ -530,7 +627,15 @@ async def list_training_jobs_endpoint(
     status: str | None = None,
     limit: int | None = None,
 ) -> list[TrainingJobResponse]:
-    _authorize(request)
+    auth_context = _authorize(request)
+    trace_id = _request_id(request)
+    _record_audit(
+        request=request,
+        auth_context=auth_context,
+        action="data_factory.training.list",
+        decision="allow",
+        request_id=trace_id,
+    )
     jobs = _stores().data_factory.list_training_jobs(
         status=status,
         limit=limit,
@@ -546,7 +651,15 @@ async def get_training_job_endpoint(
     request: Request,
     job_id: str,
 ) -> TrainingJobResponse:
-    _authorize(request)
+    auth_context = _authorize(request)
+    trace_id = _request_id(request)
+    _record_audit(
+        request=request,
+        auth_context=auth_context,
+        action="data_factory.training.read",
+        decision="allow",
+        request_id=trace_id,
+    )
     job = _stores().data_factory.get_training_job(job_id)
     if job is None:
         raise HTTPException(status_code=404, detail="Training job not found")
@@ -596,7 +709,15 @@ async def get_connectors(
     category: str | None = None,
     streaming: bool | None = None,
 ) -> list[ConnectorResponse]:
-    _authorize(request)
+    auth_context = _authorize(request)
+    trace_id = _request_id(request)
+    _record_audit(
+        request=request,
+        auth_context=auth_context,
+        action="data_factory.connectors.list",
+        decision="allow",
+        request_id=trace_id,
+    )
     resolved = list_connectors(edition=edition, category=category, streaming=streaming)
     return [_connector_response(item) for item in resolved]
 
@@ -606,7 +727,8 @@ async def register_ocr_connector_endpoint(
     request: Request,
     payload: OcrConnectorRequest,
 ) -> OcrConnectorResponse:
-    _authorize(request)
+    auth_context = _authorize(request)
+    trace_id = _request_id(request)
     try:
         connector = _stores().connectors.register_ocr_connector(
             name=payload.name,
@@ -626,12 +748,27 @@ async def register_ocr_connector_endpoint(
         )
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
+    _record_audit(
+        request=request,
+        auth_context=auth_context,
+        action="data_factory.ocr_connector.create",
+        decision="allow",
+        request_id=trace_id,
+    )
     return _ocr_connector_response(connector)
 
 
 @app.get("/data-factory/ocr/connectors", response_model=list[OcrConnectorResponse])
 async def list_ocr_connectors(request: Request) -> list[OcrConnectorResponse]:
-    _authorize(request)
+    auth_context = _authorize(request)
+    trace_id = _request_id(request)
+    _record_audit(
+        request=request,
+        auth_context=auth_context,
+        action="data_factory.ocr_connector.list",
+        decision="allow",
+        request_id=trace_id,
+    )
     connectors = _stores().connectors.load_ocr_connectors()
     return [_ocr_connector_response(item) for item in connectors]
 
@@ -641,7 +778,15 @@ async def convert_office(
     request: Request,
     payload: OfficeConversionRequest,
 ) -> OfficeConversionResponse:
-    _authorize(request)
+    auth_context = _authorize(request)
+    trace_id = _request_id(request)
+    _record_audit(
+        request=request,
+        auth_context=auth_context,
+        action="data_factory.office_conversion.create",
+        decision="allow",
+        request_id=trace_id,
+    )
     if not _is_office_filename(payload.filename):
         raise HTTPException(status_code=400, detail="Unsupported filename extension")
     mode = _resolve_conversion_mode(payload.queue)
@@ -723,7 +868,15 @@ async def get_conversion_job(
     request: Request,
     job_id: str,
 ) -> OfficeConversionJobResponse:
-    _authorize(request)
+    auth_context = _authorize(request)
+    trace_id = _request_id(request)
+    _record_audit(
+        request=request,
+        auth_context=auth_context,
+        action="data_factory.office_conversion.read",
+        decision="allow",
+        request_id=trace_id,
+    )
     job = load_conversion_record(_get_config().graph_root_uri(), job_id)
     if job is None:
         raise HTTPException(status_code=404, detail="Conversion job not found")

@@ -6,6 +6,7 @@ from fastapi import FastAPI, HTTPException, Request
 from pydantic import BaseModel
 
 from gcp_adapter.auth import authorize_request
+from retikon_core.audit import record_audit_log
 from retikon_core.auth import AuthContext
 from retikon_core.chaos import (
     ChaosPolicy,
@@ -138,6 +139,46 @@ def _get_config():
     return get_config()
 
 
+def _audit_logging_enabled() -> bool:
+    return os.getenv("AUDIT_LOGGING_ENABLED", "1") == "1"
+
+
+def _schema_version() -> str:
+    return os.getenv("SCHEMA_VERSION", "1")
+
+
+def _request_id(request: Request) -> str:
+    return request.headers.get("x-request-id") or str(uuid.uuid4())
+
+
+def _record_audit(
+    *,
+    request: Request,
+    auth_context: AuthContext | None,
+    action: str,
+    decision: str,
+    request_id: str,
+) -> None:
+    if not _audit_logging_enabled():
+        return
+    try:
+        record_audit_log(
+            base_uri=_get_config().graph_root_uri(),
+            action=action,
+            decision=decision,
+            auth_context=auth_context,
+            resource=request.url.path,
+            request_id=request_id,
+            pipeline_version=os.getenv("RETIKON_VERSION", "dev"),
+            schema_version=_schema_version(),
+        )
+    except Exception as exc:
+        logger.warning(
+            "Failed to record audit log",
+            extra={"error_message": str(exc)},
+        )
+
+
 def _step_from_payload(payload: ChaosStepPayload) -> ChaosStep:
     return ChaosStep(
         id=payload.id or str(uuid.uuid4()),
@@ -208,7 +249,15 @@ async def health() -> HealthResponse:
 
 @app.get("/chaos/policies", response_model=list[ChaosPolicyResponse])
 async def list_policies(request: Request) -> list[ChaosPolicyResponse]:
-    _authorize(request)
+    auth_context = _authorize(request)
+    trace_id = _request_id(request)
+    _record_audit(
+        request=request,
+        auth_context=auth_context,
+        action="chaos.policy.list",
+        decision="allow",
+        request_id=trace_id,
+    )
     policies = load_chaos_policies(_get_config().graph_root_uri())
     return [_policy_response(policy) for policy in policies]
 
@@ -218,7 +267,8 @@ async def create_policy(
     request: Request,
     payload: ChaosPolicyRequest,
 ) -> ChaosPolicyResponse:
-    _authorize(request)
+    auth_context = _authorize(request)
+    trace_id = _request_id(request)
     steps = (
         tuple(_step_from_payload(step) for step in payload.steps)
         if payload.steps
@@ -238,10 +288,17 @@ async def create_policy(
         steps=steps,
         status=payload.status or "active",
     )
+    _record_audit(
+        request=request,
+        auth_context=auth_context,
+        action="chaos.policy.create",
+        decision="allow",
+        request_id=trace_id,
+    )
     logger.info(
         "Chaos policy created",
         extra={
-            "request_id": str(uuid.uuid4()),
+            "request_id": trace_id,
             "correlation_id": request.headers.get("x-correlation-id"),
             "policy_id": policy.id,
         },
@@ -255,7 +312,8 @@ async def update_policy(
     policy_id: str,
     payload: ChaosPolicyUpdateRequest,
 ) -> ChaosPolicyResponse:
-    _authorize(request)
+    auth_context = _authorize(request)
+    trace_id = _request_id(request)
     policies = load_chaos_policies(_get_config().graph_root_uri())
     existing = next((policy for policy in policies if policy.id == policy_id), None)
     if existing is None:
@@ -293,6 +351,13 @@ async def update_policy(
         status=payload.status if payload.status is not None else existing.status,
     )
     update_chaos_policy(base_uri=_get_config().graph_root_uri(), policy=updated)
+    _record_audit(
+        request=request,
+        auth_context=auth_context,
+        action="chaos.policy.update",
+        decision="allow",
+        request_id=trace_id,
+    )
     return _policy_response(updated)
 
 
@@ -302,7 +367,15 @@ async def list_runs(
     policy_id: str | None = None,
     limit: int | None = None,
 ) -> list[ChaosRunResponse]:
-    _authorize(request)
+    auth_context = _authorize(request)
+    trace_id = _request_id(request)
+    _record_audit(
+        request=request,
+        auth_context=auth_context,
+        action="chaos.run.list",
+        decision="allow",
+        request_id=trace_id,
+    )
     runs = list_chaos_runs(
         _get_config().graph_root_uri(),
         policy_id=policy_id,
@@ -321,7 +394,8 @@ async def create_run(
     policy_id: str,
     payload: ChaosRunRequest,
 ) -> ChaosRunResponse:
-    _authorize(request)
+    auth_context = _authorize(request)
+    trace_id = _request_id(request)
     run = register_chaos_run(
         base_uri=_get_config().graph_root_uri(),
         policy_id=policy_id,
@@ -331,12 +405,27 @@ async def create_run(
         summary=payload.summary,
         triggered_by=payload.triggered_by,
     )
+    _record_audit(
+        request=request,
+        auth_context=auth_context,
+        action="chaos.run.create",
+        decision="allow",
+        request_id=trace_id,
+    )
     return _run_response(run)
 
 
 @app.get("/chaos/config")
 async def chaos_config(request: Request) -> dict[str, object]:
-    _authorize(request)
+    auth_context = _authorize(request)
+    trace_id = _request_id(request)
+    _record_audit(
+        request=request,
+        auth_context=auth_context,
+        action="chaos.config.read",
+        decision="allow",
+        request_id=trace_id,
+    )
     return {
         "allowed_step_kinds": list(allowed_step_kinds()),
         "max_percent_impact": max_percent_impact_limit(),

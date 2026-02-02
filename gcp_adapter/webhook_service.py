@@ -11,6 +11,7 @@ from gcp_adapter.auth import authorize_request
 from gcp_adapter.pubsub_event_publisher import PubSubEventPublisher
 from retikon_core.alerts import evaluate_rules, load_alerts, register_alert
 from retikon_core.alerts.types import AlertDestination, AlertRule
+from retikon_core.audit import record_audit_log
 from retikon_core.auth import AuthContext
 from retikon_core.config import get_config
 from retikon_core.logging import configure_logging, get_logger
@@ -141,6 +142,46 @@ def _authorize(request: Request) -> AuthContext | None:
     return authorize_request(request=request, require_admin=_require_admin())
 
 
+def _audit_logging_enabled() -> bool:
+    return os.getenv("AUDIT_LOGGING_ENABLED", "1") == "1"
+
+
+def _schema_version() -> str:
+    return os.getenv("SCHEMA_VERSION", "1")
+
+
+def _request_id(request: Request) -> str:
+    return request.headers.get("x-request-id") or str(uuid.uuid4())
+
+
+def _record_audit(
+    *,
+    request: Request,
+    auth_context: AuthContext | None,
+    action: str,
+    decision: str,
+    request_id: str,
+) -> None:
+    if not _audit_logging_enabled():
+        return
+    try:
+        record_audit_log(
+            base_uri=_get_config().graph_root_uri(),
+            action=action,
+            decision=decision,
+            auth_context=auth_context,
+            resource=request.url.path,
+            request_id=request_id,
+            pipeline_version=os.getenv("RETIKON_VERSION", "dev"),
+            schema_version=_schema_version(),
+        )
+    except Exception as exc:
+        logger.warning(
+            "Failed to record audit log",
+            extra={"error_message": str(exc)},
+        )
+
+
 @app.get("/health", response_model=HealthResponse)
 async def health() -> HealthResponse:
     return build_health_response(SERVICE_NAME)
@@ -148,7 +189,15 @@ async def health() -> HealthResponse:
 
 @app.get("/webhooks", response_model=list[WebhookResponse])
 async def list_webhooks(request: Request) -> list[WebhookResponse]:
-    _authorize(request)
+    auth_context = _authorize(request)
+    trace_id = _request_id(request)
+    _record_audit(
+        request=request,
+        auth_context=auth_context,
+        action="webhooks.list",
+        decision="allow",
+        request_id=trace_id,
+    )
     config = _get_config()
     webhooks = load_webhooks(config.graph_root_uri())
     return [_webhook_response(hook) for hook in webhooks]
@@ -159,7 +208,8 @@ async def create_webhook(
     request: Request,
     payload: WebhookCreateRequest,
 ) -> WebhookResponse:
-    _authorize(request)
+    auth_context = _authorize(request)
+    trace_id = _request_id(request)
     config = _get_config()
     webhook = register_webhook(
         base_uri=config.graph_root_uri(),
@@ -175,10 +225,17 @@ async def create_webhook(
         stream_id=payload.stream_id,
         status=payload.status or "active",
     )
+    _record_audit(
+        request=request,
+        auth_context=auth_context,
+        action="webhooks.create",
+        decision="allow",
+        request_id=trace_id,
+    )
     logger.info(
         "Webhook registered",
         extra={
-            "request_id": str(uuid.uuid4()),
+            "request_id": trace_id,
             "correlation_id": request.state.correlation_id,
             "status": "created",
         },
@@ -188,7 +245,15 @@ async def create_webhook(
 
 @app.get("/alerts", response_model=list[AlertResponse])
 async def list_alerts(request: Request) -> list[AlertResponse]:
-    _authorize(request)
+    auth_context = _authorize(request)
+    trace_id = _request_id(request)
+    _record_audit(
+        request=request,
+        auth_context=auth_context,
+        action="alerts.list",
+        decision="allow",
+        request_id=trace_id,
+    )
     config = _get_config()
     rules = load_alerts(config.graph_root_uri())
     return [_alert_response(rule) for rule in rules]
@@ -196,7 +261,8 @@ async def list_alerts(request: Request) -> list[AlertResponse]:
 
 @app.post("/alerts", response_model=AlertResponse, status_code=201)
 async def create_alert(request: Request, payload: AlertCreateRequest) -> AlertResponse:
-    _authorize(request)
+    auth_context = _authorize(request)
+    trace_id = _request_id(request)
     config = _get_config()
     destinations = tuple(
         AlertDestination(
@@ -220,10 +286,17 @@ async def create_alert(request: Request, payload: AlertCreateRequest) -> AlertRe
         stream_id=payload.stream_id,
         status=payload.status or "active",
     )
+    _record_audit(
+        request=request,
+        auth_context=auth_context,
+        action="alerts.create",
+        decision="allow",
+        request_id=trace_id,
+    )
     logger.info(
         "Alert rule registered",
         extra={
-            "request_id": str(uuid.uuid4()),
+            "request_id": trace_id,
             "correlation_id": request.state.correlation_id,
             "status": "created",
         },
@@ -237,7 +310,15 @@ async def dispatch_event(
     payload: EventRequest,
     x_request_id: str | None = Header(default=None),
 ) -> EventDeliveryResponse:
-    _authorize(request)
+    auth_context = _authorize(request)
+    trace_id = _request_id(request)
+    _record_audit(
+        request=request,
+        auth_context=auth_context,
+        action="events.dispatch",
+        decision="allow",
+        request_id=trace_id,
+    )
     config = _get_config()
     event_id = str(uuid.uuid4())
     event = WebhookEvent(

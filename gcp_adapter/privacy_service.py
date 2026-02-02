@@ -7,6 +7,7 @@ from pydantic import BaseModel
 
 from gcp_adapter.auth import authorize_request
 from gcp_adapter.stores import get_control_plane_stores
+from retikon_core.audit import record_audit_log
 from retikon_core.auth import AuthContext
 from retikon_core.config import get_config
 from retikon_core.logging import configure_logging, get_logger
@@ -86,6 +87,46 @@ def _get_config():
     return get_config()
 
 
+def _audit_logging_enabled() -> bool:
+    return os.getenv("AUDIT_LOGGING_ENABLED", "1") == "1"
+
+
+def _schema_version() -> str:
+    return os.getenv("SCHEMA_VERSION", "1")
+
+
+def _request_id(request: Request) -> str:
+    return request.headers.get("x-request-id") or str(uuid.uuid4())
+
+
+def _record_audit(
+    *,
+    request: Request,
+    auth_context: AuthContext | None,
+    action: str,
+    decision: str,
+    request_id: str,
+) -> None:
+    if not _audit_logging_enabled():
+        return
+    try:
+        record_audit_log(
+            base_uri=_get_config().graph_root_uri(),
+            action=action,
+            decision=decision,
+            auth_context=auth_context,
+            resource=request.url.path,
+            request_id=request_id,
+            pipeline_version=os.getenv("RETIKON_VERSION", "dev"),
+            schema_version=_schema_version(),
+        )
+    except Exception as exc:
+        logger.warning(
+            "Failed to record audit log",
+            extra={"error_message": str(exc)},
+        )
+
+
 def _stores():
     return get_control_plane_stores(_get_config().graph_root_uri())
 
@@ -129,7 +170,15 @@ async def health() -> HealthResponse:
 
 @app.get("/privacy/policies", response_model=list[PrivacyPolicyResponse])
 async def list_policies(request: Request) -> list[PrivacyPolicyResponse]:
-    _authorize(request)
+    auth_context = _authorize(request)
+    trace_id = _request_id(request)
+    _record_audit(
+        request=request,
+        auth_context=auth_context,
+        action="privacy.policy.list",
+        decision="allow",
+        request_id=trace_id,
+    )
     policies = _stores().privacy.load_policies()
     return [_policy_response(policy) for policy in policies]
 
@@ -143,7 +192,8 @@ async def create_policy(
     request: Request,
     payload: PrivacyPolicyRequest,
 ) -> PrivacyPolicyResponse:
-    _authorize(request)
+    auth_context = _authorize(request)
+    trace_id = _request_id(request)
     policy = _stores().privacy.register_policy(
         name=payload.name,
         org_id=payload.org_id,
@@ -155,10 +205,17 @@ async def create_policy(
         enabled=payload.enabled,
         status=payload.status or "active",
     )
+    _record_audit(
+        request=request,
+        auth_context=auth_context,
+        action="privacy.policy.create",
+        decision="allow",
+        request_id=trace_id,
+    )
     logger.info(
         "Privacy policy created",
         extra={
-            "request_id": str(uuid.uuid4()),
+            "request_id": trace_id,
             "correlation_id": request.headers.get("x-correlation-id"),
             "policy_id": policy.id,
         },
@@ -172,7 +229,8 @@ async def update_policy(
     policy_id: str,
     payload: PrivacyPolicyUpdateRequest,
 ) -> PrivacyPolicyResponse:
-    _authorize(request)
+    auth_context = _authorize(request)
+    trace_id = _request_id(request)
     policies = _stores().privacy.load_policies()
     existing = next((policy for policy in policies if policy.id == policy_id), None)
     if existing is None:
@@ -201,4 +259,11 @@ async def update_policy(
         status=payload.status if payload.status is not None else existing.status,
     )
     _stores().privacy.update_policy(policy=updated)
+    _record_audit(
+        request=request,
+        auth_context=auth_context,
+        action="privacy.policy.update",
+        decision="allow",
+        request_id=trace_id,
+    )
     return _policy_response(updated)

@@ -6,6 +6,7 @@ from pydantic import BaseModel, Field
 
 from gcp_adapter.auth import authorize_request
 from gcp_adapter.stores import get_control_plane_stores
+from retikon_core.audit import record_audit_log
 from retikon_core.auth import AuthContext
 from retikon_core.config import get_config
 from retikon_core.fleet import (
@@ -117,6 +118,46 @@ def _get_config():
     return get_config()
 
 
+def _audit_logging_enabled() -> bool:
+    return os.getenv("AUDIT_LOGGING_ENABLED", "1") == "1"
+
+
+def _schema_version() -> str:
+    return os.getenv("SCHEMA_VERSION", "1")
+
+
+def _request_id(request: Request) -> str:
+    return request.headers.get("x-request-id") or str(uuid.uuid4())
+
+
+def _record_audit(
+    *,
+    request: Request,
+    auth_context: AuthContext | None,
+    action: str,
+    decision: str,
+    request_id: str,
+) -> None:
+    if not _audit_logging_enabled():
+        return
+    try:
+        record_audit_log(
+            base_uri=_get_config().graph_root_uri(),
+            action=action,
+            decision=decision,
+            auth_context=auth_context,
+            resource=request.url.path,
+            request_id=request_id,
+            pipeline_version=os.getenv("RETIKON_VERSION", "dev"),
+            schema_version=_schema_version(),
+        )
+    except Exception as exc:
+        logger.warning(
+            "Failed to record audit log",
+            extra={"error_message": str(exc)},
+        )
+
+
 def _stores():
     return get_control_plane_stores(_get_config().graph_root_uri())
 
@@ -155,7 +196,15 @@ async def health() -> HealthResponse:
 
 @app.get("/fleet/devices", response_model=list[DeviceResponse])
 async def list_devices(request: Request) -> list[DeviceResponse]:
-    _authorize(request)
+    auth_context = _authorize(request)
+    trace_id = _request_id(request)
+    _record_audit(
+        request=request,
+        auth_context=auth_context,
+        action="fleet.device.list",
+        decision="allow",
+        request_id=trace_id,
+    )
     devices = _stores().fleet.load_devices()
     return [_device_response(device) for device in devices]
 
@@ -165,7 +214,8 @@ async def create_device(
     request: Request,
     payload: DeviceCreateRequest,
 ) -> DeviceResponse:
-    _authorize(request)
+    auth_context = _authorize(request)
+    trace_id = _request_id(request)
     device = _stores().fleet.register_device(
         name=payload.name,
         org_id=payload.org_id,
@@ -177,10 +227,17 @@ async def create_device(
         last_seen_at=payload.last_seen_at,
         metadata=payload.metadata,
     )
+    _record_audit(
+        request=request,
+        auth_context=auth_context,
+        action="fleet.device.create",
+        decision="allow",
+        request_id=trace_id,
+    )
     logger.info(
         "Device registered",
         extra={
-            "request_id": str(uuid.uuid4()),
+            "request_id": trace_id,
             "correlation_id": request.headers.get("x-correlation-id"),
             "device_id": device.id,
         },
@@ -194,7 +251,8 @@ async def update_status(
     device_id: str,
     payload: DeviceStatusRequest,
 ) -> DeviceResponse:
-    _authorize(request)
+    auth_context = _authorize(request)
+    trace_id = _request_id(request)
     updated = _stores().fleet.update_device_status(
         device_id=device_id,
         status=payload.status,
@@ -202,6 +260,13 @@ async def update_status(
     )
     if updated is None:
         raise HTTPException(status_code=404, detail="Device not found")
+    _record_audit(
+        request=request,
+        auth_context=auth_context,
+        action="fleet.device.status.update",
+        decision="allow",
+        request_id=trace_id,
+    )
     return _device_response(updated)
 
 
@@ -210,7 +275,15 @@ async def plan_rollouts(
     request: Request,
     payload: RolloutRequest,
 ) -> RolloutResponse:
-    _authorize(request)
+    auth_context = _authorize(request)
+    trace_id = _request_id(request)
+    _record_audit(
+        request=request,
+        auth_context=auth_context,
+        action="fleet.rollout.plan",
+        decision="allow",
+        request_id=trace_id,
+    )
     devices = _stores().fleet.load_devices()
     devices = _filtered_devices(devices, payload.status_filter)
     plan = plan_rollout(
@@ -237,7 +310,15 @@ async def rollback_rollout(
     request: Request,
     payload: RollbackRequest,
 ) -> RolloutResponse:
-    _authorize(request)
+    auth_context = _authorize(request)
+    trace_id = _request_id(request)
+    _record_audit(
+        request=request,
+        auth_context=auth_context,
+        action="fleet.rollout.rollback",
+        decision="allow",
+        request_id=trace_id,
+    )
     devices = _stores().fleet.load_devices()
     devices = _filtered_devices(devices, payload.status_filter)
     plan = plan_rollout(
@@ -264,7 +345,15 @@ async def hardening_check(
     request: Request,
     payload: HardeningRequest,
 ) -> HardeningResponse:
-    _authorize(request)
+    auth_context = _authorize(request)
+    trace_id = _request_id(request)
+    _record_audit(
+        request=request,
+        auth_context=auth_context,
+        action="fleet.security.check",
+        decision="allow",
+        request_id=trace_id,
+    )
     devices = _stores().fleet.load_devices()
     match = next((device for device in devices if device.id == payload.device_id), None)
     if match is None:

@@ -20,6 +20,7 @@ from google.cloud import firestore, storage
 from google.oauth2 import id_token
 
 from gcp_adapter.auth import authorize_request
+from retikon_core.audit import record_audit_log
 from retikon_core.auth import AuthContext
 from retikon_core.ingestion.idempotency import build_doc_id
 from retikon_core.logging import configure_logging, get_logger
@@ -60,6 +61,56 @@ def _require_admin() -> bool:
 
 def _authorize(request: Request) -> AuthContext | None:
     return authorize_request(request=request, require_admin=_require_admin())
+
+
+def _audit_logging_enabled() -> bool:
+    return os.getenv("AUDIT_LOGGING_ENABLED", "1") == "1"
+
+
+def _schema_version() -> str:
+    return os.getenv("SCHEMA_VERSION", "1")
+
+
+def _request_id(request: Request) -> str:
+    return request.headers.get("x-request-id") or str(uuid.uuid4())
+
+
+def _audit_base_uri() -> str:
+    storage_backend = os.getenv("STORAGE_BACKEND", "local").strip().lower()
+    if storage_backend == "local":
+        local_root = os.getenv("LOCAL_GRAPH_ROOT")
+        if local_root:
+            return local_root
+    bucket, prefix = _graph_settings()
+    return graph_root(normalize_bucket_uri(bucket, scheme="gs"), prefix)
+
+
+def _record_audit(
+    *,
+    request: Request,
+    auth_context: AuthContext | None,
+    action: str,
+    decision: str,
+    request_id: str,
+) -> None:
+    if not _audit_logging_enabled():
+        return
+    try:
+        record_audit_log(
+            base_uri=_audit_base_uri(),
+            action=action,
+            decision=decision,
+            auth_context=auth_context,
+            resource=request.url.path,
+            request_id=request_id,
+            pipeline_version=os.getenv("RETIKON_VERSION", "dev"),
+            schema_version=_schema_version(),
+        )
+    except Exception as exc:
+        logger.warning(
+            "Failed to record audit log",
+            extra={"error_message": str(exc)},
+        )
 
 
 def _project_id() -> str:
@@ -209,7 +260,15 @@ async def upload_file(
     file: UploadFile = UPLOAD_FILE,
     category: str = CATEGORY_FORM,
 ) -> dict[str, object]:
-    _authorize(request)
+    auth_context = _authorize(request)
+    trace_id = _request_id(request)
+    _record_audit(
+        request=request,
+        auth_context=auth_context,
+        action="dev.upload.create",
+        decision="allow",
+        request_id=trace_id,
+    )
     raw_prefix = _raw_prefix().strip("/")
     bucket_name = _raw_bucket()
     run_id = time.strftime("%Y%m%d-%H%M%S") + f"-{uuid.uuid4().hex[:6]}"
@@ -239,7 +298,15 @@ async def ingest_status(
     request: Request,
     uri: str,
 ) -> dict[str, object]:
-    _authorize(request)
+    auth_context = _authorize(request)
+    trace_id = _request_id(request)
+    _record_audit(
+        request=request,
+        auth_context=auth_context,
+        action="dev.ingest_status.read",
+        decision="allow",
+        request_id=trace_id,
+    )
     ref = _parse_gs_uri(uri)
     client = _storage_client()
     blob = client.bucket(ref.bucket).blob(ref.name)
@@ -266,7 +333,15 @@ async def manifest(
     run_id: str | None = None,
     manifest_uri_value: str | None = None,
 ) -> dict[str, object]:
-    _authorize(request)
+    auth_context = _authorize(request)
+    trace_id = _request_id(request)
+    _record_audit(
+        request=request,
+        auth_context=auth_context,
+        action="dev.manifest.read",
+        decision="allow",
+        request_id=trace_id,
+    )
     if not run_id and not manifest_uri_value:
         raise HTTPException(status_code=400, detail="run_id or manifest_uri required")
     if manifest_uri_value:
@@ -290,7 +365,15 @@ async def parquet_preview(
     path: str,
     limit: int = 5,
 ) -> dict[str, object]:
-    _authorize(request)
+    auth_context = _authorize(request)
+    trace_id = _request_id(request)
+    _record_audit(
+        request=request,
+        auth_context=auth_context,
+        action="dev.parquet_preview.read",
+        decision="allow",
+        request_id=trace_id,
+    )
     _ensure_graph_uri(path)
     return _preview_parquet(path, max(1, min(limit, 25)))
 
@@ -300,7 +383,15 @@ async def fetch_object(
     request: Request,
     uri: str,
 ) -> StreamingResponse:
-    _authorize(request)
+    auth_context = _authorize(request)
+    trace_id = _request_id(request)
+    _record_audit(
+        request=request,
+        auth_context=auth_context,
+        action="dev.object.read",
+        decision="allow",
+        request_id=trace_id,
+    )
     _ensure_raw_uri(uri)
     ref = _parse_gs_uri(uri)
     client = _storage_client()
@@ -322,7 +413,15 @@ async def fetch_graph_object(
     request: Request,
     uri: str,
 ) -> StreamingResponse:
-    _authorize(request)
+    auth_context = _authorize(request)
+    trace_id = _request_id(request)
+    _record_audit(
+        request=request,
+        auth_context=auth_context,
+        action="dev.graph_object.read",
+        decision="allow",
+        request_id=trace_id,
+    )
     _ensure_graph_uri(uri)
     ref = _parse_gs_uri(uri)
     client = _storage_client()
@@ -341,7 +440,15 @@ async def fetch_graph_object(
 
 @app.get("/dev/snapshot-status")
 async def snapshot_status(request: Request) -> dict[str, object]:
-    _authorize(request)
+    auth_context = _authorize(request)
+    trace_id = _request_id(request)
+    _record_audit(
+        request=request,
+        auth_context=auth_context,
+        action="dev.snapshot_status.read",
+        decision="allow",
+        request_id=trace_id,
+    )
     snapshot_uri = os.getenv("SNAPSHOT_URI")
     if not snapshot_uri:
         raise HTTPException(status_code=500, detail="Missing SNAPSHOT_URI")
@@ -357,7 +464,15 @@ async def snapshot_status(request: Request) -> dict[str, object]:
 
 @app.post("/dev/index-build")
 async def index_build(request: Request) -> dict[str, object]:
-    _authorize(request)
+    auth_context = _authorize(request)
+    trace_id = _request_id(request)
+    _record_audit(
+        request=request,
+        auth_context=auth_context,
+        action="dev.index_build.create",
+        decision="allow",
+        request_id=trace_id,
+    )
     job_name = os.getenv("INDEX_JOB_NAME")
     region = os.getenv("INDEX_JOB_REGION", os.getenv("REGION", "us-central1"))
     if not job_name:
@@ -382,7 +497,15 @@ async def index_build(request: Request) -> dict[str, object]:
 
 @app.post("/dev/snapshot-reload")
 async def snapshot_reload(request: Request) -> dict[str, object]:
-    _authorize(request)
+    auth_context = _authorize(request)
+    trace_id = _request_id(request)
+    _record_audit(
+        request=request,
+        auth_context=auth_context,
+        action="dev.snapshot_reload.create",
+        decision="allow",
+        request_id=trace_id,
+    )
     base_url = _query_service_url()
     headers = _forward_auth_headers(request)
     token = _fetch_id_token(base_url)
@@ -399,7 +522,15 @@ async def snapshot_reload(request: Request) -> dict[str, object]:
 
 @app.get("/dev/index-status")
 async def index_status(request: Request) -> dict[str, object]:
-    _authorize(request)
+    auth_context = _authorize(request)
+    trace_id = _request_id(request)
+    _record_audit(
+        request=request,
+        auth_context=auth_context,
+        action="dev.index_status.read",
+        decision="allow",
+        request_id=trace_id,
+    )
     job_name = os.getenv("INDEX_JOB_NAME")
     region = os.getenv("INDEX_JOB_REGION", os.getenv("REGION", "us-central1"))
     if not job_name:

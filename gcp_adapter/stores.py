@@ -601,7 +601,10 @@ def get_control_plane_stores(base_uri: str) -> StoreBundle:
     env_name = os.getenv("ENV", "dev").strip().lower()
     if backend == "json" and env_name not in ("dev", "local", "test"):
         logger.warning(
-            "JSON control-plane store is intended for local/dev only; set CONTROL_PLANE_STORE=firestore.",
+            (
+                "JSON control-plane store is intended for local/dev only; "
+                "set CONTROL_PLANE_STORE=firestore."
+            ),
             extra={"control_plane_store": backend, "env": env_name},
         )
     prefix = os.getenv("CONTROL_PLANE_COLLECTION_PREFIX", "").strip()
