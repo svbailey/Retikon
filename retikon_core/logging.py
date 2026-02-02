@@ -46,6 +46,15 @@ class JsonFormatter(logging.Formatter):
             "snapshot_metadata",
             "healthcheck_ms",
             "timings",
+            "control_plane_op",
+            "control_plane_primary",
+            "control_plane_secondary",
+            "control_plane_reason",
+            "control_plane_primary_empty",
+            "control_plane_secondary_empty",
+            "control_plane_primary_size",
+            "control_plane_secondary_size",
+            "control_plane_mismatch",
         ):
             value = getattr(record, key, None)
             if value is not None:

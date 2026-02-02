@@ -1,8 +1,11 @@
 from __future__ import annotations
 
 import argparse
+import hashlib
+import json
 import os
-from typing import Iterable
+from dataclasses import asdict, is_dataclass
+from typing import Iterable, Mapping, Sequence
 
 from retikon_core.config import get_config
 from retikon_core.stores.registry import get_store_bundle as json_bundle
@@ -35,6 +38,245 @@ def _sync(
     _maybe_print(f"{name}: wrote {count} items")
 
 
+def _normalize(item: object) -> object:
+    if is_dataclass(item):
+        return asdict(item)
+    if isinstance(item, Mapping):
+        return dict(item)
+    if hasattr(item, "__dict__"):
+        return dict(item.__dict__)
+    return item
+
+
+def _item_key(item: object) -> str | None:
+    if isinstance(item, Mapping):
+        for key in ("id", "name", "key_hash", "principal_id", "api_key_id"):
+            value = item.get(key)
+            if value:
+                return str(value)
+        return None
+    for key in ("id", "name", "key_hash", "principal_id", "api_key_id"):
+        if hasattr(item, key):
+            value = getattr(item, key)
+            if value:
+                return str(value)
+    return None
+
+
+def _hash_payload(payload: object) -> str:
+    encoded = json.dumps(
+        payload,
+        sort_keys=True,
+        ensure_ascii=True,
+        default=str,
+    ).encode("utf-8")
+    return hashlib.sha256(encoded).hexdigest()
+
+
+def _sample_items(
+    items: Sequence[object],
+    sample_size: int,
+) -> list[tuple[str | None, str]]:
+    samples: list[tuple[str | None, str]] = []
+    for item in items:
+        payload = _normalize(item)
+        samples.append((_item_key(item), _hash_payload(payload)))
+    if not samples:
+        return []
+    if all(key is not None for key, _hash in samples):
+        samples.sort(key=lambda entry: entry[0] or "")
+    else:
+        samples.sort(key=lambda entry: entry[1])
+    return samples[:sample_size]
+
+
+def _compare_samples(
+    json_samples: list[tuple[str | None, str]],
+    fs_samples: list[tuple[str | None, str]],
+) -> dict[str, object]:
+    if not json_samples and not fs_samples:
+        return {"mode": "empty", "mismatch_count": 0, "mismatches": []}
+    keyed = all(key is not None for key, _hash in json_samples + fs_samples)
+    if keyed:
+        json_map = {key: hash_value for key, hash_value in json_samples if key}
+        fs_map = {key: hash_value for key, hash_value in fs_samples if key}
+        mismatches = [
+            key
+            for key in sorted(set(json_map) | set(fs_map))
+            if json_map.get(key) != fs_map.get(key)
+        ]
+        return {
+            "mode": "keyed",
+            "mismatch_count": len(mismatches),
+            "mismatches": mismatches,
+            "json_sample": json_map,
+            "firestore_sample": fs_map,
+        }
+    json_hashes = [hash_value for _key, hash_value in json_samples]
+    fs_hashes = [hash_value for _key, hash_value in fs_samples]
+    mismatch_count = 0 if sorted(json_hashes) == sorted(fs_hashes) else 1
+    return {
+        "mode": "hashes",
+        "mismatch_count": mismatch_count,
+        "mismatches": [] if mismatch_count == 0 else ["hash_mismatch"],
+        "json_sample": json_hashes,
+        "firestore_sample": fs_hashes,
+    }
+
+
+def _parity_report_list(
+    name: str,
+    json_items: Sequence[object],
+    firestore_items: Sequence[object],
+    sample_size: int,
+) -> dict[str, object]:
+    json_samples = _sample_items(list(json_items), sample_size)
+    fs_samples = _sample_items(list(firestore_items), sample_size)
+    comparison = _compare_samples(json_samples, fs_samples)
+    return {
+        "domain": name,
+        "json_count": len(json_items),
+        "firestore_count": len(firestore_items),
+        "sample_size": min(sample_size, len(json_items), len(firestore_items)),
+        "comparison": comparison,
+    }
+
+
+def _parity_report_rbac(
+    json_bindings: Mapping[str, Iterable[str]],
+    firestore_bindings: Mapping[str, Iterable[str]],
+    sample_size: int,
+) -> dict[str, object]:
+    json_map = {
+        key: _hash_payload({"principal": key, "roles": sorted(list(roles))})
+        for key, roles in json_bindings.items()
+    }
+    fs_map = {
+        key: _hash_payload({"principal": key, "roles": sorted(list(roles))})
+        for key, roles in firestore_bindings.items()
+    }
+    keys = sorted(set(json_map) | set(fs_map))
+    sample_keys = keys[:sample_size]
+    json_sample = {key: json_map.get(key, "") for key in sample_keys}
+    fs_sample = {key: fs_map.get(key, "") for key in sample_keys}
+    mismatches = [
+        key for key in sample_keys if json_sample.get(key) != fs_sample.get(key)
+    ]
+    return {
+        "domain": "rbac",
+        "json_count": len(json_map),
+        "firestore_count": len(fs_map),
+        "sample_size": len(sample_keys),
+        "comparison": {
+            "mode": "keyed",
+            "mismatch_count": len(mismatches),
+            "mismatches": mismatches,
+            "json_sample": json_sample,
+            "firestore_sample": fs_sample,
+        },
+    }
+
+
+def _run_parity_checks(
+    *,
+    json_stores,
+    firestore_stores,
+    domains: set[str],
+    sample_size: int,
+) -> list[dict[str, object]]:
+    reports: list[dict[str, object]] = []
+    if "rbac" in domains:
+        reports.append(
+            _parity_report_rbac(
+                json_stores.rbac.load_role_bindings(),
+                firestore_stores.rbac.load_role_bindings(),
+                sample_size,
+            )
+        )
+    if "abac" in domains:
+        reports.append(
+            _parity_report_list(
+                "abac",
+                json_stores.abac.load_policies(),
+                firestore_stores.abac.load_policies(),
+                sample_size,
+            )
+        )
+    if "privacy" in domains:
+        reports.append(
+            _parity_report_list(
+                "privacy",
+                json_stores.privacy.load_policies(),
+                firestore_stores.privacy.load_policies(),
+                sample_size,
+            )
+        )
+    if "fleet" in domains:
+        reports.append(
+            _parity_report_list(
+                "fleet",
+                json_stores.fleet.load_devices(),
+                firestore_stores.fleet.load_devices(),
+                sample_size,
+            )
+        )
+    if "workflows" in domains:
+        reports.append(
+            _parity_report_list(
+                "workflows",
+                json_stores.workflows.load_workflows(),
+                firestore_stores.workflows.load_workflows(),
+                sample_size,
+            )
+        )
+    if "workflow_runs" in domains:
+        reports.append(
+            _parity_report_list(
+                "workflow_runs",
+                json_stores.workflows.load_workflow_runs(),
+                firestore_stores.workflows.load_workflow_runs(),
+                sample_size,
+            )
+        )
+    if "data_factory_models" in domains:
+        reports.append(
+            _parity_report_list(
+                "data_factory_models",
+                json_stores.data_factory.load_models(),
+                firestore_stores.data_factory.load_models(),
+                sample_size,
+            )
+        )
+    if "data_factory_jobs" in domains:
+        reports.append(
+            _parity_report_list(
+                "data_factory_jobs",
+                json_stores.data_factory.load_training_jobs(),
+                firestore_stores.data_factory.load_training_jobs(),
+                sample_size,
+            )
+        )
+    if "connectors" in domains:
+        reports.append(
+            _parity_report_list(
+                "connectors",
+                json_stores.connectors.load_ocr_connectors(),
+                firestore_stores.connectors.load_ocr_connectors(),
+                sample_size,
+            )
+        )
+    if "api_keys" in domains:
+        reports.append(
+            _parity_report_list(
+                "api_keys",
+                json_stores.api_keys.load_api_keys(),
+                firestore_stores.api_keys.load_api_keys(),
+                sample_size,
+            )
+        )
+    return reports
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(
         description="Backfill control-plane JSON data into Firestore."
@@ -53,6 +295,21 @@ def main() -> None:
             "Firestore collection prefix "
             "(defaults to CONTROL_PLANE_COLLECTION_PREFIX)"
         ),
+    )
+    parser.add_argument(
+        "--parity-check",
+        action="store_true",
+        help="Compare JSON vs Firestore counts and sample hashes.",
+    )
+    parser.add_argument(
+        "--parity-report",
+        help="Optional JSON report output path for parity checks.",
+    )
+    parser.add_argument(
+        "--sample-size",
+        type=int,
+        default=5,
+        help="Number of sample records per domain for parity checks.",
     )
     parser.add_argument(
         "--domain",
@@ -190,6 +447,27 @@ def main() -> None:
             firestore_stores.api_keys.save_api_keys,
             args.dry_run,
         )
+
+    if args.parity_check:
+        reports = _run_parity_checks(
+            json_stores=json_stores,
+            firestore_stores=firestore_stores,
+            domains=domains,
+            sample_size=max(args.sample_size, 1),
+        )
+        for report in reports:
+            domain = report["domain"]
+            json_count = report["json_count"]
+            fs_count = report["firestore_count"]
+            mismatch = report["comparison"]["mismatch_count"]
+            _maybe_print(
+                f"parity:{domain}: json={json_count} firestore={fs_count} "
+                f"mismatches={mismatch}"
+            )
+        if args.parity_report:
+            with open(args.parity_report, "w", encoding="utf-8") as handle:
+                json.dump(reports, handle, ensure_ascii=True, indent=2)
+            _maybe_print(f"parity report written: {args.parity_report}")
 
 
 if __name__ == "__main__":

@@ -7,7 +7,7 @@ auth, control-plane storage, and operational toggles per environment.
 
 | Env | Project | Auth Issuer | Auth Audience | JWKS URI | Required Claims | Admin Roles/Groups | Gateway Userinfo | Control Plane Store | Collection Prefix | Read Mode | Write Mode | Fallback On Empty | Default Org/Site/Stream | Notes |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| staging | simitor | https://securetoken.google.com/simitor | simitor | https://www.googleapis.com/service_accounts/v1/metadata/x509/securetoken@system.gserviceaccount.com | sub,iss,aud,exp,iat,org_id | admin / admins | true | firestore | staging_ | primary | single | false | simitor / "" / "" | JWT-only; gateway + service auth |
+| staging | simitor | https://securetoken.google.com/simitor | simitor | https://www.googleapis.com/service_accounts/v1/metadata/x509/securetoken@system.gserviceaccount.com | sub,iss,aud,exp,iat,org_id | admin / admins | true | firestore | staging_ | primary | dual | true | simitor / "" / "" | JWT-only; gateway + service auth |
 | dev | simitor | https://securetoken.google.com/simitor | simitor | https://www.googleapis.com/service_accounts/v1/metadata/x509/securetoken@system.gserviceaccount.com | sub,iss,aud,exp,iat,org_id | admin / admins | true | firestore | "" | primary | single | false | simitor / "" / "" | Optional local overrides |
 | prod | N/A | N/A | N/A | N/A | sub,iss,aud,exp,iat,org_id | admin / admins | true | firestore | prod_ (TBD) | primary | single | false | org_id (TBD) | Not provisioned |
 

@@ -6,6 +6,7 @@ from datetime import datetime, timezone
 import pytest
 
 import gcp_adapter.stores as stores
+from retikon_core.api_keys.types import ApiKeyRecord
 from retikon_core.privacy.types import PrivacyPolicy
 from retikon_core.stores.registry import StoreBundle
 
@@ -52,6 +53,50 @@ class _StubPrivacyStore:
             updated.append(policy)
         self.policies = updated
         return policy
+
+
+class _StubApiKeyStore:
+    def __init__(self, records: list[ApiKeyRecord] | None = None) -> None:
+        self.records = list(records or [])
+
+    def load_api_keys(self) -> list[ApiKeyRecord]:
+        return list(self.records)
+
+    def save_api_keys(self, api_keys: list[ApiKeyRecord]) -> str:
+        self.records = list(api_keys)
+        return "saved"
+
+    def register_api_key(self, **kwargs) -> ApiKeyRecord:
+        now = datetime.now(timezone.utc).isoformat()
+        record = ApiKeyRecord(
+            id=str(uuid.uuid4()),
+            name=kwargs["name"],
+            key_hash=kwargs["key_hash"],
+            org_id=kwargs.get("org_id"),
+            site_id=kwargs.get("site_id"),
+            stream_id=kwargs.get("stream_id"),
+            status=kwargs.get("status", "active"),
+            scopes=tuple(kwargs.get("scopes") or ()) or None,
+            last_used_at=kwargs.get("last_used_at"),
+            created_at=now,
+            updated_at=now,
+        )
+        self.records.append(record)
+        return record
+
+    def update_api_key(self, api_key: ApiKeyRecord) -> ApiKeyRecord:
+        updated: list[ApiKeyRecord] = []
+        found = False
+        for existing in self.records:
+            if existing.id == api_key.id:
+                updated.append(api_key)
+                found = True
+            else:
+                updated.append(existing)
+        if not found:
+            updated.append(api_key)
+        self.records = updated
+        return api_key
 
 
 class _StubNoopStore:
@@ -176,17 +221,20 @@ class _StubNoopStore:
         raise AssertionError("not used")
 
 
-def _bundle(privacy_store: _StubPrivacyStore) -> StoreBundle:
+def _bundle(
+    privacy_store: _StubPrivacyStore | _StubNoopStore | None = None,
+    api_key_store: _StubApiKeyStore | _StubNoopStore | None = None,
+) -> StoreBundle:
     noop = _StubNoopStore()
     return StoreBundle(
         rbac=noop,
         abac=noop,
-        privacy=privacy_store,
+        privacy=privacy_store or noop,
         fleet=noop,
         workflows=noop,
         data_factory=noop,
         connectors=noop,
-        api_keys=noop,
+        api_keys=api_key_store or noop,
     )
 
 
@@ -218,6 +266,40 @@ def test_dual_write_privacy(monkeypatch):
     assert len(secondary_privacy.policies) == 1
     assert primary_privacy.policies[0].id == policy.id
     assert secondary_privacy.policies[0].id == policy.id
+
+
+@pytest.mark.pro
+def test_dual_write_api_keys(monkeypatch):
+    primary_keys = _StubApiKeyStore()
+    secondary_keys = _StubApiKeyStore()
+    monkeypatch.setattr(
+        stores,
+        "gcp_get_store_bundle",
+        lambda _base_uri: _bundle(api_key_store=primary_keys),
+    )
+    monkeypatch.setattr(
+        stores,
+        "core_get_store_bundle",
+        lambda _base_uri: _bundle(api_key_store=secondary_keys),
+    )
+    monkeypatch.setenv("CONTROL_PLANE_STORE", "firestore")
+    monkeypatch.setenv("CONTROL_PLANE_WRITE_MODE", "dual")
+    monkeypatch.setenv("CONTROL_PLANE_READ_MODE", "primary")
+    monkeypatch.delenv("CONTROL_PLANE_FALLBACK_ON_EMPTY", raising=False)
+    stores._STORE_BUNDLE = None
+    stores._STORE_KEY = None
+
+    bundle = stores.get_control_plane_stores("gs://bucket/retikon_v2")
+    record = bundle.api_keys.register_api_key(
+        name="test-key",
+        key_hash="hash",
+        org_id="org-1",
+    )
+
+    assert len(primary_keys.records) == 1
+    assert len(secondary_keys.records) == 1
+    assert primary_keys.records[0].id == record.id
+    assert secondary_keys.records[0].id == record.id
 
 
 @pytest.mark.pro
@@ -261,3 +343,46 @@ def test_read_fallback_on_empty(monkeypatch):
     bundle = stores.get_control_plane_stores("gs://bucket/retikon_v2")
     policies = bundle.privacy.load_policies()
     assert policies and policies[0].id == "policy-1"
+
+
+@pytest.mark.pro
+def test_read_primary_with_fallback_on_empty(monkeypatch):
+    now = datetime.now(timezone.utc).isoformat()
+    secondary_privacy = _StubPrivacyStore(
+        [
+            PrivacyPolicy(
+                id="policy-2",
+                name="pii",
+                org_id=None,
+                site_id=None,
+                stream_id=None,
+                modalities=("text",),
+                contexts=("query",),
+                redaction_types=("pii",),
+                enabled=True,
+                created_at=now,
+                updated_at=now,
+            )
+        ]
+    )
+    primary_privacy = _StubPrivacyStore()
+    monkeypatch.setattr(
+        stores,
+        "gcp_get_store_bundle",
+        lambda _base_uri: _bundle(primary_privacy),
+    )
+    monkeypatch.setattr(
+        stores,
+        "core_get_store_bundle",
+        lambda _base_uri: _bundle(secondary_privacy),
+    )
+    monkeypatch.setenv("CONTROL_PLANE_STORE", "firestore")
+    monkeypatch.setenv("CONTROL_PLANE_READ_MODE", "primary")
+    monkeypatch.setenv("CONTROL_PLANE_WRITE_MODE", "single")
+    monkeypatch.setenv("CONTROL_PLANE_FALLBACK_ON_EMPTY", "1")
+    stores._STORE_BUNDLE = None
+    stores._STORE_KEY = None
+
+    bundle = stores.get_control_plane_stores("gs://bucket/retikon_v2")
+    policies = bundle.privacy.load_policies()
+    assert policies and policies[0].id == "policy-2"

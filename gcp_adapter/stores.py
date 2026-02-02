@@ -58,12 +58,23 @@ def _is_empty(value: object) -> bool:
     return False
 
 
+def _value_size(value: object) -> int | None:
+    if value is None:
+        return 0
+    if isinstance(value, (list, tuple, set, dict)):
+        return len(value)
+    return None
+
+
 def _read_with_fallback(
     *,
     primary_fn,
     secondary_fn,
     fallback_on_empty: bool,
+    label: str,
 ):
+    primary_backend = os.getenv("CONTROL_PLANE_STORE", "json").strip().lower()
+    secondary_backend = _fallback_backend(primary_backend)
     try:
         result = primary_fn()
     except Exception as exc:
@@ -71,11 +82,45 @@ def _read_with_fallback(
             raise
         logger.warning(
             "Primary control-plane read failed; falling back",
-            extra={"error_message": str(exc)},
+            extra={
+                "error_message": str(exc),
+                "control_plane_op": label,
+                "control_plane_primary": primary_backend,
+                "control_plane_secondary": secondary_backend,
+            },
         )
-        return secondary_fn()
-    if _read_mode() == "fallback" and fallback_on_empty and _is_empty(result):
-        return secondary_fn()
+        fallback_result = secondary_fn()
+        logger.warning(
+            "Control-plane fallback used",
+            extra={
+                "control_plane_op": label,
+                "control_plane_primary": primary_backend,
+                "control_plane_secondary": secondary_backend,
+                "control_plane_reason": "error",
+            },
+        )
+        return fallback_result
+    if fallback_on_empty and _is_empty(result):
+        fallback_result = secondary_fn()
+        secondary_empty = _is_empty(fallback_result)
+        primary_size = _value_size(result)
+        secondary_size = _value_size(fallback_result)
+        if not secondary_empty:
+            logger.warning(
+                "Control-plane fallback used",
+                extra={
+                    "control_plane_op": label,
+                    "control_plane_primary": primary_backend,
+                    "control_plane_secondary": secondary_backend,
+                    "control_plane_reason": "empty_primary",
+                    "control_plane_primary_empty": True,
+                    "control_plane_secondary_empty": secondary_empty,
+                    "control_plane_primary_size": primary_size,
+                    "control_plane_secondary_size": secondary_size,
+                    "control_plane_mismatch": True,
+                },
+            )
+        return fallback_result
     return result
 
 
@@ -118,6 +163,7 @@ class _DualRbacStore(RbacStore):
             primary_fn=self._primary.load_role_bindings,
             secondary_fn=self._secondary.load_role_bindings,
             fallback_on_empty=_fallback_on_empty(),
+            label="rbac.load_role_bindings",
         )
 
     def save_role_bindings(self, bindings: dict[str, list[str]]) -> str:
@@ -137,6 +183,7 @@ class _DualAbacStore(AbacStore):
             primary_fn=self._primary.load_policies,
             secondary_fn=self._secondary.load_policies,
             fallback_on_empty=_fallback_on_empty(),
+            label="abac.load_policies",
         )
 
     def save_policies(self, policies: Iterable) -> str:
@@ -156,6 +203,7 @@ class _DualPrivacyStore(PrivacyStore):
             primary_fn=self._primary.load_policies,
             secondary_fn=self._secondary.load_policies,
             fallback_on_empty=_fallback_on_empty(),
+            label="privacy.load_policies",
         )
 
     def save_policies(self, policies: Iterable) -> str:
@@ -195,6 +243,7 @@ class _DualFleetStore(FleetStore):
             primary_fn=self._primary.load_devices,
             secondary_fn=self._secondary.load_devices,
             fallback_on_empty=_fallback_on_empty(),
+            label="fleet.load_devices",
         )
 
     def save_devices(self, devices: Iterable) -> str:
@@ -246,6 +295,7 @@ class _DualWorkflowStore(WorkflowStore):
             primary_fn=self._primary.load_workflows,
             secondary_fn=self._secondary.load_workflows,
             fallback_on_empty=_fallback_on_empty(),
+            label="workflows.load_workflows",
         )
 
     def save_workflows(self, workflows: Iterable[WorkflowSpec]) -> str:
@@ -279,6 +329,7 @@ class _DualWorkflowStore(WorkflowStore):
             primary_fn=self._primary.load_workflow_runs,
             secondary_fn=self._secondary.load_workflow_runs,
             fallback_on_empty=_fallback_on_empty(),
+            label="workflows.load_workflow_runs",
         )
 
     def save_workflow_runs(self, runs: Iterable[WorkflowRun]) -> str:
@@ -318,6 +369,7 @@ class _DualWorkflowStore(WorkflowStore):
             primary_fn=_primary,
             secondary_fn=_secondary,
             fallback_on_empty=_fallback_on_empty(),
+            label="workflows.list_workflow_runs",
         )
 
 
@@ -331,6 +383,7 @@ class _DualDataFactoryStore(DataFactoryStore):
             primary_fn=self._primary.load_models,
             secondary_fn=self._secondary.load_models,
             fallback_on_empty=_fallback_on_empty(),
+            label="data_factory.load_models",
         )
 
     def save_models(self, models: Iterable) -> str:
@@ -364,6 +417,7 @@ class _DualDataFactoryStore(DataFactoryStore):
             primary_fn=self._primary.load_training_jobs,
             secondary_fn=self._secondary.load_training_jobs,
             fallback_on_empty=_fallback_on_empty(),
+            label="data_factory.load_training_jobs",
         )
 
     def save_training_jobs(self, jobs: Iterable) -> str:
@@ -403,6 +457,7 @@ class _DualDataFactoryStore(DataFactoryStore):
             primary_fn=_primary,
             secondary_fn=_secondary,
             fallback_on_empty=_fallback_on_empty(),
+            label="data_factory.get_training_job",
         )
 
     def list_training_jobs(self, **kwargs):
@@ -416,6 +471,7 @@ class _DualDataFactoryStore(DataFactoryStore):
             primary_fn=_primary,
             secondary_fn=_secondary,
             fallback_on_empty=_fallback_on_empty(),
+            label="data_factory.list_training_jobs",
         )
 
     def mark_training_job_running(self, *, job_id: str):
@@ -469,6 +525,7 @@ class _DualConnectorStore(ConnectorStore):
             primary_fn=self._primary.load_ocr_connectors,
             secondary_fn=self._secondary.load_ocr_connectors,
             fallback_on_empty=_fallback_on_empty(),
+            label="connectors.load_ocr_connectors",
         )
 
     def save_ocr_connectors(self, connectors: Iterable) -> str:
@@ -508,6 +565,7 @@ class _DualApiKeyStore(ApiKeyStore):
             primary_fn=self._primary.load_api_keys,
             secondary_fn=self._secondary.load_api_keys,
             fallback_on_empty=_fallback_on_empty(),
+            label="api_keys.load_api_keys",
         )
 
     def save_api_keys(self, api_keys: Iterable) -> str:
@@ -543,8 +601,17 @@ def get_control_plane_stores(base_uri: str) -> StoreBundle:
     prefix = os.getenv("CONTROL_PLANE_COLLECTION_PREFIX", "").strip()
     read_mode = _read_mode()
     write_mode = _write_mode()
+    fallback_on_empty = _fallback_on_empty()
     fallback_backend = _fallback_backend(backend)
-    key = (base_uri, backend, prefix, read_mode, write_mode, fallback_backend)
+    key = (
+        base_uri,
+        backend,
+        prefix,
+        read_mode,
+        write_mode,
+        fallback_backend,
+        fallback_on_empty,
+    )
     if _STORE_BUNDLE is not None and _STORE_KEY == key:
         return _STORE_BUNDLE
     primary = (
@@ -553,7 +620,7 @@ def get_control_plane_stores(base_uri: str) -> StoreBundle:
         else core_get_store_bundle(base_uri)
     )
     if (
-        (read_mode == "fallback" or write_mode == "dual")
+        (read_mode == "fallback" or write_mode == "dual" or fallback_on_empty)
         and fallback_backend != backend
     ):
         secondary = (
