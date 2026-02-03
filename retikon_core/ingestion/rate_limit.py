@@ -148,10 +148,14 @@ def _redis_client(config: Config | None):
 def _redis_allow(*, key: str, limit: int, cost: int, config: Config | None) -> bool:
     client = _redis_client(config)
     try:
-        pipe = client.pipeline()
-        pipe.incrby(key, cost)
-        pipe.expire(key, 60, nx=True)
-        count, _ = pipe.execute()
+        if cost <= 0:
+            return True
+        # Redis 6 does not support EXPIRE NX, so use SET NX EX to initialize TTL.
+        initialized = client.set(key, cost, nx=True, ex=60)
+        if initialized:
+            count = cost
+        else:
+            count = client.incrby(key, cost)
     except Exception as exc:
         raise RateLimitBackendError("Redis rate limiter unavailable") from exc
     return int(count) <= limit

@@ -50,8 +50,11 @@ Defaults shown match current code where applicable.
 - `DUCKDB_HEALTHCHECK_URI`
 - `DUCKDB_ALLOW_INSTALL=0|1`
 - `RETIKON_DUCKDB_AUTH_PROVIDER` (e.g., `gcp_adapter.duckdb_auth:GcsDuckDBAuthProvider`)
+- `RETIKON_DUCKDB_URI_SIGNER` (optional, e.g., `gcp_adapter.duckdb_uri_signer:sign_gcs_uri`)
+- `RETIKON_DUCKDB_SIGNED_URL_TTL_SEC` (optional, default `900`)
 - `DUCKDB_GCS_FALLBACK=0|1` (GCS provider only)
 - `DUCKDB_SKIP_HEALTHCHECK=0|1`
+- `DUCKDB_HEALTHCHECK_TMP_DIR` (optional, default `/tmp/retikon_healthcheck`)
 
 ## Pro (GCP) required
 
@@ -152,6 +155,21 @@ Repo defaults:
 - `REDIS_PORT`
 - `REDIS_DB`
 - `REDIS_SSL`
+
+## BYOC (Kubernetes adapter)
+
+- `K8S_NAMESPACE` (defaults to `default`)
+- `K8S_OBJECT_STORE_BACKEND` (`fsspec` recommended)
+- `K8S_OBJECT_STORE_URI` (e.g., `file:///data/retikon`, `s3://bucket/prefix`)
+- `K8S_QUEUE_BACKEND` (`redis|memory`)
+- `K8S_QUEUE_PREFIX` (optional; defaults to `retikon`)
+- `K8S_SECRETS_BACKEND` (`file|env|chain`)
+- `K8S_SECRETS_DIR` (defaults to `/var/run/secrets/retikon`)
+- `K8S_STATE_BACKEND` (`redis|file|memory`)
+- `K8S_STATE_DIR` (file backend; defaults to `/var/run/retikon/state`)
+- `K8S_STATE_PREFIX` (optional; defaults to `retikon`)
+- `K8S_REDIS_URL` or `K8S_REDIS_HOST`/`K8S_REDIS_PORT`/`K8S_REDIS_DB`/`K8S_REDIS_PASSWORD`/`K8S_REDIS_SSL`
+- `RETIKON_SECRET_<NAME>` (env secrets fallback)
 
 ## Notes
 

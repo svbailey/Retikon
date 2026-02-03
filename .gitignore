@@ -10,6 +10,7 @@ frontend/dev-console/dist/
 infrastructure/terraform/.terraform/
 infrastructure/terraform/terraform.tfstate
 infrastructure/terraform/terraform.tfstate.backup
+infrastructure/terraform/terraform.tfstate.d/
 
 # Python
 __pycache__/

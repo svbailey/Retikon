@@ -18,6 +18,7 @@ from retikon_core.query_engine.duckdb_auth import (
     DuckDBAuthContext,
     load_duckdb_auth_provider,
 )
+from retikon_core.query_engine.uri_signer import load_duckdb_uri_signer
 from retikon_core.query_engine.warm_start import load_extensions
 from retikon_core.storage.paths import (
     backend_scheme,
@@ -334,8 +335,19 @@ def _upload_file(src_path: str, dest_uri: str) -> None:
     fs.put(src_path, path)
 
 
+def _rewrite_duckdb_uri(uri: str) -> str:
+    signer = load_duckdb_uri_signer()
+    signed = signer(uri)
+    if signed != uri:
+        return signed
+    scheme = os.getenv("DUCKDB_GCS_URI_SCHEME")
+    if scheme and uri.startswith("gs://"):
+        return f"{scheme}://{uri[len('gs://'):]}"
+    return uri
+
+
 def _sql_list(items: Iterable[str]) -> str:
-    escaped = [item.replace("'", "''") for item in items]
+    escaped = [_rewrite_duckdb_uri(item).replace("'", "''") for item in items]
     return "[" + ", ".join(f"'{item}'" for item in escaped) + "]"
 
 

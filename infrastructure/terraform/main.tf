@@ -27,7 +27,7 @@ locals {
       edge_gateway_url = google_cloud_run_service.edge_gateway.status[0].url
     }
   )
-  api_gateway_invoker = "serviceAccount:service-${data.google_project.project.number}@gcp-sa-apigateway.iam.gserviceaccount.com"
+  api_gateway_invoker = "serviceAccount:${data.google_project.project.number}-compute@developer.gserviceaccount.com"
 }
 
 resource "google_vpc_access_connector" "serverless" {
@@ -231,6 +231,12 @@ resource "google_service_account" "compaction" {
 resource "google_service_account" "index_builder" {
   account_id   = var.index_service_account_name
   display_name = "Retikon Index Builder Service Account"
+}
+
+resource "google_service_account_iam_member" "index_builder_token_creator" {
+  service_account_id = google_service_account.index_builder.name
+  role               = "roles/iam.serviceAccountTokenCreator"
+  member             = "serviceAccount:${google_service_account.index_builder.email}"
 }
 
 resource "google_service_account" "smoke" {
@@ -3670,6 +3676,14 @@ resource "google_cloud_run_v2_job" "index_builder" {
         env {
           name  = "INDEX_BUILDER_WORK_DIR"
           value = var.index_builder_work_dir
+        }
+        env {
+          name  = "RETIKON_DUCKDB_URI_SIGNER"
+          value = "gcp_adapter.duckdb_uri_signer:sign_gcs_uri"
+        }
+        env {
+          name  = "GOOGLE_SERVICE_ACCOUNT_EMAIL"
+          value = google_service_account.index_builder.email
         }
         env {
           name  = "INDEX_BUILDER_COPY_LOCAL"

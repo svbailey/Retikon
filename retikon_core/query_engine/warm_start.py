@@ -2,9 +2,12 @@ from __future__ import annotations
 
 import os
 from dataclasses import dataclass
+from pathlib import Path
 from typing import Iterable
+from urllib.parse import urlparse
 
 import duckdb
+import fsspec
 
 from retikon_core.errors import RecoverableError
 from retikon_core.logging import get_logger
@@ -12,8 +15,36 @@ from retikon_core.query_engine.duckdb_auth import (
     DuckDBAuthContext,
     load_duckdb_auth_provider,
 )
+from retikon_core.query_engine.uri_signer import load_duckdb_uri_signer
 
 logger = get_logger(__name__)
+
+
+def _rewrite_duckdb_uri(uri: str | None) -> str | None:
+    if not uri:
+        return None
+    signer = load_duckdb_uri_signer()
+    signed_uri = signer(uri)
+    if signed_uri != uri:
+        return signed_uri
+    scheme = os.getenv("DUCKDB_GCS_URI_SCHEME")
+    if scheme and uri.startswith("gs://"):
+        return f"{scheme}://{uri[len('gs://'):]}"
+    return uri
+
+
+def _localize_healthcheck(uri: str) -> str:
+    parsed = urlparse(uri)
+    if parsed.scheme in {"", "file"}:
+        return uri
+    filename = Path(parsed.path).name or "healthcheck.parquet"
+    dest_dir = Path(os.getenv("DUCKDB_HEALTHCHECK_TMP_DIR", "/tmp/retikon_healthcheck"))
+    dest_dir.mkdir(parents=True, exist_ok=True)
+    dest_path = dest_dir / filename
+    fs, path = fsspec.core.url_to_fs(uri)
+    with fs.open(path, "rb") as reader, open(dest_path, "wb") as writer:
+        writer.write(reader.read())
+    return str(dest_path)
 
 
 @dataclass(frozen=True)
@@ -71,6 +102,8 @@ def get_secure_connection(
     auth_path, fallback_used = provider.configure(conn, context)
 
     if healthcheck_uri and not skip_healthcheck:
+        healthcheck_uri = _rewrite_duckdb_uri(healthcheck_uri)
+        healthcheck_uri = _localize_healthcheck(healthcheck_uri)
         try:
             conn.execute(
                 "SELECT 1 FROM read_parquet(?) LIMIT 1",
