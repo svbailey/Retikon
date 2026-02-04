@@ -22,19 +22,21 @@
     />
     <style>
       :root {
-        --bg-1: #0b1116;
-        --bg-2: #121f2a;
-        --panel: rgba(14, 24, 34, 0.86);
-        --panel-strong: rgba(18, 31, 42, 0.96);
+        --bg-1: #0b0f14;
+        --bg-2: #101923;
+        --bg-3: #0d1218;
+        --panel: rgba(14, 22, 30, 0.82);
+        --panel-strong: rgba(18, 27, 38, 0.95);
         --border: rgba(255, 255, 255, 0.08);
-        --text: #eef4fa;
-        --muted: #a7b4c4;
-        --accent: #f4b740;
-        --accent-2: #3ed4c5;
+        --text: #edf2f7;
+        --muted: #9aa9bb;
+        --accent: #6ee7d2;
+        --accent-2: #88a6ff;
+        --accent-warm: #f1c36d;
         --danger: #ff6b6b;
         --success: #2bd987;
-        --warning: #ffb347;
-        --shadow: 0 16px 40px rgba(4, 8, 12, 0.45);
+        --warning: #f1b34b;
+        --shadow: 0 20px 60px rgba(5, 8, 12, 0.55);
         --radius: 18px;
       }
 
@@ -47,13 +49,13 @@
         font-family: "Manrope", "Space Grotesk", sans-serif;
         color: var(--text);
         background: radial-gradient(
-            circle at 20% 20%,
-            rgba(62, 212, 197, 0.22),
-            transparent 55%
+            circle at 12% 16%,
+            rgba(110, 231, 210, 0.2),
+            transparent 50%
           ),
           radial-gradient(
-            circle at 80% 0%,
-            rgba(244, 183, 64, 0.16),
+            circle at 86% 8%,
+            rgba(136, 166, 255, 0.18),
             transparent 45%
           ),
           linear-gradient(160deg, var(--bg-1), var(--bg-2));
@@ -362,6 +364,208 @@
         font-size: 0.82rem;
       }
 
+      .story-panel.hidden {
+        display: none;
+      }
+
+      .story-grid {
+        display: grid;
+        grid-template-columns: minmax(0, 1.2fr) minmax(0, 0.8fr);
+        gap: 16px;
+        margin-top: 12px;
+      }
+
+      .story-video {
+        background: var(--panel-strong);
+        border: 1px solid var(--border);
+        border-radius: 16px;
+        padding: 16px;
+        display: flex;
+        flex-direction: column;
+        gap: 12px;
+      }
+
+      .story-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+      }
+
+      .story-header h3 {
+        margin: 0;
+        font-size: 1rem;
+      }
+
+      .story-video video {
+        width: 100%;
+        border-radius: 14px;
+        background: #000;
+      }
+
+      .story-meta {
+        display: grid;
+        gap: 6px;
+        font-size: 0.82rem;
+        color: var(--muted);
+      }
+
+      .story-meta strong {
+        color: var(--text);
+      }
+
+      .story-meta span {
+        word-break: break-all;
+      }
+
+      .story-facts {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+        gap: 12px;
+        align-content: start;
+      }
+
+      .fact-card {
+        background: var(--panel-strong);
+        border: 1px solid var(--border);
+        border-radius: 14px;
+        padding: 12px;
+        display: flex;
+        flex-direction: column;
+        gap: 6px;
+        min-height: 72px;
+      }
+
+      .fact-label {
+        font-size: 0.7rem;
+        text-transform: uppercase;
+        letter-spacing: 0.08em;
+        color: var(--muted);
+      }
+
+      .fact-value {
+        font-size: 1.1rem;
+        font-weight: 600;
+      }
+
+      .story-tabs {
+        display: flex;
+        gap: 10px;
+        flex-wrap: wrap;
+        margin-top: 16px;
+      }
+
+      .story-tab {
+        background: rgba(5, 10, 14, 0.6);
+        border: 1px solid var(--border);
+        color: var(--muted);
+        padding: 6px 12px;
+        border-radius: 999px;
+        font-size: 0.78rem;
+        cursor: pointer;
+      }
+
+      .story-tab.active {
+        background: rgba(244, 183, 64, 0.2);
+        border-color: rgba(244, 183, 64, 0.5);
+        color: var(--accent);
+      }
+
+      .story-tab-content {
+        display: none;
+        margin-top: 12px;
+      }
+
+      .story-tab-content.active {
+        display: block;
+      }
+
+      .story-summary {
+        display: grid;
+        gap: 8px;
+      }
+
+      .summary-item {
+        background: rgba(5, 10, 14, 0.5);
+        border: 1px solid var(--border);
+        border-radius: 12px;
+        padding: 10px 12px;
+        font-size: 0.85rem;
+      }
+
+      .label-section {
+        background: rgba(5, 10, 14, 0.5);
+        border: 1px solid var(--border);
+        border-radius: 12px;
+        padding: 12px;
+        display: grid;
+        gap: 8px;
+      }
+
+      .label-section h4 {
+        margin: 0;
+        font-size: 0.72rem;
+        text-transform: uppercase;
+        letter-spacing: 0.12em;
+        color: var(--muted);
+      }
+
+      .label-chip-group {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+      }
+
+      .label-chip {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        padding: 6px 10px;
+        border-radius: 999px;
+        font-size: 0.75rem;
+        color: rgba(245, 241, 233, 0.92);
+        background: rgba(255, 255, 255, 0.12);
+        border: 1px solid rgba(255, 255, 255, 0.16);
+      }
+
+      .label-chip span {
+        opacity: 0.7;
+        font-size: 0.7rem;
+      }
+
+      .label-meta {
+        margin-top: 8px;
+        font-size: 0.78rem;
+        color: var(--muted);
+      }
+
+      .keyframe-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+        gap: 12px;
+      }
+
+      .keyframe-card {
+        background: rgba(5, 10, 14, 0.5);
+        border: 1px solid var(--border);
+        border-radius: 12px;
+        padding: 8px;
+        display: grid;
+        gap: 6px;
+      }
+
+      .keyframe-card img {
+        width: 100%;
+        border-radius: 10px;
+        display: block;
+      }
+
+      .keyframe-time {
+        font-size: 0.78rem;
+        color: var(--muted);
+        text-align: center;
+      }
+
       @keyframes fadeUp {
         from {
           opacity: 0;
@@ -379,6 +583,12 @@
         }
         h1 {
           font-size: 2rem;
+        }
+      }
+
+      @media (max-width: 900px) {
+        .story-grid {
+          grid-template-columns: 1fr;
         }
       }
     </style>
@@ -478,7 +688,7 @@
               <option value="docs">docs</option>
               <option value="images">images</option>
               <option value="audio">audio</option>
-              <option value="video">video</option>
+              <option value="videos">video</option>
             </select>
           </div>
           <div class="actions">
@@ -558,6 +768,108 @@
           <div class="data-block" id="queryResults">No query yet.</div>
         </div>
       </section>
+
+      <section class="panel story-panel hidden" id="storyPanel">
+        <div class="panel-header">
+          <h2>Video Story</h2>
+          <span class="pill accent">post-ingest</span>
+        </div>
+        <p class="notice" id="storyStatus">
+          Upload a video and complete ingestion to reveal a human-friendly
+          summary of what the system learned.
+        </p>
+
+        <div class="story-grid">
+          <div class="story-video">
+            <div class="story-header">
+              <div>
+                <h3>Your video</h3>
+                <p class="notice">Playback plus the facts extracted into the graph.</p>
+              </div>
+              <button id="storyRefresh" class="secondary">Refresh story</button>
+            </div>
+            <video id="storyVideo" controls></video>
+            <div class="story-meta" id="storyVideoMeta">Video preview not loaded.</div>
+            <div class="story-meta">
+              <div><strong>Source</strong> <span id="storySourceUri">-</span></div>
+              <div><strong>Manifest</strong> <span id="storyManifestUri">-</span></div>
+            </div>
+          </div>
+
+          <div class="story-facts" id="storyFacts">
+            <div class="fact-card">
+              <span class="fact-label">Duration</span>
+              <span class="fact-value" id="storyDuration">-</span>
+            </div>
+            <div class="fact-card">
+              <span class="fact-label">Resolution</span>
+              <span class="fact-value" id="storyResolution">-</span>
+            </div>
+            <div class="fact-card">
+              <span class="fact-label">Frames</span>
+              <span class="fact-value" id="storyFrames">-</span>
+            </div>
+            <div class="fact-card">
+              <span class="fact-label">Audio</span>
+              <span class="fact-value" id="storyAudio">-</span>
+            </div>
+            <div class="fact-card">
+              <span class="fact-label">File size</span>
+              <span class="fact-value" id="storySize">-</span>
+            </div>
+            <div class="fact-card">
+              <span class="fact-label">Transcript</span>
+              <span class="fact-value" id="storyTranscriptCount">-</span>
+            </div>
+            <div class="fact-card">
+              <span class="fact-label">Keyframes</span>
+              <span class="fact-value" id="storyKeyframeCount">-</span>
+            </div>
+            <div class="fact-card">
+              <span class="fact-label">Relations</span>
+              <span class="fact-value" id="storyRelationCount">-</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="story-tabs">
+          <button class="story-tab active" data-story-tab="highlights">
+            Highlights
+          </button>
+          <button class="story-tab" data-story-tab="transcript">Transcript</button>
+          <button class="story-tab" data-story-tab="labels">Visual Labels</button>
+          <button class="story-tab" data-story-tab="keyframes">Keyframes</button>
+        </div>
+
+        <div class="story-tab-content active" data-story-content="highlights">
+          <div class="story-summary" id="storySummary"></div>
+        </div>
+        <div class="story-tab-content" data-story-content="transcript">
+          <div class="data-block" id="storyTranscript">
+            Transcript will appear here after ingest completes.
+          </div>
+        </div>
+        <div class="story-tab-content" data-story-content="labels">
+          <div class="label-section">
+            <h4>Objects</h4>
+            <div class="label-chip-group" id="storyLabelObjects">
+              Labels will appear after ingest completes.
+            </div>
+          </div>
+          <div class="label-section" style="margin-top: 12px;">
+            <h4>Scenes</h4>
+            <div class="label-chip-group" id="storyLabelScenes"></div>
+          </div>
+          <div class="label-section" style="margin-top: 12px;">
+            <h4>Actions</h4>
+            <div class="label-chip-group" id="storyLabelActions"></div>
+          </div>
+          <div class="label-meta" id="storyLabelMeta"></div>
+        </div>
+        <div class="story-tab-content" data-story-content="keyframes">
+          <div class="keyframe-grid" id="storyKeyframes"></div>
+        </div>
+      </section>
     </main>
 
     <script>
@@ -566,6 +878,11 @@
         ingest: null,
         manifest: null,
         preview: null,
+        story: {
+          loaded: false,
+          loading: false,
+          thumbs: {},
+        },
       };
 
       const els = {
@@ -594,6 +911,32 @@
         topK: document.getElementById("topK"),
         queryBtn: document.getElementById("queryBtn"),
         queryResults: document.getElementById("queryResults"),
+        storyPanel: document.getElementById("storyPanel"),
+        storyStatus: document.getElementById("storyStatus"),
+        storyRefresh: document.getElementById("storyRefresh"),
+        storyVideo: document.getElementById("storyVideo"),
+        storyVideoMeta: document.getElementById("storyVideoMeta"),
+        storySourceUri: document.getElementById("storySourceUri"),
+        storyManifestUri: document.getElementById("storyManifestUri"),
+        storyDuration: document.getElementById("storyDuration"),
+        storyResolution: document.getElementById("storyResolution"),
+        storyFrames: document.getElementById("storyFrames"),
+        storyAudio: document.getElementById("storyAudio"),
+        storySize: document.getElementById("storySize"),
+        storyTranscriptCount: document.getElementById("storyTranscriptCount"),
+        storyKeyframeCount: document.getElementById("storyKeyframeCount"),
+        storyRelationCount: document.getElementById("storyRelationCount"),
+        storySummary: document.getElementById("storySummary"),
+        storyTranscript: document.getElementById("storyTranscript"),
+        storyLabelObjects: document.getElementById("storyLabelObjects"),
+        storyLabelScenes: document.getElementById("storyLabelScenes"),
+        storyLabelActions: document.getElementById("storyLabelActions"),
+        storyLabelMeta: document.getElementById("storyLabelMeta"),
+        storyKeyframes: document.getElementById("storyKeyframes"),
+        storyTabs: Array.from(document.querySelectorAll("[data-story-tab]")),
+        storyContents: Array.from(
+          document.querySelectorAll("[data-story-content]"),
+        ),
       };
 
       const STORAGE_KEY = "retikon_visual_test_config";
@@ -616,7 +959,7 @@
       };
 
       const getConfig = () => ({
-        jwt: els.jwt.value.trim(),
+        jwt: els.jwt.value.replace(/\s+/g, ""),
         devApi: els.devApi.value.trim().replace(/\/$/, ""),
         queryUrl: els.queryUrl.value.trim(),
       });
@@ -667,6 +1010,110 @@
         return resp.json();
       };
 
+      const formatBytes = (value) => {
+        if (!value && value !== 0) return "-";
+        const units = ["B", "KB", "MB", "GB"];
+        let size = Number(value);
+        let unit = 0;
+        while (size >= 1024 && unit < units.length - 1) {
+          size /= 1024;
+          unit += 1;
+        }
+        return `${size.toFixed(size >= 10 || unit === 0 ? 0 : 1)} ${units[unit]}`;
+      };
+
+      const formatDuration = (ms) => {
+        if (!ms && ms !== 0) return "-";
+        const totalSeconds = Math.floor(Number(ms) / 1000);
+        const minutes = Math.floor(totalSeconds / 60);
+        const seconds = totalSeconds % 60;
+        return `${minutes}:${String(seconds).padStart(2, "0")}`;
+      };
+
+      const formatTimestamp = (ms) => {
+        if (!ms && ms !== 0) return "-";
+        return formatDuration(ms);
+      };
+
+      const setStoryValue = (el, value) => {
+        if (!el) return;
+        el.textContent = value ?? "-";
+      };
+
+      const showStoryPanel = () => {
+        els.storyPanel?.classList.remove("hidden");
+      };
+
+      const activateStoryTab = (name) => {
+        els.storyTabs.forEach((tab) => {
+          tab.classList.toggle("active", tab.dataset.storyTab === name);
+        });
+        els.storyContents.forEach((content) => {
+          content.classList.toggle(
+            "active",
+            content.dataset.storyContent === name,
+          );
+        });
+      };
+
+      const fetchBinary = async (url) => {
+        const resp = await fetch(url, { headers: authHeaders() });
+        if (!resp.ok) {
+          const text = await resp.text();
+          throw new Error(text || `Request failed (${resp.status})`);
+        }
+        return resp.blob();
+      };
+
+      const fetchRawObject = async (uri) => {
+        const { devApi } = getConfig();
+        if (!devApi) {
+          throw new Error("Dev API URL is required.");
+        }
+        const target = `${devApi}/dev/object?uri=${encodeURIComponent(uri)}`;
+        return fetchBinary(target);
+      };
+
+      const fetchGraphObject = async (uri) => {
+        const { devApi } = getConfig();
+        if (!devApi) {
+          throw new Error("Dev API URL is required.");
+        }
+        const target = `${devApi}/dev/graph-object?uri=${encodeURIComponent(uri)}`;
+        return fetchBinary(target);
+      };
+
+      const fetchVisualLabels = async (mediaAssetId) => {
+        const { devApi } = getConfig();
+        if (!devApi) {
+          throw new Error("Dev API URL is required.");
+        }
+        const target =
+          `${devApi}/dev/visual-labels?media_asset_id=${encodeURIComponent(
+            mediaAssetId,
+          )}&top_k=8&max_frames=12`;
+        return apiFetch(target);
+      };
+
+      const renderLabelChips = (el, items) => {
+        if (!el) return;
+        el.innerHTML = "";
+        if (!items?.length) {
+          el.textContent = "No labels available.";
+          return;
+        }
+        items.forEach((item) => {
+          const chip = document.createElement("div");
+          chip.className = "label-chip";
+          const label = document.createElement("strong");
+          label.textContent = item.label;
+          const score = document.createElement("span");
+          score.textContent = `${Math.round((item.score || 0) * 100)}%`;
+          chip.append(label, score);
+          el.append(chip);
+        });
+      };
+
       const uploadFile = async () => {
         const { devApi } = getConfig();
         if (!devApi) {
@@ -692,10 +1139,261 @@
         }
         const data = await resp.json();
         state.upload = data;
+        state.story.loaded = false;
+        state.story.loading = false;
+        state.story.thumbs = {};
+        if (els.storyPanel) {
+          els.storyPanel.classList.add("hidden");
+        }
+        if (els.storyVideo) {
+          els.storyVideo.removeAttribute("src");
+        }
+        if (els.storyVideoMeta) {
+          els.storyVideoMeta.textContent = "Video preview not loaded.";
+        }
+        if (els.storyLabelObjects) {
+          els.storyLabelObjects.textContent =
+            "Labels will appear after ingest completes.";
+        }
+        if (els.storyLabelScenes) {
+          els.storyLabelScenes.textContent = "";
+        }
+        if (els.storyLabelActions) {
+          els.storyLabelActions.textContent = "";
+        }
+        if (els.storyLabelMeta) {
+          els.storyLabelMeta.textContent = "";
+        }
         els.uploadInfo.textContent = `Uploaded ${data.name} (${data.size_bytes} bytes)`;
         setStep("upload", "done", `URI: ${data.uri}`);
         addLog("Upload complete.", "success");
         return data;
+      };
+
+      const isVideoUpload = () =>
+        Boolean(state.upload?.name && state.upload.name.includes("/videos/"));
+
+      const loadVideoStory = async () => {
+        const { devApi } = getConfig();
+        if (!devApi) {
+          throw new Error("Dev API URL is required.");
+        }
+        if (!isVideoUpload()) {
+          els.storyStatus.textContent =
+            "Video story is only available for video uploads.";
+          return;
+        }
+        const manifestUri = state.ingest?.firestore?.manifest_uri;
+        if (!manifestUri) {
+          els.storyStatus.textContent =
+            "Waiting for manifest data from ingestion.";
+          return;
+        }
+        if (state.story.loading) {
+          return;
+        }
+        state.story.loading = true;
+        showStoryPanel();
+        els.storyStatus.textContent = "Building your video story...";
+
+        try {
+          const manifest = await apiFetch(
+            `${devApi}/dev/manifest?manifest_uri_value=${encodeURIComponent(
+              manifestUri
+            )}`
+          );
+          const files = manifest.files || [];
+          const counts = manifest.counts || state.ingest?.firestore?.counts || {};
+          const findFile = (needle) =>
+            files.find((file) =>
+              String(file.uri || file.path || "").includes(needle)
+            );
+          const mediaFile = findFile("/vertices/MediaAsset/core/");
+          const imageFile = findFile("/vertices/ImageAsset/core/");
+          const transcriptFile = findFile("/vertices/Transcript/text/");
+          const mediaPreview = mediaFile?.uri
+            ? await apiFetch(
+                `${devApi}/dev/parquet-preview?path=${encodeURIComponent(
+                  mediaFile.uri
+                )}&limit=5`
+              )
+            : null;
+          const imagePreview = imageFile?.uri
+            ? await apiFetch(
+                `${devApi}/dev/parquet-preview?path=${encodeURIComponent(
+                  imageFile.uri
+                )}&limit=20`
+              )
+            : null;
+          const transcriptPreview = transcriptFile?.uri
+            ? await apiFetch(
+                `${devApi}/dev/parquet-preview?path=${encodeURIComponent(
+                  transcriptFile.uri
+                )}&limit=6`
+              )
+            : null;
+
+          const mediaTargetId = state.ingest?.firestore?.media_asset_id;
+          const mediaRow =
+            mediaPreview?.rows?.find((row) => row.id === mediaTargetId) ||
+            mediaPreview?.rows?.[0] ||
+            null;
+          const imageRows = (imagePreview?.rows || []).filter((row) =>
+            mediaTargetId ? row.media_asset_id === mediaTargetId : true
+          );
+          const transcriptRows = transcriptPreview?.rows || [];
+
+          setStoryValue(els.storyDuration, formatDuration(mediaRow?.duration_ms));
+          setStoryValue(
+            els.storyResolution,
+            mediaRow?.width_px && mediaRow?.height_px
+              ? `${mediaRow.width_px} x ${mediaRow.height_px}`
+              : "-"
+          );
+          setStoryValue(
+            els.storyFrames,
+            mediaRow?.frame_count ?? counts.ImageAsset ?? "-"
+          );
+          setStoryValue(
+            els.storyAudio,
+            (counts.AudioClip || 0) > 0 ? "Yes" : "No"
+          );
+          setStoryValue(els.storySize, formatBytes(mediaRow?.size_bytes));
+          setStoryValue(
+            els.storyTranscriptCount,
+            counts.Transcript ?? transcriptRows.length ?? "-"
+          );
+          setStoryValue(
+            els.storyKeyframeCount,
+            counts.ImageAsset ?? imageRows.length ?? "-"
+          );
+          setStoryValue(els.storyRelationCount, counts.DerivedFrom ?? "-");
+          setStoryValue(els.storySourceUri, mediaRow?.uri || state.upload?.uri);
+          setStoryValue(els.storyManifestUri, manifest.manifest_uri || manifestUri);
+
+          if (state.story.videoUrl) {
+            URL.revokeObjectURL(state.story.videoUrl);
+            state.story.videoUrl = null;
+          }
+          if (mediaRow?.uri || state.upload?.uri) {
+            try {
+              const blob = await fetchRawObject(mediaRow?.uri || state.upload?.uri);
+              const objectUrl = URL.createObjectURL(blob);
+              state.story.videoUrl = objectUrl;
+              els.storyVideo.src = objectUrl;
+              els.storyVideoMeta.textContent = "Video preview ready.";
+            } catch (err) {
+              els.storyVideoMeta.textContent = `Video preview unavailable: ${
+                err.message || err
+              }`;
+            }
+          }
+
+          const summaryItems = [];
+          if (mediaRow?.duration_ms) {
+            summaryItems.push(
+              `This video is ${formatDuration(
+                mediaRow.duration_ms
+              )} long at ${mediaRow.width_px} x ${mediaRow.height_px}.`
+            );
+          }
+          if (counts.ImageAsset) {
+            summaryItems.push(
+              `We captured ${counts.ImageAsset} keyframes to represent the visuals.`
+            );
+          }
+          if (counts.Transcript) {
+            summaryItems.push(
+              `We generated ${counts.Transcript} transcript segments from the audio.`
+            );
+          }
+          if (counts.DerivedFrom) {
+            summaryItems.push(
+              `${counts.DerivedFrom} relationships link frames, transcript, and the source asset.`
+            );
+          }
+          els.storySummary.innerHTML = "";
+          if (summaryItems.length === 0) {
+            els.storySummary.textContent = "No summary yet.";
+          } else {
+            summaryItems.forEach((text) => {
+              const item = document.createElement("div");
+              item.className = "summary-item";
+              item.textContent = text;
+              els.storySummary.append(item);
+            });
+          }
+
+          const transcriptText = transcriptRows
+            .map((row) => row.content)
+            .filter(Boolean);
+          els.storyTranscript.textContent = transcriptText.length
+            ? transcriptText.map((line) => `• ${line}`).join("\n")
+            : "No transcript segments were recorded.";
+
+          els.storyKeyframes.innerHTML = "";
+          if (!imageRows.length) {
+            els.storyKeyframes.textContent = "No keyframes found.";
+          } else {
+            for (const row of imageRows.slice(0, 12)) {
+              const card = document.createElement("div");
+              card.className = "keyframe-card";
+              const img = document.createElement("img");
+              img.alt = `Keyframe at ${formatTimestamp(row.timestamp_ms)}`;
+              const time = document.createElement("div");
+              time.className = "keyframe-time";
+              time.textContent = formatTimestamp(row.timestamp_ms);
+              card.append(img, time);
+              els.storyKeyframes.append(card);
+              if (row.thumbnail_uri) {
+                try {
+                  if (!state.story.thumbs[row.thumbnail_uri]) {
+                    const blob = await fetchGraphObject(row.thumbnail_uri);
+                    state.story.thumbs[row.thumbnail_uri] =
+                      URL.createObjectURL(blob);
+                  }
+                  img.src = state.story.thumbs[row.thumbnail_uri];
+                } catch (err) {
+                  img.alt = "Thumbnail unavailable.";
+                }
+              }
+            }
+          }
+
+          if (mediaTargetId) {
+            try {
+              const labelData = await fetchVisualLabels(mediaTargetId);
+              renderLabelChips(
+                els.storyLabelObjects,
+                labelData.labels?.object || [],
+              );
+              renderLabelChips(
+                els.storyLabelScenes,
+                labelData.labels?.scene || [],
+              );
+              renderLabelChips(
+                els.storyLabelActions,
+                labelData.labels?.action || [],
+              );
+              if (els.storyLabelMeta) {
+                els.storyLabelMeta.textContent = `Model backend: ${labelData.backend} | Frames scored: ${labelData.frame_count}`;
+              }
+            } catch (err) {
+              if (els.storyLabelMeta) {
+                els.storyLabelMeta.textContent = `Labels unavailable: ${
+                  err.message || err
+                }`;
+              }
+            }
+          }
+
+          els.storyStatus.textContent =
+            "Video story ready. Explore transcript and keyframes below.";
+          state.story.loaded = true;
+          activateStoryTab("highlights");
+        } finally {
+          state.story.loading = false;
+        }
       };
 
       const fetchIngestStatus = async () => {
@@ -715,6 +1413,12 @@
         addLog(`Ingest status: ${status}`, status === "COMPLETED" ? "success" : "info");
         if (data?.firestore?.manifest_uri) {
           els.manifestUri.value = data.firestore.manifest_uri;
+        }
+        if (status === "COMPLETED" && isVideoUpload()) {
+          showStoryPanel();
+          if (!state.story.loaded && !state.story.loading) {
+            await loadVideoStory();
+          }
         }
         return data;
       };
@@ -979,6 +1683,20 @@
           addLog(err.message, "error");
           setStep("query", "error", err.message);
         }
+      });
+      if (els.storyRefresh) {
+        els.storyRefresh.addEventListener("click", async () => {
+          try {
+            await loadVideoStory();
+          } catch (err) {
+            addLog(err.message, "error");
+          }
+        });
+      }
+      els.storyTabs.forEach((tab) => {
+        tab.addEventListener("click", () => {
+          activateStoryTab(tab.dataset.storyTab);
+        });
       });
 
       loadConfig();

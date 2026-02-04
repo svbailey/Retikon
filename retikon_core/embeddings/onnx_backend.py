@@ -149,6 +149,17 @@ def _get_bge_tokenizer():
     return _BGE_TOKENIZER
 
 
+def _text_model_max_tokens() -> int:
+    raw = os.getenv("TEXT_MODEL_MAX_TOKENS")
+    if raw is None or raw == "":
+        return 512
+    try:
+        value = int(raw)
+    except ValueError:
+        return 512
+    return value if value > 0 else 512
+
+
 def _get_clip_processor():
     global _CLIP_PROCESSOR
     if _CLIP_PROCESSOR is None:
@@ -207,6 +218,7 @@ class OnnxTextEmbedder:
             return_tensors="np",
             padding=True,
             truncation=True,
+            max_length=_text_model_max_tokens(),
         )
         input_ids = inputs["input_ids"].astype("int64")
         attention_mask = inputs["attention_mask"].astype("int64")

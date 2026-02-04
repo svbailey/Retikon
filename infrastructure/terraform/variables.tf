@@ -634,6 +634,11 @@ variable "dev_console_concurrency" {
   default = 10
 }
 
+variable "dev_console_embedding_backend" {
+  type    = string
+  default = "onnx"
+}
+
 variable "edge_buffer_max_bytes" {
   type    = number
   default = 2147483648
@@ -1108,6 +1113,21 @@ variable "log_level" {
   default = "INFO"
 }
 
+variable "cors_allow_origins" {
+  type    = string
+  default = ""
+}
+
+variable "dev_console_cors_allow_origins" {
+  type    = string
+  default = ""
+}
+
+variable "allow_browser_direct_access" {
+  type    = bool
+  default = false
+}
+
 variable "auth_issuer" {
   type    = string
   default = ""
@@ -1131,6 +1151,11 @@ variable "auth_jwt_algorithms" {
 variable "auth_required_claims" {
   type    = string
   default = "sub,iss,aud,exp,iat,org_id"
+}
+
+variable "dev_console_auth_required_claims" {
+  type    = string
+  default = ""
 }
 
 variable "auth_claim_sub" {
@@ -1296,6 +1321,41 @@ variable "audio_model_name" {
 variable "whisper_model_name" {
   type    = string
   default = "small"
+}
+
+variable "whisper_language" {
+  type    = string
+  default = ""
+}
+
+variable "whisper_language_default" {
+  type    = string
+  default = ""
+}
+
+variable "whisper_language_auto" {
+  type    = bool
+  default = false
+}
+
+variable "whisper_min_confidence" {
+  type    = number
+  default = 0.6
+}
+
+variable "whisper_detect_seconds" {
+  type    = number
+  default = 30
+}
+
+variable "whisper_task" {
+  type    = string
+  default = "transcribe"
+}
+
+variable "whisper_non_english_task" {
+  type    = string
+  default = "translate"
 }
 
 variable "alert_notification_channels" {

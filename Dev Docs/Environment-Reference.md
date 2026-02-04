@@ -23,6 +23,7 @@ Defaults shown match current code where applicable.
 - `MODEL_DIR`
 - `EMBEDDING_DEVICE`
 - `TEXT_MODEL_NAME`
+- `TEXT_MODEL_MAX_TOKENS` (default `512`)
 - `IMAGE_MODEL_NAME`
 - `AUDIO_MODEL_NAME`
 - `WHISPER_MODEL_NAME`

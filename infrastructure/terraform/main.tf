@@ -28,6 +28,7 @@ locals {
     }
   )
   api_gateway_invoker = "serviceAccount:${data.google_project.project.number}-compute@developer.gserviceaccount.com"
+  dev_console_cors_allow_origins = var.dev_console_cors_allow_origins != "" ? var.dev_console_cors_allow_origins : var.cors_allow_origins
 }
 
 resource "google_vpc_access_connector" "serverless" {
@@ -544,6 +545,10 @@ resource "google_cloud_run_service" "ingestion" {
           value = var.log_level
         }
         env {
+          name  = "CORS_ALLOW_ORIGINS"
+          value = local.dev_console_cors_allow_origins
+        }
+        env {
           name  = "AUTH_ISSUER"
           value = var.auth_issuer
         }
@@ -682,6 +687,34 @@ resource "google_cloud_run_service" "ingestion" {
         env {
           name  = "WHISPER_MODEL_NAME"
           value = var.whisper_model_name
+        }
+        env {
+          name  = "WHISPER_LANGUAGE"
+          value = var.whisper_language
+        }
+        env {
+          name  = "WHISPER_LANGUAGE_DEFAULT"
+          value = var.whisper_language_default
+        }
+        env {
+          name  = "WHISPER_LANGUAGE_AUTO"
+          value = var.whisper_language_auto ? "1" : "0"
+        }
+        env {
+          name  = "WHISPER_MIN_CONFIDENCE"
+          value = tostring(var.whisper_min_confidence)
+        }
+        env {
+          name  = "WHISPER_DETECT_SECONDS"
+          value = tostring(var.whisper_detect_seconds)
+        }
+        env {
+          name  = "WHISPER_TASK"
+          value = var.whisper_task
+        }
+        env {
+          name  = "WHISPER_NON_ENGLISH_TASK"
+          value = var.whisper_non_english_task
         }
         env {
           name  = "RAW_BUCKET"
@@ -892,6 +925,10 @@ resource "google_cloud_run_service" "query" {
           value = var.log_level
         }
         env {
+          name  = "CORS_ALLOW_ORIGINS"
+          value = var.cors_allow_origins
+        }
+        env {
           name  = "AUTH_ISSUER"
           value = var.auth_issuer
         }
@@ -913,7 +950,7 @@ resource "google_cloud_run_service" "query" {
         }
         env {
           name  = "AUTH_REQUIRED_CLAIMS"
-          value = var.auth_required_claims
+          value = var.dev_console_auth_required_claims != "" ? var.dev_console_auth_required_claims : var.auth_required_claims
         }
         env {
           name  = "AUTH_CLAIM_SUB"
@@ -1245,6 +1282,10 @@ resource "google_cloud_run_service" "query_gpu" {
         env {
           name  = "LOG_LEVEL"
           value = var.log_level
+        }
+        env {
+          name  = "CORS_ALLOW_ORIGINS"
+          value = var.cors_allow_origins
         }
         env {
           name  = "AUTH_ISSUER"
@@ -2898,6 +2939,10 @@ resource "google_cloud_run_service" "dev_console" {
           value = var.log_level
         }
         env {
+          name  = "CORS_ALLOW_ORIGINS"
+          value = var.cors_allow_origins
+        }
+        env {
           name  = "AUTH_ISSUER"
           value = var.auth_issuer
         }
@@ -3032,6 +3077,22 @@ resource "google_cloud_run_service" "dev_console" {
         env {
           name  = "MAX_PREVIEW_BYTES"
           value = tostring(var.max_preview_bytes)
+        }
+        env {
+          name  = "USE_REAL_MODELS"
+          value = var.use_real_models ? "1" : "0"
+        }
+        env {
+          name  = "MODEL_DIR"
+          value = var.model_dir
+        }
+        env {
+          name  = "IMAGE_MODEL_NAME"
+          value = var.image_model_name
+        }
+        env {
+          name  = "EMBEDDING_BACKEND"
+          value = var.dev_console_embedding_backend
         }
       }
     }
@@ -3392,6 +3453,34 @@ resource "google_cloud_run_service" "stream_ingest" {
           value = var.whisper_model_name
         }
         env {
+          name  = "WHISPER_LANGUAGE"
+          value = var.whisper_language
+        }
+        env {
+          name  = "WHISPER_LANGUAGE_DEFAULT"
+          value = var.whisper_language_default
+        }
+        env {
+          name  = "WHISPER_LANGUAGE_AUTO"
+          value = var.whisper_language_auto ? "1" : "0"
+        }
+        env {
+          name  = "WHISPER_MIN_CONFIDENCE"
+          value = tostring(var.whisper_min_confidence)
+        }
+        env {
+          name  = "WHISPER_DETECT_SECONDS"
+          value = tostring(var.whisper_detect_seconds)
+        }
+        env {
+          name  = "WHISPER_TASK"
+          value = var.whisper_task
+        }
+        env {
+          name  = "WHISPER_NON_ENGLISH_TASK"
+          value = var.whisper_non_english_task
+        }
+        env {
           name  = "RAW_BUCKET"
           value = google_storage_bucket.raw.name
         }
@@ -3572,6 +3661,14 @@ resource "google_cloud_run_service_iam_member" "query_invoker" {
   member   = var.enable_api_gateway ? local.api_gateway_invoker : "allUsers"
 }
 
+resource "google_cloud_run_service_iam_member" "query_browser_invoker" {
+  count    = var.allow_browser_direct_access ? 1 : 0
+  location = google_cloud_run_service.query.location
+  service  = google_cloud_run_service.query.name
+  role     = "roles/run.invoker"
+  member   = "allUsers"
+}
+
 resource "google_cloud_run_service_iam_member" "query_internal_invoker" {
   location = google_cloud_run_service.query.location
   service  = google_cloud_run_service.query.name
@@ -3655,6 +3752,14 @@ resource "google_cloud_run_service_iam_member" "dev_console_invoker" {
   service  = google_cloud_run_service.dev_console.name
   role     = "roles/run.invoker"
   member   = var.enable_api_gateway ? local.api_gateway_invoker : "allUsers"
+}
+
+resource "google_cloud_run_service_iam_member" "dev_console_browser_invoker" {
+  count    = var.allow_browser_direct_access ? 1 : 0
+  location = google_cloud_run_service.dev_console.location
+  service  = google_cloud_run_service.dev_console.name
+  role     = "roles/run.invoker"
+  member   = "allUsers"
 }
 
 resource "google_cloud_run_service_iam_member" "edge_gateway_invoker" {

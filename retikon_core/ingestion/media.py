@@ -202,7 +202,7 @@ def extract_frames(input_path: str, fps: float, output_dir: str) -> list[str]:
         "-i",
         input_path,
         "-vf",
-        f"fps={safe_fps}",
+        f"fps={safe_fps},format=yuvj420p",
         str(Path(output_dir) / "frame-%05d.jpg"),
     ]
     try:
@@ -250,7 +250,7 @@ def _extract_scene_frames(
         "-i",
         input_path,
         "-vf",
-        f"select='gt(scene,{scene_threshold})',showinfo",
+        f"select='gt(scene,{scene_threshold})',format=yuvj420p,showinfo",
         "-vsync",
         "vfr",
         str(output_pattern),

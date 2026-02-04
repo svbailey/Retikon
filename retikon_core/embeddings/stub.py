@@ -83,6 +83,17 @@ def _text_model_name() -> str:
     return os.getenv("TEXT_MODEL_NAME", "BAAI/bge-base-en-v1.5")
 
 
+def _text_model_max_tokens() -> int:
+    raw = os.getenv("TEXT_MODEL_MAX_TOKENS")
+    if raw is None or raw == "":
+        return 512
+    try:
+        value = int(raw)
+    except ValueError:
+        return 512
+    return value if value > 0 else 512
+
+
 def _image_model_name() -> str:
     return os.getenv("IMAGE_MODEL_NAME", "openai/clip-vit-base-patch32")
 
@@ -180,15 +191,41 @@ class StubAudioEmbedder:
 class RealTextEmbedder:
     def __init__(self) -> None:
         from sentence_transformers import SentenceTransformer
+        from transformers import AutoTokenizer
 
         self.model = SentenceTransformer(
             _text_model_name(),
             cache_folder=_model_dir(),
             device=_embedding_device(),
         )
+        self._max_tokens = _text_model_max_tokens()
+        self._tokenizer = AutoTokenizer.from_pretrained(
+            _text_model_name(),
+            cache_dir=_model_dir(),
+            use_fast=True,
+        )
+        if hasattr(self.model, "max_seq_length"):
+            self.model.max_seq_length = self._max_tokens
+
+    def _truncate_texts(self, texts: list[str]) -> list[str]:
+        if not texts:
+            return texts
+        if self._max_tokens <= 0:
+            return texts
+        encoded = self._tokenizer(
+            texts,
+            truncation=True,
+            max_length=self._max_tokens,
+            add_special_tokens=False,
+        )
+        input_ids = encoded.get("input_ids")
+        if not input_ids:
+            return texts
+        return self._tokenizer.batch_decode(input_ids, skip_special_tokens=True)
 
     def encode(self, texts: Iterable[str]) -> list[list[float]]:
         inputs = list(texts)
+        inputs = self._truncate_texts(inputs)
         vectors = self.model.encode(
             inputs,
             convert_to_numpy=True,

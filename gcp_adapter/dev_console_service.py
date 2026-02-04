@@ -1,15 +1,19 @@
 from __future__ import annotations
 
+import csv
 import json
 import os
 import time
 import uuid
 from dataclasses import dataclass
+from pathlib import Path
 from typing import Any
 from urllib.parse import urlparse
 
 import fsspec
 import google.auth
+import numpy as np
+import pyarrow.compute as pc
 import pyarrow.parquet as pq
 import requests  # type: ignore[import-untyped]
 from fastapi import FastAPI, File, Form, HTTPException, Request, UploadFile
@@ -28,20 +32,28 @@ from retikon_core.auth.rbac import (
     ACTION_DEV_INDEX_BUILD,
     ACTION_DEV_INDEX_STATUS,
     ACTION_DEV_INGEST_STATUS,
+    ACTION_DEV_LABEL_CATALOG,
     ACTION_DEV_MANIFEST,
     ACTION_DEV_OBJECT,
     ACTION_DEV_PARQUET_PREVIEW,
     ACTION_DEV_SNAPSHOT_RELOAD,
     ACTION_DEV_SNAPSHOT_STATUS,
     ACTION_DEV_UPLOAD,
+    ACTION_DEV_VISUAL_LABELS,
 )
+from retikon_core.embeddings.stub import get_embedding_backend, get_image_text_embedder
 from retikon_core.ingestion.idempotency import build_doc_id
 from retikon_core.logging import configure_logging, get_logger
 from retikon_core.services.fastapi_scaffolding import (
     apply_cors_middleware,
     build_health_response,
 )
-from retikon_core.storage.paths import graph_root, manifest_uri, normalize_bucket_uri
+from retikon_core.storage.paths import (
+    graph_root,
+    join_uri,
+    manifest_uri,
+    normalize_bucket_uri,
+)
 
 SERVICE_NAME = "retikon-dev-console"
 
@@ -64,6 +76,14 @@ CATEGORY_FORM = Form(...)
 class ObjectRef:
     bucket: str
     name: str
+
+
+@dataclass(frozen=True)
+class LabelEntry:
+    label: str
+    category: str
+    source: str
+    source_id: str
 
 
 def _require_admin() -> bool:
@@ -179,6 +199,10 @@ def _max_preview_bytes() -> int:
     return int(os.getenv("MAX_PREVIEW_BYTES", "5242880"))
 
 
+_LABEL_CATALOG: list[LabelEntry] | None = None
+_LABEL_EMBED_CACHE: dict[str, tuple[list[LabelEntry], np.ndarray]] = {}
+
+
 def _query_service_url() -> str:
     raw = os.getenv("QUERY_SERVICE_URL") or os.getenv("QUERY_URL")
     if not raw:
@@ -256,6 +280,154 @@ def _preview_parquet(uri: str, limit: int) -> dict[str, object]:
         "preview_count": len(rows),
         "row_count": parquet.metadata.num_rows if parquet.metadata else None,
     }
+
+
+def _label_catalog_path() -> Path:
+    override = os.getenv("LABEL_CATALOG_PATH")
+    if override:
+        return Path(override)
+    return (
+        Path(__file__).resolve().parents[1]
+        / "retikon_core"
+        / "labels"
+        / "label_catalog.csv"
+    )
+
+
+def _load_label_catalog() -> list[LabelEntry]:
+    global _LABEL_CATALOG
+    if _LABEL_CATALOG is not None:
+        return _LABEL_CATALOG
+    path = _label_catalog_path()
+    if not path.exists():
+        raise HTTPException(status_code=500, detail="Missing label catalog")
+    entries: list[LabelEntry] = []
+    with path.open(newline="", encoding="ascii") as handle:
+        reader = csv.DictReader(handle)
+        for row in reader:
+            label = (row.get("label") or "").strip()
+            category = (row.get("category") or "").strip()
+            source = (row.get("source") or "").strip()
+            source_id = (row.get("source_id") or "").strip()
+            if not label or not category:
+                continue
+            entries.append(
+                LabelEntry(
+                    label=label,
+                    category=category,
+                    source=source,
+                    source_id=source_id,
+                )
+            )
+    _LABEL_CATALOG = entries
+    return entries
+
+
+def _label_embeddings(cache_key: str) -> tuple[list[LabelEntry], np.ndarray]:
+    cached = _LABEL_EMBED_CACHE.get(cache_key)
+    if cached is not None:
+        return cached
+    entries = _load_label_catalog()
+    labels = [entry.label for entry in entries]
+    try:
+        embedder = get_image_text_embedder(512)
+        vectors = embedder.encode(labels)
+    except Exception as exc:  # pragma: no cover - depends on optional deps
+        raise HTTPException(status_code=500, detail=str(exc)) from exc
+    matrix = np.asarray(vectors, dtype=np.float32)
+    _LABEL_EMBED_CACHE[cache_key] = (entries, matrix)
+    return entries, matrix
+
+
+def _image_vectors_for_media(
+    *,
+    media_asset_id: str,
+    limit: int,
+) -> list[dict[str, object]]:
+    bucket, prefix = _graph_settings()
+    base_uri = graph_root(normalize_bucket_uri(bucket, scheme="gs"), prefix)
+    manifest_uri = join_uri(base_uri, "manifests", "*", "manifest.json")
+
+    manifest_fs, manifest_path = fsspec.core.url_to_fs(manifest_uri)
+    manifest_files = sorted(manifest_fs.glob(manifest_path))
+    if not manifest_files:
+        return []
+
+    results: list[dict[str, object]] = []
+    seen_ids: set[str] = set()
+
+    for manifest_file in manifest_files:
+        if limit > 0 and len(results) >= limit:
+            break
+        try:
+            with manifest_fs.open(manifest_file, "r") as handle:
+                manifest = json.load(handle)
+        except (OSError, json.JSONDecodeError):
+            continue
+        image_core_uri = None
+        image_vector_uri = None
+        for item in manifest.get("files", []):
+            uri = item.get("uri", "")
+            if "/vertices/ImageAsset/core/" in uri:
+                image_core_uri = uri
+            elif "/vertices/ImageAsset/vector/" in uri:
+                image_vector_uri = uri
+        if not image_core_uri or not image_vector_uri:
+            continue
+
+        try:
+            with fsspec.open(image_core_uri, "rb") as handle:
+                core_table = pq.read_table(
+                    handle,
+                    columns=[
+                        "id",
+                        "timestamp_ms",
+                        "thumbnail_uri",
+                        "media_asset_id",
+                    ],
+                )
+        except OSError:
+            continue
+        if core_table.num_rows == 0:
+            continue
+        mask = pc.equal(core_table["media_asset_id"], media_asset_id)
+        mask = pc.fill_null(mask, False)
+        if pc.sum(mask).as_py() == 0:
+            continue
+        filtered_core = core_table.filter(mask)
+        if filtered_core.num_rows == 0:
+            continue
+
+        try:
+            with fsspec.open(image_vector_uri, "rb") as handle:
+                vector_table = pq.read_table(handle, columns=["clip_vector"])
+        except OSError:
+            continue
+        if vector_table.num_rows != core_table.num_rows:
+            continue
+
+        filtered_vectors = vector_table.filter(mask).to_pylist()
+        filtered_rows = filtered_core.to_pylist()
+        for row, vec_row in zip(filtered_rows, filtered_vectors, strict=False):
+            if limit > 0 and len(results) >= limit:
+                break
+            row_id = row.get("id")
+            if isinstance(row_id, str) and row_id in seen_ids:
+                continue
+            vec = vec_row.get("clip_vector")
+            if not isinstance(vec, list):
+                continue
+            if isinstance(row_id, str):
+                seen_ids.add(row_id)
+            results.append(
+                {
+                    "id": row_id,
+                    "timestamp_ms": row.get("timestamp_ms"),
+                    "thumbnail_uri": row.get("thumbnail_uri"),
+                    "clip_vector": vec,
+                }
+            )
+    return results
 
 
 def _firestore_collection() -> str:
@@ -412,6 +584,126 @@ async def parquet_preview(
     )
     _ensure_graph_uri(path)
     return _preview_parquet(path, max(1, min(limit, 25)))
+
+
+@app.get("/dev/label-catalog")
+async def label_catalog(
+    request: Request,
+    categories: str | None = None,
+    limit: int | None = None,
+) -> dict[str, object]:
+    auth_context = _authorize(request)
+    _enforce_access(ACTION_DEV_LABEL_CATALOG, auth_context)
+    trace_id = _request_id(request)
+    _record_audit(
+        request=request,
+        auth_context=auth_context,
+        action="dev.label_catalog.read",
+        decision="allow",
+        request_id=trace_id,
+    )
+    entries = _load_label_catalog()
+    selected = [entry for entry in entries]
+    if categories:
+        allow = {item.strip().lower() for item in categories.split(",") if item}
+        selected = [entry for entry in selected if entry.category in allow]
+    if limit is not None:
+        selected = selected[: max(0, limit)]
+    return {
+        "count": len(selected),
+        "labels": [
+            {
+                "label": entry.label,
+                "category": entry.category,
+                "source": entry.source,
+                "source_id": entry.source_id,
+            }
+            for entry in selected
+        ],
+    }
+
+
+@app.get("/dev/visual-labels")
+async def visual_labels(
+    request: Request,
+    media_asset_id: str,
+    top_k: int = 8,
+    max_frames: int = 12,
+    strategy: str = "max",
+    categories: str | None = None,
+) -> dict[str, object]:
+    auth_context = _authorize(request)
+    _enforce_access(ACTION_DEV_VISUAL_LABELS, auth_context)
+    trace_id = _request_id(request)
+    _record_audit(
+        request=request,
+        auth_context=auth_context,
+        action="dev.visual_labels.read",
+        decision="allow",
+        request_id=trace_id,
+    )
+    if not media_asset_id:
+        raise HTTPException(status_code=400, detail="media_asset_id required")
+    vectors = _image_vectors_for_media(
+        media_asset_id=media_asset_id,
+        limit=max(1, min(max_frames, 64)),
+    )
+    if not vectors:
+        raise HTTPException(status_code=404, detail="No image vectors found")
+    backend = get_embedding_backend()
+    backend_key = f"{backend}:{os.getenv('USE_REAL_MODELS', '0')}"
+    entries, matrix = _label_embeddings(backend_key)
+    if matrix.size == 0:
+        raise HTTPException(status_code=500, detail="Label embeddings unavailable")
+    image_matrix = np.asarray(
+        [row["clip_vector"] for row in vectors],
+        dtype=np.float32,
+    )
+    if image_matrix.ndim != 2:
+        raise HTTPException(status_code=500, detail="Invalid image vectors")
+    scores = matrix @ image_matrix.T
+    if strategy == "avg":
+        score_vector = scores.mean(axis=1)
+    else:
+        score_vector = scores.max(axis=1)
+    score_vector = np.clip(score_vector, 0.0, 1.0)
+
+    def top_for_category(category: str) -> list[dict[str, object]]:
+        items = [
+            (idx, entry)
+            for idx, entry in enumerate(entries)
+            if entry.category == category
+        ]
+        if not items:
+            return []
+        scored = [
+            {
+                "label": entry.label,
+                "score": float(score_vector[idx]),
+                "source": entry.source,
+            }
+            for idx, entry in items
+        ]
+        scored.sort(key=lambda item: item["score"], reverse=True)
+        return scored[: max(1, min(top_k, 25))]
+
+    allow_categories = (
+        {item.strip().lower() for item in categories.split(",") if item}
+        if categories
+        else {"object", "scene", "action"}
+    )
+    payload = {
+        "media_asset_id": media_asset_id,
+        "backend": backend,
+        "use_real_models": os.getenv("USE_REAL_MODELS") == "1",
+        "strategy": strategy,
+        "frame_count": len(vectors),
+        "labels": {},
+    }
+    for category in ("object", "scene", "action"):
+        if category in allow_categories:
+            payload["labels"][category] = top_for_category(category)
+    return payload
 
 
 @app.get("/dev/object")
