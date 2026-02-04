@@ -41,6 +41,13 @@ Defaults shown match current code where applicable.
 - `QUERY_WARMUP=0|1` (defaults to `1`)
 - `QUERY_WARMUP_TEXT="retikon warmup"`
 - `QUERY_WARMUP_STEPS=text,image_text,audio_text,image`
+- `MODEL_INFERENCE_TIMEOUT_S` (global inference timeout in seconds; `0` disables)
+- `MODEL_INFERENCE_TEXT_TIMEOUT_S` (optional override)
+- `MODEL_INFERENCE_IMAGE_TIMEOUT_S` (optional override)
+- `MODEL_INFERENCE_AUDIO_TIMEOUT_S` (optional override)
+- `MODEL_INFERENCE_IMAGE_TEXT_TIMEOUT_S` (optional override)
+- `MODEL_INFERENCE_AUDIO_TEXT_TIMEOUT_S` (optional override)
+- `MODEL_INFERENCE_WORKERS` (optional thread pool size for timeouts)
 
 ## DuckDB settings (shared Core/Pro)
 
@@ -151,6 +158,10 @@ Repo defaults:
 - `RATE_LIMIT_IMAGE_PER_MIN`
 - `RATE_LIMIT_AUDIO_PER_MIN`
 - `RATE_LIMIT_VIDEO_PER_MIN`
+- `RATE_LIMIT_GLOBAL_DOC_PER_MIN` (global cap across tenants; `0` disables)
+- `RATE_LIMIT_GLOBAL_IMAGE_PER_MIN`
+- `RATE_LIMIT_GLOBAL_AUDIO_PER_MIN`
+- `RATE_LIMIT_GLOBAL_VIDEO_PER_MIN`
 - `REDIS_HOST`
 - `REDIS_PORT`
 - `REDIS_DB`

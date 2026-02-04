@@ -16,6 +16,7 @@ from gcp_adapter.stores import (
 )
 from retikon_core.audit import record_audit_log
 from retikon_core.auth import ACTION_QUERY, AuthContext
+from retikon_core.errors import InferenceTimeoutError
 from retikon_core.ingestion.rate_limit import (
     RateLimitBackendError,
     RateLimitExceeded,
@@ -347,6 +348,8 @@ async def query(
             scope=scope,
             timings=timings,
         )
+    except InferenceTimeoutError as exc:
+        raise HTTPException(status_code=504, detail=str(exc)) from exc
     except QueryValidationError as exc:
         raise HTTPException(status_code=exc.status_code, detail=exc.detail) from exc
 

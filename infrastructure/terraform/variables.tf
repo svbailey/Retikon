@@ -943,6 +943,11 @@ variable "max_raw_bytes" {
   default = 500000000
 }
 
+variable "model_inference_timeout_seconds" {
+  type    = number
+  default = 30
+}
+
 variable "max_video_seconds" {
   type    = number
   default = 300
@@ -991,6 +996,26 @@ variable "rate_limit_audio_per_min" {
 variable "rate_limit_video_per_min" {
   type    = number
   default = 10
+}
+
+variable "rate_limit_global_doc_per_min" {
+  type    = number
+  default = 0
+}
+
+variable "rate_limit_global_image_per_min" {
+  type    = number
+  default = 0
+}
+
+variable "rate_limit_global_audio_per_min" {
+  type    = number
+  default = 0
+}
+
+variable "rate_limit_global_video_per_min" {
+  type    = number
+  default = 0
 }
 
 variable "rate_limit_backend" {
@@ -1288,9 +1313,19 @@ variable "alert_ingest_5xx_rate" {
   default = 0.02
 }
 
+variable "alert_query_5xx_rate" {
+  type    = number
+  default = 0.02
+}
+
 variable "alert_query_p95_seconds" {
   type    = number
   default = 2.0
+}
+
+variable "alert_ingest_p95_seconds" {
+  type    = number
+  default = 3.0
 }
 
 variable "alert_dlq_backlog" {
@@ -1301,6 +1336,26 @@ variable "alert_dlq_backlog" {
 variable "monitoring_dashboard_name" {
   type    = string
   default = "Retikon Ops"
+}
+
+variable "billing_account_id" {
+  type    = string
+  default = ""
+}
+
+variable "cost_budget_amount" {
+  type    = number
+  default = 0
+}
+
+variable "cost_budget_currency" {
+  type    = string
+  default = "USD"
+}
+
+variable "cost_budget_thresholds" {
+  type    = list(number)
+  default = [0.5, 0.75, 0.9, 1.0]
 }
 
 variable "firestore_location" {

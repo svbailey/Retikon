@@ -11,6 +11,7 @@ from PIL import Image, ImageOps
 
 from retikon_core.config import Config
 from retikon_core.embeddings import get_image_embedder
+from retikon_core.embeddings.timeout import run_inference
 from retikon_core.ingestion.pipelines.types import PipelineResult
 from retikon_core.ingestion.types import IngestSource
 from retikon_core.storage.manifest import build_manifest, write_manifest
@@ -71,7 +72,10 @@ def ingest_image(
         rgb = exif_img.convert("RGB")
         width, height = rgb.size
         embedder = get_image_embedder(512)
-        vector = embedder.encode([rgb])[0]
+        vector = run_inference(
+            "image",
+            lambda: embedder.encode([rgb])[0],
+        )
 
     media_asset_id = str(uuid.uuid4())
     image_asset_id = str(uuid.uuid4())

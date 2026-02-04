@@ -17,6 +17,7 @@ from retikon_core.embeddings import (
     get_image_embedder,
     get_text_embedder,
 )
+from retikon_core.embeddings.timeout import run_inference
 from retikon_core.errors import PermanentError
 from retikon_core.ingestion.download import cleanup_tmp
 from retikon_core.ingestion.media import extract_audio, extract_keyframes, probe_media
@@ -159,7 +160,10 @@ def ingest_video(
             with Image.open(frame_path) as img:
                 rgb = img.convert("RGB")
                 width, height = rgb.size
-                vector = get_image_embedder(512).encode([rgb])[0]
+                vector = run_inference(
+                    "image",
+                    lambda: get_image_embedder(512).encode([rgb])[0],
+                )
                 thumb_uri = None
                 if config.video_thumbnail_width > 0:
                     thumb_uri = _thumbnail_uri(output_root, media_asset_id, idx)
@@ -214,12 +218,18 @@ def ingest_video(
         if probe.has_audio:
             audio_path = extract_audio(source.local_path)
             audio_bytes = Path(audio_path).read_bytes()
-            audio_vector = get_audio_embedder(512).encode([audio_bytes])[0]
+            audio_vector = run_inference(
+                "audio",
+                lambda: get_audio_embedder(512).encode([audio_bytes])[0],
+            )
             segments = transcribe_audio(audio_path, probe.duration_seconds)
             text_vectors: list[list[float]] = []
             if segments:
-                text_vectors = get_text_embedder(768).encode(
-                    [segment.text for segment in segments]
+                text_vectors = run_inference(
+                    "text",
+                    lambda: get_text_embedder(768).encode(
+                        [segment.text for segment in segments]
+                    ),
                 )
 
             audio_clip_id = str(uuid.uuid4())

@@ -15,6 +15,7 @@ from pptx import Presentation
 
 from retikon_core.config import Config
 from retikon_core.embeddings import get_text_embedder
+from retikon_core.embeddings.timeout import run_inference
 from retikon_core.errors import PermanentError
 from retikon_core.ingestion.ocr import ocr_text_from_pdf
 from retikon_core.ingestion.pipelines.types import PipelineResult
@@ -214,7 +215,10 @@ def ingest_document(
         raise PermanentError("No chunks produced")
 
     embedder = get_text_embedder(768)
-    embeddings = embedder.encode([chunk.text for chunk in chunks])
+    embeddings = run_inference(
+        "text",
+        lambda: embedder.encode([chunk.text for chunk in chunks]),
+    )
 
     output_root = output_uri or config.graph_root_uri()
     media_asset_id = str(uuid.uuid4())

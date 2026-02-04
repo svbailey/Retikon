@@ -45,6 +45,10 @@ class Config:
     rate_limit_image_per_min: int
     rate_limit_audio_per_min: int
     rate_limit_video_per_min: int
+    rate_limit_global_doc_per_min: int
+    rate_limit_global_image_per_min: int
+    rate_limit_global_audio_per_min: int
+    rate_limit_global_video_per_min: int
     rate_limit_backend: str
     redis_host: str | None
     redis_port: int
@@ -177,6 +181,18 @@ class Config:
         rate_limit_image_per_min = int(os.getenv("RATE_LIMIT_IMAGE_PER_MIN", "60"))
         rate_limit_audio_per_min = int(os.getenv("RATE_LIMIT_AUDIO_PER_MIN", "20"))
         rate_limit_video_per_min = int(os.getenv("RATE_LIMIT_VIDEO_PER_MIN", "10"))
+        rate_limit_global_doc_per_min = int(
+            os.getenv("RATE_LIMIT_GLOBAL_DOC_PER_MIN", "0")
+        )
+        rate_limit_global_image_per_min = int(
+            os.getenv("RATE_LIMIT_GLOBAL_IMAGE_PER_MIN", "0")
+        )
+        rate_limit_global_audio_per_min = int(
+            os.getenv("RATE_LIMIT_GLOBAL_AUDIO_PER_MIN", "0")
+        )
+        rate_limit_global_video_per_min = int(
+            os.getenv("RATE_LIMIT_GLOBAL_VIDEO_PER_MIN", "0")
+        )
         rate_limit_backend = os.getenv("RATE_LIMIT_BACKEND", "local").strip().lower()
         if rate_limit_backend not in {"none", "local", "redis"}:
             raise ValueError(
@@ -248,6 +264,10 @@ class Config:
             rate_limit_image_per_min=rate_limit_image_per_min,
             rate_limit_audio_per_min=rate_limit_audio_per_min,
             rate_limit_video_per_min=rate_limit_video_per_min,
+            rate_limit_global_doc_per_min=rate_limit_global_doc_per_min,
+            rate_limit_global_image_per_min=rate_limit_global_image_per_min,
+            rate_limit_global_audio_per_min=rate_limit_global_audio_per_min,
+            rate_limit_global_video_per_min=rate_limit_global_video_per_min,
             rate_limit_backend=rate_limit_backend,
             redis_host=redis_host,
             redis_port=redis_port,

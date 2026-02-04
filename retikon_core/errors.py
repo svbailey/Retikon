@@ -16,3 +16,7 @@ class AuthError(RetikonError):
 
 class ValidationError(RetikonError):
     """Input validation failure."""
+
+
+class InferenceTimeoutError(RecoverableError):
+    """Model inference exceeded configured timeout."""

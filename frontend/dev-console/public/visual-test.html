@@ -1,0 +1,987 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1.0"
+    />
+    <title>Retikon Visual Test</title>
+    <link
+      rel="preconnect"
+      href="https://fonts.googleapis.com"
+    />
+    <link
+      rel="preconnect"
+      href="https://fonts.gstatic.com"
+      crossorigin
+    />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Manrope:wght@300;400;500;600&family=Space+Grotesk:wght@400;600&display=swap"
+      rel="stylesheet"
+    />
+    <style>
+      :root {
+        --bg-1: #0b1116;
+        --bg-2: #121f2a;
+        --panel: rgba(14, 24, 34, 0.86);
+        --panel-strong: rgba(18, 31, 42, 0.96);
+        --border: rgba(255, 255, 255, 0.08);
+        --text: #eef4fa;
+        --muted: #a7b4c4;
+        --accent: #f4b740;
+        --accent-2: #3ed4c5;
+        --danger: #ff6b6b;
+        --success: #2bd987;
+        --warning: #ffb347;
+        --shadow: 0 16px 40px rgba(4, 8, 12, 0.45);
+        --radius: 18px;
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      body {
+        margin: 0;
+        font-family: "Manrope", "Space Grotesk", sans-serif;
+        color: var(--text);
+        background: radial-gradient(
+            circle at 20% 20%,
+            rgba(62, 212, 197, 0.22),
+            transparent 55%
+          ),
+          radial-gradient(
+            circle at 80% 0%,
+            rgba(244, 183, 64, 0.16),
+            transparent 45%
+          ),
+          linear-gradient(160deg, var(--bg-1), var(--bg-2));
+        min-height: 100vh;
+        padding: 40px 24px 80px;
+      }
+
+      body::before {
+        content: "";
+        position: fixed;
+        inset: 0;
+        background-image: linear-gradient(
+            rgba(255, 255, 255, 0.035) 1px,
+            transparent 1px
+          ),
+          linear-gradient(
+            90deg,
+            rgba(255, 255, 255, 0.035) 1px,
+            transparent 1px
+          );
+        background-size: 32px 32px;
+        pointer-events: none;
+        opacity: 0.25;
+      }
+
+      .shell {
+        max-width: 1200px;
+        margin: 0 auto;
+        display: flex;
+        flex-direction: column;
+        gap: 24px;
+        position: relative;
+        z-index: 1;
+      }
+
+      header {
+        display: flex;
+        flex-direction: column;
+        gap: 12px;
+      }
+
+      h1 {
+        font-family: "Space Grotesk", "Manrope", sans-serif;
+        font-size: 2.6rem;
+        margin: 0;
+        letter-spacing: -0.02em;
+      }
+
+      .subtitle {
+        color: var(--muted);
+        max-width: 740px;
+        line-height: 1.6;
+      }
+
+      .grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+        gap: 20px;
+      }
+
+      .panel {
+        background: var(--panel);
+        border: 1px solid var(--border);
+        border-radius: var(--radius);
+        padding: 20px;
+        box-shadow: var(--shadow);
+        animation: fadeUp 0.6s ease both;
+      }
+
+      .panel strong {
+        font-family: "Space Grotesk", "Manrope", sans-serif;
+      }
+
+      .panel-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        margin-bottom: 12px;
+      }
+
+      .panel-header h2 {
+        margin: 0;
+        font-size: 1.2rem;
+        letter-spacing: -0.01em;
+      }
+
+      .pill {
+        padding: 4px 10px;
+        border-radius: 999px;
+        font-size: 0.75rem;
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: 0.08em;
+      }
+
+      .pill.accent {
+        background: rgba(244, 183, 64, 0.18);
+        color: var(--accent);
+      }
+
+      .field {
+        display: flex;
+        flex-direction: column;
+        gap: 6px;
+        margin-bottom: 12px;
+      }
+
+      label {
+        font-size: 0.85rem;
+        color: var(--muted);
+      }
+
+      input,
+      select,
+      textarea,
+      button {
+        font-family: "Manrope", sans-serif;
+      }
+
+      input,
+      select,
+      textarea {
+        background: rgba(5, 10, 14, 0.6);
+        border: 1px solid var(--border);
+        border-radius: 12px;
+        padding: 10px 12px;
+        color: var(--text);
+        font-size: 0.9rem;
+      }
+
+      textarea {
+        min-height: 120px;
+        resize: vertical;
+      }
+
+      button {
+        background: linear-gradient(120deg, var(--accent), #ffdb8c);
+        border: none;
+        border-radius: 12px;
+        padding: 10px 16px;
+        font-weight: 700;
+        color: #151515;
+        cursor: pointer;
+        transition: transform 0.2s ease, box-shadow 0.2s ease;
+      }
+
+      button.secondary {
+        background: rgba(255, 255, 255, 0.08);
+        color: var(--text);
+        border: 1px solid var(--border);
+      }
+
+      button.ghost {
+        background: transparent;
+        color: var(--muted);
+        border: 1px dashed var(--border);
+      }
+
+      button:disabled {
+        opacity: 0.6;
+        cursor: not-allowed;
+      }
+
+      button:hover:not(:disabled) {
+        transform: translateY(-1px);
+        box-shadow: 0 10px 22px rgba(0, 0, 0, 0.25);
+      }
+
+      .actions {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 10px;
+      }
+
+      .steps {
+        display: grid;
+        gap: 10px;
+      }
+
+      .step-card {
+        border: 1px solid var(--border);
+        border-radius: 14px;
+        padding: 12px 14px;
+        background: rgba(9, 15, 21, 0.6);
+        display: flex;
+        flex-direction: column;
+        gap: 6px;
+      }
+
+      .step-card[data-state="working"] {
+        border-color: rgba(62, 212, 197, 0.6);
+        box-shadow: 0 0 0 1px rgba(62, 212, 197, 0.2);
+      }
+
+      .step-card[data-state="done"] {
+        border-color: rgba(43, 217, 135, 0.6);
+      }
+
+      .step-card[data-state="error"] {
+        border-color: rgba(255, 107, 107, 0.6);
+      }
+
+      .step-title {
+        font-weight: 600;
+      }
+
+      .step-status {
+        font-size: 0.8rem;
+        color: var(--muted);
+      }
+
+      .step-detail {
+        font-size: 0.85rem;
+        color: var(--text);
+      }
+
+      .log {
+        display: grid;
+        gap: 6px;
+        max-height: 180px;
+        overflow: auto;
+        font-size: 0.85rem;
+      }
+
+      .log-item {
+        padding: 8px 10px;
+        border-radius: 10px;
+        background: rgba(9, 15, 21, 0.6);
+        border: 1px solid var(--border);
+      }
+
+      .log-item.info {
+        color: var(--muted);
+      }
+
+      .log-item.success {
+        color: var(--success);
+      }
+
+      .log-item.error {
+        color: var(--danger);
+      }
+
+      .data-block {
+        background: rgba(5, 10, 14, 0.6);
+        border-radius: 12px;
+        border: 1px solid var(--border);
+        padding: 12px;
+        font-size: 0.82rem;
+        overflow: auto;
+        max-height: 240px;
+        white-space: pre-wrap;
+      }
+
+      table {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 0.82rem;
+      }
+
+      th,
+      td {
+        text-align: left;
+        padding: 6px 8px;
+        border-bottom: 1px solid var(--border);
+        vertical-align: top;
+      }
+
+      th {
+        color: var(--muted);
+        font-weight: 600;
+      }
+
+      .tag {
+        display: inline-flex;
+        padding: 2px 8px;
+        border-radius: 999px;
+        font-size: 0.7rem;
+        background: rgba(62, 212, 197, 0.2);
+        color: var(--accent-2);
+      }
+
+      .inline {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 10px;
+      }
+
+      .notice {
+        font-size: 0.82rem;
+        color: var(--muted);
+        line-height: 1.5;
+      }
+
+      .preview-list {
+        display: grid;
+        gap: 10px;
+        margin-top: 10px;
+      }
+
+      .preview-item {
+        display: flex;
+        justify-content: space-between;
+        gap: 10px;
+        align-items: center;
+        font-size: 0.82rem;
+      }
+
+      @keyframes fadeUp {
+        from {
+          opacity: 0;
+          transform: translateY(14px);
+        }
+        to {
+          opacity: 1;
+          transform: translateY(0);
+        }
+      }
+
+      @media (max-width: 720px) {
+        body {
+          padding: 24px 16px 60px;
+        }
+        h1 {
+          font-size: 2rem;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <main class="shell">
+      <header>
+        <span class="pill accent">visual test</span>
+        <h1>Retikon staging visual run</h1>
+        <p class="subtitle">
+          Upload a document, watch ingestion progress, preview model outputs,
+          then run a simple query. Keep this page open during the run.
+        </p>
+      </header>
+
+      <section class="grid">
+        <div class="panel">
+          <div class="panel-header">
+            <h2>Configuration</h2>
+          </div>
+          <div class="field">
+            <label>JWT / AI token</label>
+            <input id="jwt" type="password" placeholder="Paste JWT" />
+          </div>
+          <div class="field">
+            <label>Dev API URL</label>
+            <input
+              id="devApi"
+              type="url"
+              placeholder="https://retikon-dev-console-...run.app"
+            />
+          </div>
+          <div class="field">
+            <label>Query URL</label>
+            <input
+              id="queryUrl"
+              type="url"
+              placeholder="https://retikon-query-...run.app/query"
+            />
+          </div>
+          <div class="inline">
+            <button id="saveConfig" class="secondary">Save</button>
+            <button id="resetConfig" class="ghost">Clear</button>
+          </div>
+          <p class="notice">
+            Values are saved locally in your browser. JWT must include required
+            claims (org_id at minimum).
+          </p>
+        </div>
+
+        <div class="panel">
+          <div class="panel-header">
+            <h2>Run state</h2>
+          </div>
+          <div class="steps">
+            <div class="step-card" data-step="upload" data-state="idle">
+              <div class="step-title">1. Upload</div>
+              <div class="step-status">idle</div>
+              <div class="step-detail">Awaiting file</div>
+            </div>
+            <div class="step-card" data-step="ingest" data-state="idle">
+              <div class="step-title">2. Ingest</div>
+              <div class="step-status">idle</div>
+              <div class="step-detail">No status yet</div>
+            </div>
+            <div class="step-card" data-step="manifest" data-state="idle">
+              <div class="step-title">3. Manifest</div>
+              <div class="step-status">idle</div>
+              <div class="step-detail">Manifest not loaded</div>
+            </div>
+            <div class="step-card" data-step="index" data-state="idle">
+              <div class="step-title">4. Index + Reload</div>
+              <div class="step-status">idle</div>
+              <div class="step-detail">Not triggered</div>
+            </div>
+            <div class="step-card" data-step="query" data-state="idle">
+              <div class="step-title">5. Query</div>
+              <div class="step-status">idle</div>
+              <div class="step-detail">No query yet</div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="grid">
+        <div class="panel">
+          <div class="panel-header">
+            <h2>Upload + ingest</h2>
+          </div>
+          <div class="field">
+            <label>File</label>
+            <input id="fileInput" type="file" />
+          </div>
+          <div class="field">
+            <label>Category</label>
+            <select id="category">
+              <option value="docs">docs</option>
+              <option value="images">images</option>
+              <option value="audio">audio</option>
+              <option value="video">video</option>
+            </select>
+          </div>
+          <div class="actions">
+            <button id="uploadBtn">Upload</button>
+            <button id="pollBtn" class="secondary">Poll ingest</button>
+            <button id="runAllBtn" class="ghost">Run end-to-end</button>
+          </div>
+          <div class="notice" id="uploadInfo">No upload yet.</div>
+        </div>
+
+        <div class="panel">
+          <div class="panel-header">
+            <h2>Activity</h2>
+          </div>
+          <div class="log" id="activityLog"></div>
+        </div>
+      </section>
+
+      <section class="grid">
+        <div class="panel">
+          <div class="panel-header">
+            <h2>Manifest + model outputs</h2>
+          </div>
+          <div class="field">
+            <label>Manifest URI (optional override)</label>
+            <input
+              id="manifestUri"
+              type="text"
+              placeholder="gs://.../manifests/<run-id>/manifest.json"
+            />
+          </div>
+          <div class="actions">
+            <button id="manifestBtn">Load manifest</button>
+          </div>
+          <div class="preview-list" id="manifestList"></div>
+        </div>
+
+        <div class="panel">
+          <div class="panel-header">
+            <h2>Preview</h2>
+          </div>
+          <div id="previewMeta" class="notice">
+            Preview a manifest file to see sample rows.
+          </div>
+          <div id="previewTable" class="data-block"></div>
+        </div>
+      </section>
+
+      <section class="grid">
+        <div class="panel">
+          <div class="panel-header">
+            <h2>Index + snapshot</h2>
+          </div>
+          <div class="actions">
+            <button id="indexBtn" class="secondary">Trigger index</button>
+            <button id="indexStatusBtn" class="ghost">Index status</button>
+            <button id="reloadBtn">Reload snapshot</button>
+          </div>
+          <div class="notice" id="indexInfo">No index action yet.</div>
+        </div>
+
+        <div class="panel">
+          <div class="panel-header">
+            <h2>Query</h2>
+          </div>
+          <div class="field">
+            <label>Query text</label>
+            <input id="queryText" type="text" value="Retikon demo query" />
+          </div>
+          <div class="field">
+            <label>Top K</label>
+            <input id="topK" type="number" min="1" max="50" value="5" />
+          </div>
+          <div class="actions">
+            <button id="queryBtn">Run query</button>
+          </div>
+          <div class="data-block" id="queryResults">No query yet.</div>
+        </div>
+      </section>
+    </main>
+
+    <script>
+      const state = {
+        upload: null,
+        ingest: null,
+        manifest: null,
+        preview: null,
+      };
+
+      const els = {
+        jwt: document.getElementById("jwt"),
+        devApi: document.getElementById("devApi"),
+        queryUrl: document.getElementById("queryUrl"),
+        saveConfig: document.getElementById("saveConfig"),
+        resetConfig: document.getElementById("resetConfig"),
+        fileInput: document.getElementById("fileInput"),
+        category: document.getElementById("category"),
+        uploadBtn: document.getElementById("uploadBtn"),
+        pollBtn: document.getElementById("pollBtn"),
+        runAllBtn: document.getElementById("runAllBtn"),
+        uploadInfo: document.getElementById("uploadInfo"),
+        activityLog: document.getElementById("activityLog"),
+        manifestUri: document.getElementById("manifestUri"),
+        manifestBtn: document.getElementById("manifestBtn"),
+        manifestList: document.getElementById("manifestList"),
+        previewMeta: document.getElementById("previewMeta"),
+        previewTable: document.getElementById("previewTable"),
+        indexBtn: document.getElementById("indexBtn"),
+        indexStatusBtn: document.getElementById("indexStatusBtn"),
+        reloadBtn: document.getElementById("reloadBtn"),
+        indexInfo: document.getElementById("indexInfo"),
+        queryText: document.getElementById("queryText"),
+        topK: document.getElementById("topK"),
+        queryBtn: document.getElementById("queryBtn"),
+        queryResults: document.getElementById("queryResults"),
+      };
+
+      const STORAGE_KEY = "retikon_visual_test_config";
+
+      const setStep = (step, stateLabel, detail) => {
+        const card = document.querySelector(`[data-step="${step}"]`);
+        if (!card) return;
+        card.dataset.state = stateLabel;
+        card.querySelector(".step-status").textContent = stateLabel;
+        if (detail) {
+          card.querySelector(".step-detail").textContent = detail;
+        }
+      };
+
+      const addLog = (message, tone = "info") => {
+        const item = document.createElement("div");
+        item.className = `log-item ${tone}`;
+        item.textContent = `${new Date().toLocaleTimeString()} - ${message}`;
+        els.activityLog.prepend(item);
+      };
+
+      const getConfig = () => ({
+        jwt: els.jwt.value.trim(),
+        devApi: els.devApi.value.trim().replace(/\/$/, ""),
+        queryUrl: els.queryUrl.value.trim(),
+      });
+
+      const authHeaders = () => {
+        const { jwt } = getConfig();
+        return jwt ? { Authorization: `Bearer ${jwt}` } : {};
+      };
+
+      const saveConfig = () => {
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(getConfig()));
+        addLog("Configuration saved.", "success");
+      };
+
+      const loadConfig = () => {
+        const raw = localStorage.getItem(STORAGE_KEY);
+        if (!raw) return;
+        try {
+          const cfg = JSON.parse(raw);
+          els.jwt.value = cfg.jwt || "";
+          els.devApi.value = cfg.devApi || "";
+          els.queryUrl.value = cfg.queryUrl || "";
+        } catch (err) {
+          addLog("Failed to load saved config.", "error");
+        }
+      };
+
+      const clearConfig = () => {
+        localStorage.removeItem(STORAGE_KEY);
+        els.jwt.value = "";
+        els.devApi.value = "";
+        els.queryUrl.value = "";
+        addLog("Configuration cleared.", "info");
+      };
+
+      const apiFetch = async (url, options = {}) => {
+        const resp = await fetch(url, {
+          ...options,
+          headers: {
+            ...(options.headers || {}),
+            ...authHeaders(),
+          },
+        });
+        if (!resp.ok) {
+          const text = await resp.text();
+          throw new Error(text || `Request failed (${resp.status})`);
+        }
+        return resp.json();
+      };
+
+      const uploadFile = async () => {
+        const { devApi } = getConfig();
+        if (!devApi) {
+          throw new Error("Dev API URL is required.");
+        }
+        const file = els.fileInput.files[0];
+        if (!file) {
+          throw new Error("Choose a file before uploading.");
+        }
+        setStep("upload", "working", "Uploading file...");
+        addLog("Uploading file to raw bucket...", "info");
+        const form = new FormData();
+        form.append("file", file);
+        form.append("category", els.category.value);
+        const resp = await fetch(`${devApi}/dev/upload`, {
+          method: "POST",
+          headers: authHeaders(),
+          body: form,
+        });
+        if (!resp.ok) {
+          const text = await resp.text();
+          throw new Error(text || "Upload failed");
+        }
+        const data = await resp.json();
+        state.upload = data;
+        els.uploadInfo.textContent = `Uploaded ${data.name} (${data.size_bytes} bytes)`;
+        setStep("upload", "done", `URI: ${data.uri}`);
+        addLog("Upload complete.", "success");
+        return data;
+      };
+
+      const fetchIngestStatus = async () => {
+        const { devApi } = getConfig();
+        if (!devApi) {
+          throw new Error("Dev API URL is required.");
+        }
+        if (!state.upload?.uri) {
+          throw new Error("Upload a file first.");
+        }
+        const uri = encodeURIComponent(state.upload.uri);
+        const data = await apiFetch(`${devApi}/dev/ingest-status?uri=${uri}`);
+        state.ingest = data;
+        const status = data.status || "UNKNOWN";
+        setStep("ingest", status === "COMPLETED" ? "done" : "working", status);
+        els.uploadInfo.textContent = `Ingest status: ${status}`;
+        addLog(`Ingest status: ${status}`, status === "COMPLETED" ? "success" : "info");
+        if (data?.firestore?.manifest_uri) {
+          els.manifestUri.value = data.firestore.manifest_uri;
+        }
+        return data;
+      };
+
+      const pollIngest = async () => {
+        setStep("ingest", "working", "Polling...");
+        const start = Date.now();
+        while (Date.now() - start < 10 * 60 * 1000) {
+          const status = await fetchIngestStatus();
+          if (status.status === "COMPLETED") {
+            return status;
+          }
+          if (status.status === "FAILED") {
+            throw new Error("Ingest failed.");
+          }
+          await new Promise((resolve) => setTimeout(resolve, 5000));
+        }
+        throw new Error("Ingest polling timed out.");
+      };
+
+      const renderManifest = (manifest) => {
+        els.manifestList.innerHTML = "";
+        if (!manifest?.files?.length) {
+          els.manifestList.textContent = "No files in manifest.";
+          return;
+        }
+        manifest.files.forEach((file) => {
+          const row = document.createElement("div");
+          row.className = "preview-item";
+          const label = document.createElement("span");
+          label.textContent = file.uri || file.path || "unknown";
+          const button = document.createElement("button");
+          button.textContent = "Preview";
+          button.className = "secondary";
+          button.addEventListener("click", async () => {
+            try {
+              await previewParquet(file.uri);
+            } catch (err) {
+              addLog(err.message, "error");
+            }
+          });
+          row.append(label, button);
+          els.manifestList.append(row);
+        });
+      };
+
+      const fetchManifest = async () => {
+        const { devApi } = getConfig();
+        if (!devApi) {
+          throw new Error("Dev API URL is required.");
+        }
+        const manifestUriValue =
+          els.manifestUri.value ||
+          state.ingest?.firestore?.manifest_uri ||
+          "";
+        if (!manifestUriValue) {
+          throw new Error("Manifest URI missing.");
+        }
+        setStep("manifest", "working", "Loading manifest...");
+        const data = await apiFetch(
+          `${devApi}/dev/manifest?manifest_uri_value=${encodeURIComponent(
+            manifestUriValue
+          )}`
+        );
+        state.manifest = data;
+        setStep("manifest", "done", data.manifest_uri || "Loaded");
+        addLog("Manifest loaded.", "success");
+        renderManifest(data);
+        autoPreviewModelOutputs();
+        return data;
+      };
+
+      const previewParquet = async (uri) => {
+        const { devApi } = getConfig();
+        if (!devApi) {
+          throw new Error("Dev API URL is required.");
+        }
+        if (!uri) {
+          throw new Error("Missing parquet uri.");
+        }
+        els.previewMeta.textContent = `Previewing: ${uri}`;
+        const data = await apiFetch(
+          `${devApi}/dev/parquet-preview?path=${encodeURIComponent(uri)}`
+        );
+        state.preview = data;
+        renderPreviewTable(data);
+        return data;
+      };
+
+      const renderPreviewTable = (data) => {
+        if (!data?.rows?.length) {
+          els.previewTable.textContent = "No rows returned.";
+          return;
+        }
+        const table = document.createElement("table");
+        const head = document.createElement("tr");
+        data.columns.forEach((col) => {
+          const th = document.createElement("th");
+          th.textContent = col;
+          head.append(th);
+        });
+        table.append(head);
+        data.rows.forEach((row) => {
+          const tr = document.createElement("tr");
+          data.columns.forEach((col) => {
+            const td = document.createElement("td");
+            const value = row[col];
+            td.textContent =
+              typeof value === "object" ? JSON.stringify(value) : String(value);
+            tr.append(td);
+          });
+          table.append(tr);
+        });
+        els.previewTable.innerHTML = "";
+        els.previewTable.append(table);
+      };
+
+      const autoPreviewModelOutputs = () => {
+        if (!state.manifest?.files?.length) return;
+        const vectorFile = state.manifest.files.find((file) =>
+          (file.uri || "").includes("/vector/")
+        );
+        if (vectorFile) {
+          previewParquet(vectorFile.uri).catch(() => {});
+          return;
+        }
+        const textFile = state.manifest.files.find((file) =>
+          (file.uri || "").includes("/text/")
+        );
+        if (textFile) {
+          previewParquet(textFile.uri).catch(() => {});
+        }
+      };
+
+      const triggerIndex = async () => {
+        const { devApi } = getConfig();
+        if (!devApi) {
+          throw new Error("Dev API URL is required.");
+        }
+        setStep("index", "working", "Triggering index job...");
+        const data = await apiFetch(`${devApi}/dev/index-build`, {
+          method: "POST",
+        });
+        els.indexInfo.textContent = JSON.stringify(data, null, 2);
+        addLog("Index job triggered.", "success");
+        return data;
+      };
+
+      const indexStatus = async () => {
+        const { devApi } = getConfig();
+        if (!devApi) {
+          throw new Error("Dev API URL is required.");
+        }
+        const data = await apiFetch(`${devApi}/dev/index-status`);
+        els.indexInfo.textContent = JSON.stringify(data, null, 2);
+        addLog("Index status fetched.", "info");
+        return data;
+      };
+
+      const reloadSnapshot = async () => {
+        const { devApi } = getConfig();
+        if (!devApi) {
+          throw new Error("Dev API URL is required.");
+        }
+        setStep("index", "working", "Reloading snapshot...");
+        const data = await apiFetch(`${devApi}/dev/snapshot-reload`, {
+          method: "POST",
+        });
+        setStep("index", "done", "Snapshot reloaded");
+        els.indexInfo.textContent = JSON.stringify(data, null, 2);
+        addLog("Snapshot reloaded.", "success");
+        return data;
+      };
+
+      const runQuery = async () => {
+        const { queryUrl } = getConfig();
+        if (!queryUrl) {
+          throw new Error("Query URL is required.");
+        }
+        setStep("query", "working", "Running query...");
+        const payload = {
+          query_text: els.queryText.value.trim(),
+          top_k: Number(els.topK.value) || 5,
+        };
+        const data = await apiFetch(queryUrl, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload),
+        });
+        els.queryResults.textContent = JSON.stringify(data, null, 2);
+        setStep("query", "done", `Results: ${data?.results?.length || 0}`);
+        addLog("Query complete.", "success");
+        return data;
+      };
+
+      const runAll = async () => {
+        try {
+          await uploadFile();
+          await pollIngest();
+          await fetchManifest();
+          await reloadSnapshot();
+          await runQuery();
+        } catch (err) {
+          addLog(err.message, "error");
+          setStep("query", "error", err.message);
+        }
+      };
+
+      els.saveConfig.addEventListener("click", saveConfig);
+      els.resetConfig.addEventListener("click", clearConfig);
+      els.uploadBtn.addEventListener("click", async () => {
+        try {
+          await uploadFile();
+        } catch (err) {
+          addLog(err.message, "error");
+          setStep("upload", "error", err.message);
+        }
+      });
+      els.pollBtn.addEventListener("click", async () => {
+        try {
+          await pollIngest();
+        } catch (err) {
+          addLog(err.message, "error");
+          setStep("ingest", "error", err.message);
+        }
+      });
+      els.runAllBtn.addEventListener("click", runAll);
+      els.manifestBtn.addEventListener("click", async () => {
+        try {
+          await fetchManifest();
+        } catch (err) {
+          addLog(err.message, "error");
+          setStep("manifest", "error", err.message);
+        }
+      });
+      els.indexBtn.addEventListener("click", async () => {
+        try {
+          await triggerIndex();
+        } catch (err) {
+          addLog(err.message, "error");
+          setStep("index", "error", err.message);
+        }
+      });
+      els.indexStatusBtn.addEventListener("click", async () => {
+        try {
+          await indexStatus();
+        } catch (err) {
+          addLog(err.message, "error");
+        }
+      });
+      els.reloadBtn.addEventListener("click", async () => {
+        try {
+          await reloadSnapshot();
+        } catch (err) {
+          addLog(err.message, "error");
+        }
+      });
+      els.queryBtn.addEventListener("click", async () => {
+        try {
+          await runQuery();
+        } catch (err) {
+          addLog(err.message, "error");
+          setStep("query", "error", err.message);
+        }
+      });
+
+      loadConfig();
+    </script>
+  </body>
+</html>

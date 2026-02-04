@@ -18,6 +18,7 @@ from retikon_core.embeddings import (
     get_image_text_embedder,
     get_text_embedder,
 )
+from retikon_core.embeddings.timeout import run_inference
 from retikon_core.logging import get_logger
 from retikon_core.query_engine.warm_start import load_extensions
 from retikon_core.tenancy.types import TenantScope
@@ -206,17 +207,29 @@ def _scope_filters(
 
 @lru_cache(maxsize=256)
 def _cached_text_vector(text: str) -> tuple[float, ...]:
-    return tuple(get_text_embedder(768).encode([text])[0])
+    vector = run_inference(
+        "text",
+        lambda: get_text_embedder(768).encode([text])[0],
+    )
+    return tuple(vector)
 
 
 @lru_cache(maxsize=256)
 def _cached_image_text_vector(text: str) -> tuple[float, ...]:
-    return tuple(get_image_text_embedder(512).encode([text])[0])
+    vector = run_inference(
+        "image_text",
+        lambda: get_image_text_embedder(512).encode([text])[0],
+    )
+    return tuple(vector)
 
 
 @lru_cache(maxsize=256)
 def _cached_audio_text_vector(text: str) -> tuple[float, ...]:
-    return tuple(get_audio_text_embedder(512).encode([text])[0])
+    vector = run_inference(
+        "audio_text",
+        lambda: get_audio_text_embedder(512).encode([text])[0],
+    )
+    return tuple(vector)
 
 
 def search_by_text(
@@ -598,7 +611,10 @@ def search_by_image(
     except Exception as exc:
         raise ValueError("Invalid image_base64 payload") from exc
     embed_start = time.monotonic()
-    vector = get_image_embedder(512).encode([image])[0]
+    vector = run_inference(
+        "image",
+        lambda: get_image_embedder(512).encode([image])[0],
+    )
     if trace is not None:
         trace["image_embed_ms"] = round((time.monotonic() - embed_start) * 1000.0, 2)
 

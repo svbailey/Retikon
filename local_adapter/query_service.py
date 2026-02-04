@@ -13,7 +13,7 @@ from fastapi import FastAPI, Header, HTTPException, Request
 
 from retikon_core.auth.jwt import auth_context_from_claims, decode_jwt
 from retikon_core.config import get_config
-from retikon_core.errors import AuthError
+from retikon_core.errors import AuthError, InferenceTimeoutError
 from retikon_core.logging import configure_logging, get_logger
 from retikon_core.query_engine import download_snapshot, get_secure_connection
 from retikon_core.services.fastapi_scaffolding import (
@@ -266,6 +266,8 @@ async def query(
             modalities=modalities,
             timings=timings,
         )
+    except InferenceTimeoutError as exc:
+        raise HTTPException(status_code=504, detail=str(exc)) from exc
     except QueryValidationError as exc:
         raise HTTPException(status_code=exc.status_code, detail=exc.detail) from exc
 

@@ -13,6 +13,7 @@ from retikon_core.embeddings import (
     get_image_text_embedder,
     get_text_embedder,
 )
+from retikon_core.embeddings.timeout import run_inference
 from retikon_core.privacy import (
     PrivacyContext,
     load_privacy_policies,
@@ -300,19 +301,34 @@ def warm_query_models(
                 2,
             )
 
-    _run_step("text", lambda: get_text_embedder(768).encode([warmup_text]))
+    _run_step(
+        "text",
+        lambda: run_inference(
+            "text",
+            lambda: get_text_embedder(768).encode([warmup_text]),
+        ),
+    )
     _run_step(
         "image_text",
-        lambda: get_image_text_embedder(512).encode([warmup_text]),
+        lambda: run_inference(
+            "image_text",
+            lambda: get_image_text_embedder(512).encode([warmup_text]),
+        ),
     )
     _run_step(
         "audio_text",
-        lambda: get_audio_text_embedder(512).encode([warmup_text]),
+        lambda: run_inference(
+            "audio_text",
+            lambda: get_audio_text_embedder(512).encode([warmup_text]),
+        ),
     )
     _run_step(
         "image",
-        lambda: get_image_embedder(512).encode(
-            [Image.new("RGB", (1, 1), color=(0, 0, 0))]
+        lambda: run_inference(
+            "image",
+            lambda: get_image_embedder(512).encode(
+                [Image.new("RGB", (1, 1), color=(0, 0, 0))]
+            ),
         ),
     )
 

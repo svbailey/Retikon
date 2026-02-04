@@ -82,6 +82,32 @@ def _rate_for_modality_env(modality: str) -> int:
     return 0
 
 
+def _global_rate_for_modality(config: Config | None, modality: str) -> int:
+    if config is None:
+        return _global_rate_for_modality_env(modality)
+    if modality == "document":
+        return config.rate_limit_global_doc_per_min
+    if modality == "image":
+        return config.rate_limit_global_image_per_min
+    if modality == "audio":
+        return config.rate_limit_global_audio_per_min
+    if modality == "video":
+        return config.rate_limit_global_video_per_min
+    return 0
+
+
+def _global_rate_for_modality_env(modality: str) -> int:
+    if modality == "document":
+        return int(os.getenv("RATE_LIMIT_GLOBAL_DOC_PER_MIN", "0"))
+    if modality == "image":
+        return int(os.getenv("RATE_LIMIT_GLOBAL_IMAGE_PER_MIN", "0"))
+    if modality == "audio":
+        return int(os.getenv("RATE_LIMIT_GLOBAL_AUDIO_PER_MIN", "0"))
+    if modality == "video":
+        return int(os.getenv("RATE_LIMIT_GLOBAL_VIDEO_PER_MIN", "0"))
+    return 0
+
+
 def _rate_limit_backend(config: Config | None) -> str:
     if config is not None:
         value = getattr(config, "rate_limit_backend", "local")
@@ -168,10 +194,35 @@ def enforce_rate_limit(
     cost: int = 1,
 ) -> None:
     rate_per_min = _rate_for_modality(config, modality)
-    if rate_per_min <= 0:
-        return
     backend = _rate_limit_backend(config)
     if backend == "none":
+        return
+    global_rate = _global_rate_for_modality(config, modality)
+    if global_rate > 0:
+        if backend == "local":
+            key = f"global:{modality}"
+            bucket = _LOCAL_BUCKETS.get(key)
+            if bucket is None:
+                bucket = TokenBucket(
+                    capacity=float(global_rate),
+                    refill_per_sec=float(global_rate) / 60.0,
+                    tokens=float(global_rate),
+                    last_refill=time.monotonic(),
+                )
+                _LOCAL_BUCKETS[key] = bucket
+            if not bucket.allow(cost=cost):
+                raise RateLimitExceeded(f"Global rate limit exceeded for {modality}")
+        elif backend == "redis":
+            window = int(time.time() // 60)
+            key = f"ratelimit:global:{modality}:{window}"
+            if not _redis_allow(
+                key=key,
+                limit=global_rate,
+                cost=cost,
+                config=config,
+            ):
+                raise RateLimitExceeded(f"Global rate limit exceeded for {modality}")
+    if rate_per_min <= 0:
         return
     scope_key = _scope_key(scope, config)
     if backend == "local":

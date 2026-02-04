@@ -6,6 +6,7 @@ from datetime import datetime, timezone
 
 from retikon_core.config import Config
 from retikon_core.embeddings import get_audio_embedder, get_text_embedder
+from retikon_core.embeddings.timeout import run_inference
 from retikon_core.errors import PermanentError
 from retikon_core.ingestion.download import cleanup_tmp
 from retikon_core.ingestion.media import normalize_audio, probe_media
@@ -47,13 +48,19 @@ def ingest_audio(
     normalized_path = normalize_audio(source.local_path)
     try:
         audio_bytes = open(normalized_path, "rb").read()
-        audio_vector = get_audio_embedder(512).encode([audio_bytes])[0]
+        audio_vector = run_inference(
+            "audio",
+            lambda: get_audio_embedder(512).encode([audio_bytes])[0],
+        )
 
         segments = transcribe_audio(normalized_path, probe.duration_seconds)
         text_vectors: list[list[float]] = []
         if segments:
             texts = [segment.text for segment in segments]
-            text_vectors = get_text_embedder(768).encode(texts)
+            text_vectors = run_inference(
+                "text",
+                lambda: get_text_embedder(768).encode(texts),
+            )
 
         output_root = output_uri or config.graph_root_uri()
         media_asset_id = str(uuid.uuid4())

@@ -55,10 +55,30 @@ class IngestResponse(BaseModel):
 
 
 def _authorize_ingest(request: Request, config: Config) -> AuthContext | None:
+    if _is_gcs_notification(request):
+        try:
+            return authorize_request(
+                request=request,
+                require_admin=False,
+            )
+        except HTTPException as exc:
+            if exc.status_code == 401:
+                return None
+            raise
     return authorize_request(
         request=request,
         require_admin=False,
     )
+
+
+def _is_gcs_notification(request: Request) -> bool:
+    if request.query_params.get("__GCP_CloudEventsMode") == "GCS_NOTIFICATION":
+        return True
+    ce_source = request.headers.get("ce-source", "")
+    ce_type = request.headers.get("ce-type", "")
+    if "storage.googleapis.com" in ce_source:
+        return True
+    return "google.cloud.storage" in ce_type
 
 
 def _rbac_enabled() -> bool:

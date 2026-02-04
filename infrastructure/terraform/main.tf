@@ -496,6 +496,10 @@ locals {
     var.alert_notification_channels,
     [for channel in google_monitoring_notification_channel.email : channel.name]
   )
+  budget_notification_channels = [
+    for name in local.notification_channels :
+    replace(name, "projects/${var.project_id}/", "projects/${data.google_project.project.number}/")
+  ]
 }
 
 resource "google_cloud_run_service" "ingestion" {
@@ -704,6 +708,10 @@ resource "google_cloud_run_service" "ingestion" {
           value = tostring(var.max_raw_bytes)
         }
         env {
+          name  = "MODEL_INFERENCE_TIMEOUT_S"
+          value = tostring(var.model_inference_timeout_seconds)
+        }
+        env {
           name  = "MAX_VIDEO_SECONDS"
           value = tostring(var.max_video_seconds)
         }
@@ -742,6 +750,22 @@ resource "google_cloud_run_service" "ingestion" {
         env {
           name  = "RATE_LIMIT_VIDEO_PER_MIN"
           value = tostring(var.rate_limit_video_per_min)
+        }
+        env {
+          name  = "RATE_LIMIT_GLOBAL_DOC_PER_MIN"
+          value = tostring(var.rate_limit_global_doc_per_min)
+        }
+        env {
+          name  = "RATE_LIMIT_GLOBAL_IMAGE_PER_MIN"
+          value = tostring(var.rate_limit_global_image_per_min)
+        }
+        env {
+          name  = "RATE_LIMIT_GLOBAL_AUDIO_PER_MIN"
+          value = tostring(var.rate_limit_global_audio_per_min)
+        }
+        env {
+          name  = "RATE_LIMIT_GLOBAL_VIDEO_PER_MIN"
+          value = tostring(var.rate_limit_global_video_per_min)
         }
         env {
           name  = "RATE_LIMIT_BACKEND"
@@ -1028,6 +1052,10 @@ resource "google_cloud_run_service" "query" {
           value = tostring(var.max_raw_bytes)
         }
         env {
+          name  = "MODEL_INFERENCE_TIMEOUT_S"
+          value = tostring(var.model_inference_timeout_seconds)
+        }
+        env {
           name  = "MAX_VIDEO_SECONDS"
           value = tostring(var.max_video_seconds)
         }
@@ -1075,6 +1103,22 @@ resource "google_cloud_run_service" "query" {
         env {
           name  = "RATE_LIMIT_VIDEO_PER_MIN"
           value = tostring(var.rate_limit_video_per_min)
+        }
+        env {
+          name  = "RATE_LIMIT_GLOBAL_DOC_PER_MIN"
+          value = tostring(var.rate_limit_global_doc_per_min)
+        }
+        env {
+          name  = "RATE_LIMIT_GLOBAL_IMAGE_PER_MIN"
+          value = tostring(var.rate_limit_global_image_per_min)
+        }
+        env {
+          name  = "RATE_LIMIT_GLOBAL_AUDIO_PER_MIN"
+          value = tostring(var.rate_limit_global_audio_per_min)
+        }
+        env {
+          name  = "RATE_LIMIT_GLOBAL_VIDEO_PER_MIN"
+          value = tostring(var.rate_limit_global_video_per_min)
         }
         env {
           name  = "RATE_LIMIT_BACKEND"
@@ -1355,6 +1399,10 @@ resource "google_cloud_run_service" "query_gpu" {
           value = tostring(var.max_raw_bytes)
         }
         env {
+          name  = "MODEL_INFERENCE_TIMEOUT_S"
+          value = tostring(var.model_inference_timeout_seconds)
+        }
+        env {
           name  = "MAX_VIDEO_SECONDS"
           value = tostring(var.max_video_seconds)
         }
@@ -1410,6 +1458,22 @@ resource "google_cloud_run_service" "query_gpu" {
         env {
           name  = "RATE_LIMIT_VIDEO_PER_MIN"
           value = tostring(var.rate_limit_video_per_min)
+        }
+        env {
+          name  = "RATE_LIMIT_GLOBAL_DOC_PER_MIN"
+          value = tostring(var.rate_limit_global_doc_per_min)
+        }
+        env {
+          name  = "RATE_LIMIT_GLOBAL_IMAGE_PER_MIN"
+          value = tostring(var.rate_limit_global_image_per_min)
+        }
+        env {
+          name  = "RATE_LIMIT_GLOBAL_AUDIO_PER_MIN"
+          value = tostring(var.rate_limit_global_audio_per_min)
+        }
+        env {
+          name  = "RATE_LIMIT_GLOBAL_VIDEO_PER_MIN"
+          value = tostring(var.rate_limit_global_video_per_min)
         }
         env {
           name  = "RATE_LIMIT_BACKEND"
@@ -1812,6 +1876,10 @@ resource "google_cloud_run_service" "workflow" {
           value = tostring(var.max_raw_bytes)
         }
         env {
+          name  = "MODEL_INFERENCE_TIMEOUT_S"
+          value = tostring(var.model_inference_timeout_seconds)
+        }
+        env {
           name  = "MAX_VIDEO_SECONDS"
           value = tostring(var.max_video_seconds)
         }
@@ -2004,6 +2072,10 @@ resource "google_cloud_run_service" "chaos" {
           value = tostring(var.max_raw_bytes)
         }
         env {
+          name  = "MODEL_INFERENCE_TIMEOUT_S"
+          value = tostring(var.model_inference_timeout_seconds)
+        }
+        env {
           name  = "MAX_VIDEO_SECONDS"
           value = tostring(var.max_video_seconds)
         }
@@ -2182,6 +2254,10 @@ resource "google_cloud_run_service" "privacy" {
         env {
           name  = "MAX_RAW_BYTES"
           value = tostring(var.max_raw_bytes)
+        }
+        env {
+          name  = "MODEL_INFERENCE_TIMEOUT_S"
+          value = tostring(var.model_inference_timeout_seconds)
         }
         env {
           name  = "MAX_VIDEO_SECONDS"
@@ -2364,6 +2440,10 @@ resource "google_cloud_run_service" "fleet" {
           value = tostring(var.max_raw_bytes)
         }
         env {
+          name  = "MODEL_INFERENCE_TIMEOUT_S"
+          value = tostring(var.model_inference_timeout_seconds)
+        }
+        env {
           name  = "MAX_VIDEO_SECONDS"
           value = tostring(var.max_video_seconds)
         }
@@ -2542,6 +2622,10 @@ resource "google_cloud_run_service" "data_factory" {
         env {
           name  = "MAX_RAW_BYTES"
           value = tostring(var.max_raw_bytes)
+        }
+        env {
+          name  = "MODEL_INFERENCE_TIMEOUT_S"
+          value = tostring(var.model_inference_timeout_seconds)
         }
         env {
           name  = "MAX_VIDEO_SECONDS"
@@ -2734,6 +2818,10 @@ resource "google_cloud_run_service" "webhook" {
         env {
           name  = "MAX_RAW_BYTES"
           value = tostring(var.max_raw_bytes)
+        }
+        env {
+          name  = "MODEL_INFERENCE_TIMEOUT_S"
+          value = tostring(var.model_inference_timeout_seconds)
         }
         env {
           name  = "MAX_VIDEO_SECONDS"
@@ -2938,6 +3026,10 @@ resource "google_cloud_run_service" "dev_console" {
           value = tostring(var.max_raw_bytes)
         }
         env {
+          name  = "MODEL_INFERENCE_TIMEOUT_S"
+          value = tostring(var.model_inference_timeout_seconds)
+        }
+        env {
           name  = "MAX_PREVIEW_BYTES"
           value = tostring(var.max_preview_bytes)
         }
@@ -3086,6 +3178,10 @@ resource "google_cloud_run_service" "edge_gateway" {
         env {
           name  = "MAX_RAW_BYTES"
           value = tostring(var.max_raw_bytes)
+        }
+        env {
+          name  = "MODEL_INFERENCE_TIMEOUT_S"
+          value = tostring(var.model_inference_timeout_seconds)
         }
         env {
           name  = "EDGE_BUFFER_DIR"
@@ -3312,6 +3408,10 @@ resource "google_cloud_run_service" "stream_ingest" {
           value = tostring(var.max_raw_bytes)
         }
         env {
+          name  = "MODEL_INFERENCE_TIMEOUT_S"
+          value = tostring(var.model_inference_timeout_seconds)
+        }
+        env {
           name  = "MAX_VIDEO_SECONDS"
           value = tostring(var.max_video_seconds)
         }
@@ -3350,6 +3450,22 @@ resource "google_cloud_run_service" "stream_ingest" {
         env {
           name  = "RATE_LIMIT_VIDEO_PER_MIN"
           value = tostring(var.rate_limit_video_per_min)
+        }
+        env {
+          name  = "RATE_LIMIT_GLOBAL_DOC_PER_MIN"
+          value = tostring(var.rate_limit_global_doc_per_min)
+        }
+        env {
+          name  = "RATE_LIMIT_GLOBAL_IMAGE_PER_MIN"
+          value = tostring(var.rate_limit_global_image_per_min)
+        }
+        env {
+          name  = "RATE_LIMIT_GLOBAL_AUDIO_PER_MIN"
+          value = tostring(var.rate_limit_global_audio_per_min)
+        }
+        env {
+          name  = "RATE_LIMIT_GLOBAL_VIDEO_PER_MIN"
+          value = tostring(var.rate_limit_global_video_per_min)
         }
         env {
           name  = "DLQ_TOPIC"
@@ -3907,6 +4023,34 @@ resource "google_monitoring_alert_policy" "ingest_5xx_rate" {
   notification_channels = local.notification_channels
 }
 
+resource "google_monitoring_alert_policy" "query_5xx_rate" {
+  display_name = "Retikon Query 5xx rate"
+  combiner     = "OR"
+
+  conditions {
+    display_name = "Query 5xx rate"
+
+    condition_threshold {
+      filter          = "resource.type=\"cloud_run_revision\" AND resource.labels.service_name=\"${google_cloud_run_service.query.name}\" AND metric.type=\"run.googleapis.com/request_count\" AND metric.labels.response_code_class=\"5xx\""
+      comparison      = "COMPARISON_GT"
+      threshold_value = var.alert_query_5xx_rate
+      duration        = "300s"
+
+      aggregations {
+        alignment_period     = "60s"
+        per_series_aligner   = "ALIGN_RATE"
+        cross_series_reducer = "REDUCE_SUM"
+      }
+
+      trigger {
+        count = 1
+      }
+    }
+  }
+
+  notification_channels = local.notification_channels
+}
+
 resource "google_monitoring_alert_policy" "query_p95_latency" {
   display_name = "Retikon Query p95 latency"
   combiner     = "OR"
@@ -3918,6 +4062,34 @@ resource "google_monitoring_alert_policy" "query_p95_latency" {
       filter          = "resource.type=\"cloud_run_revision\" AND resource.labels.service_name=\"${google_cloud_run_service.query.name}\" AND metric.type=\"run.googleapis.com/request_latencies\""
       comparison      = "COMPARISON_GT"
       threshold_value = var.alert_query_p95_seconds
+      duration        = "300s"
+
+      aggregations {
+        alignment_period     = "60s"
+        per_series_aligner   = "ALIGN_PERCENTILE_95"
+        cross_series_reducer = "REDUCE_MAX"
+      }
+
+      trigger {
+        count = 1
+      }
+    }
+  }
+
+  notification_channels = local.notification_channels
+}
+
+resource "google_monitoring_alert_policy" "ingest_p95_latency" {
+  display_name = "Retikon Ingest p95 latency"
+  combiner     = "OR"
+
+  conditions {
+    display_name = "Ingest p95 latency"
+
+    condition_threshold {
+      filter          = "resource.type=\"cloud_run_revision\" AND resource.labels.service_name=\"${google_cloud_run_service.ingestion.name}\" AND metric.type=\"run.googleapis.com/request_latencies\""
+      comparison      = "COMPARISON_GT"
+      threshold_value = var.alert_ingest_p95_seconds
       duration        = "300s"
 
       aggregations {
@@ -3961,6 +4133,35 @@ resource "google_monitoring_alert_policy" "dlq_backlog" {
   }
 
   notification_channels = local.notification_channels
+}
+
+resource "google_billing_budget" "cost_anomaly" {
+  count           = var.billing_account_id != "" && var.cost_budget_amount > 0 ? 1 : 0
+  billing_account = var.billing_account_id
+  display_name    = "Retikon ${var.env} cost anomaly"
+
+  budget_filter {
+    projects = ["projects/${data.google_project.project.number}"]
+  }
+
+  amount {
+    specified_amount {
+      currency_code = var.cost_budget_currency
+      units         = tostring(var.cost_budget_amount)
+    }
+  }
+
+  dynamic "threshold_rules" {
+    for_each = var.cost_budget_thresholds
+    content {
+      threshold_percent = threshold_rules.value
+    }
+  }
+
+  all_updates_rule {
+    monitoring_notification_channels = local.budget_notification_channels
+    disable_default_iam_recipients   = true
+  }
 }
 
 resource "google_monitoring_notification_channel" "email" {
@@ -4017,17 +4218,46 @@ resource "google_monitoring_dashboard" "ops" {
             width  = 4
             height = 4
             widget = {
-              title = "Query p95 latency (s)"
+              title = "Query latency p50/p95/p99 (s)"
               xyChart = {
                 dataSets = [
                   {
                     plotType = "LINE"
+                    legendTemplate = "p50"
+                    timeSeriesQuery = {
+                      timeSeriesFilter = {
+                        filter = "resource.type=\"cloud_run_revision\" AND resource.labels.service_name=\"${google_cloud_run_service.query.name}\" AND metric.type=\"run.googleapis.com/request_latencies\""
+                        aggregation = {
+                          alignmentPeriod    = "60s"
+                          perSeriesAligner   = "ALIGN_PERCENTILE_50"
+                          crossSeriesReducer = "REDUCE_MAX"
+                        }
+                      }
+                    }
+                  },
+                  {
+                    plotType = "LINE"
+                    legendTemplate = "p95"
                     timeSeriesQuery = {
                       timeSeriesFilter = {
                         filter = "resource.type=\"cloud_run_revision\" AND resource.labels.service_name=\"${google_cloud_run_service.query.name}\" AND metric.type=\"run.googleapis.com/request_latencies\""
                         aggregation = {
                           alignmentPeriod    = "60s"
                           perSeriesAligner   = "ALIGN_PERCENTILE_95"
+                          crossSeriesReducer = "REDUCE_MAX"
+                        }
+                      }
+                    }
+                  },
+                  {
+                    plotType = "LINE"
+                    legendTemplate = "p99"
+                    timeSeriesQuery = {
+                      timeSeriesFilter = {
+                        filter = "resource.type=\"cloud_run_revision\" AND resource.labels.service_name=\"${google_cloud_run_service.query.name}\" AND metric.type=\"run.googleapis.com/request_latencies\""
+                        aggregation = {
+                          alignmentPeriod    = "60s"
+                          perSeriesAligner   = "ALIGN_PERCENTILE_99"
                           crossSeriesReducer = "REDUCE_MAX"
                         }
                       }
@@ -4070,15 +4300,354 @@ resource "google_monitoring_dashboard" "ops" {
                 }
               }
             }
+          },
+          {
+            xPos   = 0
+            yPos   = 4
+            width  = 6
+            height = 4
+            widget = {
+              title = "Query request rate by code class (req/s)"
+              xyChart = {
+                dataSets = [
+                  {
+                    plotType = "LINE"
+                    legendTemplate = "2xx"
+                    timeSeriesQuery = {
+                      timeSeriesFilter = {
+                        filter = "resource.type=\"cloud_run_revision\" AND resource.labels.service_name=\"${google_cloud_run_service.query.name}\" AND metric.type=\"run.googleapis.com/request_count\" AND metric.labels.response_code_class=\"2xx\""
+                        aggregation = {
+                          alignmentPeriod    = "60s"
+                          perSeriesAligner   = "ALIGN_RATE"
+                          crossSeriesReducer = "REDUCE_SUM"
+                        }
+                      }
+                    }
+                  },
+                  {
+                    plotType = "LINE"
+                    legendTemplate = "4xx"
+                    timeSeriesQuery = {
+                      timeSeriesFilter = {
+                        filter = "resource.type=\"cloud_run_revision\" AND resource.labels.service_name=\"${google_cloud_run_service.query.name}\" AND metric.type=\"run.googleapis.com/request_count\" AND metric.labels.response_code_class=\"4xx\""
+                        aggregation = {
+                          alignmentPeriod    = "60s"
+                          perSeriesAligner   = "ALIGN_RATE"
+                          crossSeriesReducer = "REDUCE_SUM"
+                        }
+                      }
+                    }
+                  },
+                  {
+                    plotType = "LINE"
+                    legendTemplate = "5xx"
+                    timeSeriesQuery = {
+                      timeSeriesFilter = {
+                        filter = "resource.type=\"cloud_run_revision\" AND resource.labels.service_name=\"${google_cloud_run_service.query.name}\" AND metric.type=\"run.googleapis.com/request_count\" AND metric.labels.response_code_class=\"5xx\""
+                        aggregation = {
+                          alignmentPeriod    = "60s"
+                          perSeriesAligner   = "ALIGN_RATE"
+                          crossSeriesReducer = "REDUCE_SUM"
+                        }
+                      }
+                    }
+                  }
+                ]
+                yAxis = {
+                  label = "req/s"
+                  scale = "LINEAR"
+                }
+              }
+            }
+          },
+          {
+            xPos   = 6
+            yPos   = 4
+            width  = 6
+            height = 4
+            widget = {
+              title = "Ingest request rate by code class (req/s)"
+              xyChart = {
+                dataSets = [
+                  {
+                    plotType = "LINE"
+                    legendTemplate = "2xx"
+                    timeSeriesQuery = {
+                      timeSeriesFilter = {
+                        filter = "resource.type=\"cloud_run_revision\" AND resource.labels.service_name=\"${google_cloud_run_service.ingestion.name}\" AND metric.type=\"run.googleapis.com/request_count\" AND metric.labels.response_code_class=\"2xx\""
+                        aggregation = {
+                          alignmentPeriod    = "60s"
+                          perSeriesAligner   = "ALIGN_RATE"
+                          crossSeriesReducer = "REDUCE_SUM"
+                        }
+                      }
+                    }
+                  },
+                  {
+                    plotType = "LINE"
+                    legendTemplate = "4xx"
+                    timeSeriesQuery = {
+                      timeSeriesFilter = {
+                        filter = "resource.type=\"cloud_run_revision\" AND resource.labels.service_name=\"${google_cloud_run_service.ingestion.name}\" AND metric.type=\"run.googleapis.com/request_count\" AND metric.labels.response_code_class=\"4xx\""
+                        aggregation = {
+                          alignmentPeriod    = "60s"
+                          perSeriesAligner   = "ALIGN_RATE"
+                          crossSeriesReducer = "REDUCE_SUM"
+                        }
+                      }
+                    }
+                  },
+                  {
+                    plotType = "LINE"
+                    legendTemplate = "5xx"
+                    timeSeriesQuery = {
+                      timeSeriesFilter = {
+                        filter = "resource.type=\"cloud_run_revision\" AND resource.labels.service_name=\"${google_cloud_run_service.ingestion.name}\" AND metric.type=\"run.googleapis.com/request_count\" AND metric.labels.response_code_class=\"5xx\""
+                        aggregation = {
+                          alignmentPeriod    = "60s"
+                          perSeriesAligner   = "ALIGN_RATE"
+                          crossSeriesReducer = "REDUCE_SUM"
+                        }
+                      }
+                    }
+                  }
+                ]
+                yAxis = {
+                  label = "req/s"
+                  scale = "LINEAR"
+                }
+              }
+            }
+          },
+          {
+            xPos   = 0
+            yPos   = 8
+            width  = 6
+            height = 4
+            widget = {
+              title = "Ingest latency p50/p95/p99 (s)"
+              xyChart = {
+                dataSets = [
+                  {
+                    plotType = "LINE"
+                    legendTemplate = "p50"
+                    timeSeriesQuery = {
+                      timeSeriesFilter = {
+                        filter = "resource.type=\"cloud_run_revision\" AND resource.labels.service_name=\"${google_cloud_run_service.ingestion.name}\" AND metric.type=\"run.googleapis.com/request_latencies\""
+                        aggregation = {
+                          alignmentPeriod    = "60s"
+                          perSeriesAligner   = "ALIGN_PERCENTILE_50"
+                          crossSeriesReducer = "REDUCE_MAX"
+                        }
+                      }
+                    }
+                  },
+                  {
+                    plotType = "LINE"
+                    legendTemplate = "p95"
+                    timeSeriesQuery = {
+                      timeSeriesFilter = {
+                        filter = "resource.type=\"cloud_run_revision\" AND resource.labels.service_name=\"${google_cloud_run_service.ingestion.name}\" AND metric.type=\"run.googleapis.com/request_latencies\""
+                        aggregation = {
+                          alignmentPeriod    = "60s"
+                          perSeriesAligner   = "ALIGN_PERCENTILE_95"
+                          crossSeriesReducer = "REDUCE_MAX"
+                        }
+                      }
+                    }
+                  },
+                  {
+                    plotType = "LINE"
+                    legendTemplate = "p99"
+                    timeSeriesQuery = {
+                      timeSeriesFilter = {
+                        filter = "resource.type=\"cloud_run_revision\" AND resource.labels.service_name=\"${google_cloud_run_service.ingestion.name}\" AND metric.type=\"run.googleapis.com/request_latencies\""
+                        aggregation = {
+                          alignmentPeriod    = "60s"
+                          perSeriesAligner   = "ALIGN_PERCENTILE_99"
+                          crossSeriesReducer = "REDUCE_MAX"
+                        }
+                      }
+                    }
+                  }
+                ]
+                yAxis = {
+                  label = "seconds"
+                  scale = "LINEAR"
+                }
+              }
+            }
+          },
+          {
+            xPos   = 6
+            yPos   = 8
+            width  = 6
+            height = 4
+            widget = {
+              title = "Workflow queue backlog"
+              xyChart = {
+                dataSets = [
+                  {
+                    plotType = "LINE"
+                    timeSeriesQuery = {
+                      timeSeriesFilter = {
+                        filter = "resource.type=\"pubsub_subscription\" AND resource.labels.subscription_id=\"${var.workflow_queue_subscription_name}\" AND metric.type=\"pubsub.googleapis.com/subscription/num_undelivered_messages\""
+                        aggregation = {
+                          alignmentPeriod    = "60s"
+                          perSeriesAligner   = "ALIGN_MAX"
+                          crossSeriesReducer = "REDUCE_MAX"
+                        }
+                      }
+                    }
+                  }
+                ]
+                yAxis = {
+                  label = "messages"
+                  scale = "LINEAR"
+                }
+              }
+            }
+          },
+          {
+            xPos   = 0
+            yPos   = 12
+            width  = 6
+            height = 4
+            widget = {
+              title = "CPU utilization (query + ingest)"
+              xyChart = {
+                dataSets = [
+                  {
+                    plotType = "LINE"
+                    legendTemplate = "query"
+                    timeSeriesQuery = {
+                      timeSeriesFilter = {
+                        filter = "resource.type=\"cloud_run_revision\" AND resource.labels.service_name=\"${google_cloud_run_service.query.name}\" AND metric.type=\"run.googleapis.com/container/cpu/utilizations\""
+                        aggregation = {
+                          alignmentPeriod    = "60s"
+                          perSeriesAligner   = "ALIGN_MEAN"
+                          crossSeriesReducer = "REDUCE_MEAN"
+                        }
+                      }
+                    }
+                  },
+                  {
+                    plotType = "LINE"
+                    legendTemplate = "ingest"
+                    timeSeriesQuery = {
+                      timeSeriesFilter = {
+                        filter = "resource.type=\"cloud_run_revision\" AND resource.labels.service_name=\"${google_cloud_run_service.ingestion.name}\" AND metric.type=\"run.googleapis.com/container/cpu/utilizations\""
+                        aggregation = {
+                          alignmentPeriod    = "60s"
+                          perSeriesAligner   = "ALIGN_MEAN"
+                          crossSeriesReducer = "REDUCE_MEAN"
+                        }
+                      }
+                    }
+                  }
+                ]
+                yAxis = {
+                  label = "utilization"
+                  scale = "LINEAR"
+                }
+              }
+            }
+          },
+          {
+            xPos   = 6
+            yPos   = 12
+            width  = 6
+            height = 4
+            widget = {
+              title = "Memory utilization (query + ingest)"
+              xyChart = {
+                dataSets = [
+                  {
+                    plotType = "LINE"
+                    legendTemplate = "query"
+                    timeSeriesQuery = {
+                      timeSeriesFilter = {
+                        filter = "resource.type=\"cloud_run_revision\" AND resource.labels.service_name=\"${google_cloud_run_service.query.name}\" AND metric.type=\"run.googleapis.com/container/memory/utilizations\""
+                        aggregation = {
+                          alignmentPeriod    = "60s"
+                          perSeriesAligner   = "ALIGN_MEAN"
+                          crossSeriesReducer = "REDUCE_MEAN"
+                        }
+                      }
+                    }
+                  },
+                  {
+                    plotType = "LINE"
+                    legendTemplate = "ingest"
+                    timeSeriesQuery = {
+                      timeSeriesFilter = {
+                        filter = "resource.type=\"cloud_run_revision\" AND resource.labels.service_name=\"${google_cloud_run_service.ingestion.name}\" AND metric.type=\"run.googleapis.com/container/memory/utilizations\""
+                        aggregation = {
+                          alignmentPeriod    = "60s"
+                          perSeriesAligner   = "ALIGN_MEAN"
+                          crossSeriesReducer = "REDUCE_MEAN"
+                        }
+                      }
+                    }
+                  }
+                ]
+                yAxis = {
+                  label = "utilization"
+                  scale = "LINEAR"
+                }
+              }
+            }
+          },
+          {
+            xPos   = 0
+            yPos   = 16
+            width  = 6
+            height = 4
+            widget = {
+              title = "Ephemeral disk (tmpfs) usage (query + ingest)"
+              xyChart = {
+                dataSets = [
+                  {
+                    plotType = "LINE"
+                    legendTemplate = "query"
+                    timeSeriesQuery = {
+                      timeSeriesFilter = {
+                        filter = "resource.type=\"cloud_run_revision\" AND resource.labels.service_name=\"${google_cloud_run_service.query.name}\" AND metric.type=\"run.googleapis.com/container/memory/tmpfs_usage\""
+                        aggregation = {
+                          alignmentPeriod    = "60s"
+                          perSeriesAligner   = "ALIGN_MAX"
+                          crossSeriesReducer = "REDUCE_MAX"
+                        }
+                      }
+                    }
+                  },
+                  {
+                    plotType = "LINE"
+                    legendTemplate = "ingest"
+                    timeSeriesQuery = {
+                      timeSeriesFilter = {
+                        filter = "resource.type=\"cloud_run_revision\" AND resource.labels.service_name=\"${google_cloud_run_service.ingestion.name}\" AND metric.type=\"run.googleapis.com/container/memory/tmpfs_usage\""
+                        aggregation = {
+                          alignmentPeriod    = "60s"
+                          perSeriesAligner   = "ALIGN_MAX"
+                          crossSeriesReducer = "REDUCE_MAX"
+                        }
+                      }
+                    }
+                  }
+                ]
+                yAxis = {
+                  label = "bytes"
+                  scale = "LINEAR"
+                }
+              }
+            }
           }
         ]
       }
     }
   )
 
-  lifecycle {
-    ignore_changes = [dashboard_json]
-  }
 }
 
 resource "google_cloud_run_v2_job" "ingest_smoke" {

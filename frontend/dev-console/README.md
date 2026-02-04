@@ -15,6 +15,12 @@ npm install
 npm run dev
 ```
 
+The visual test mini page is available at:
+
+```
+http://localhost:5173/visual-test.html
+```
+
 Set the query API URL with:
 
 ```bash
@@ -64,3 +70,6 @@ npm run build
 ```
 
 Upload `dist/` to a GCS bucket configured for static hosting.
+
+The visual test page is published as `visual-test.html` alongside the main
+console.

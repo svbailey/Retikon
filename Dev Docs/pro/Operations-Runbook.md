@@ -81,6 +81,19 @@ This runbook covers routine checks and incident response for Retikon services.
 - Verify `MAX_RAW_BYTES` and `MAX_FRAMES_PER_VIDEO` remain enforced.
 - Graph bucket retention: no lifecycle delete; cleanup requires approval.
 
+## Cost spike response
+
+- Check Cloud Billing budget alert details (threshold + overage).
+- Review Ops dashboard CPU/memory/tmpfs and request rate panels to identify the driver.
+- Confirm rate limits are still enforced (`RATE_LIMIT_*_PER_MIN`, optional global limits).
+- If ingestion is the driver:
+  - Temporarily disable the Eventarc trigger or set `INGESTION_DRY_RUN=1`.
+  - Reduce `ingestion_max_scale` until costs stabilize.
+- If query is the driver:
+  - Reduce `query_max_scale` and tighten rate limits.
+  - Validate snapshot size and query payload guardrails.
+- Re-run Tier-3 smoke to validate recovery before re-enabling normal limits.
+
 ## Chaos testing (safe defaults)
 
 - Chaos is disabled by default, even in dev. Enable explicitly with:

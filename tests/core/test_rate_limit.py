@@ -31,3 +31,13 @@ def test_redis_backend_requires_host(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.delenv("REDIS_HOST", raising=False)
     with pytest.raises(RateLimitBackendError):
         enforce_rate_limit("document", config=None, scope=TenantScope(org_id="org-1"))
+
+
+def test_global_rate_limit_exceeded(monkeypatch: pytest.MonkeyPatch) -> None:
+    reset_rate_limit_state()
+    monkeypatch.setenv("RATE_LIMIT_BACKEND", "local")
+    monkeypatch.setenv("RATE_LIMIT_DOC_PER_MIN", "100")
+    monkeypatch.setenv("RATE_LIMIT_GLOBAL_DOC_PER_MIN", "1")
+    enforce_rate_limit("document", config=None, scope=TenantScope(org_id="org-1"))
+    with pytest.raises(RateLimitExceeded):
+        enforce_rate_limit("document", config=None, scope=TenantScope(org_id="org-2"))
