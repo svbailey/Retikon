@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
+from typing import Any
 
 from google.cloud import firestore
 
@@ -137,3 +138,59 @@ class FirestoreIdempotency:
                 "updated_at": now,
             }
         )
+
+
+def resolve_checksum(md5_hash: str | None, crc32c: str | None) -> str | None:
+    if md5_hash:
+        return f"md5:{md5_hash}"
+    if crc32c:
+        return f"crc32c:{crc32c}"
+    return None
+
+
+def update_object_metadata(
+    *,
+    client: firestore.Client,
+    collection: str,
+    doc_id: str,
+    bucket: str,
+    name: str,
+    generation: str,
+    checksum: str | None,
+) -> None:
+    payload: dict[str, Any] = {
+        "object_bucket": bucket,
+        "object_name": name,
+        "object_generation": generation,
+        "updated_at": datetime.now(timezone.utc),
+    }
+    if checksum:
+        payload["object_checksum"] = checksum
+    client.collection(collection).document(doc_id).update(payload)
+
+
+def find_completed_by_checksum(
+    *,
+    client: firestore.Client,
+    collection: str,
+    checksum: str,
+    bucket: str | None = None,
+    name: str | None = None,
+    limit: int = 5,
+) -> dict[str, Any] | None:
+    query = (
+        client.collection(collection)
+        .where("object_checksum", "==", checksum)
+        .limit(limit)
+    )
+    for snapshot in query.stream():
+        data = snapshot.to_dict() or {}
+        if data.get("status") != "COMPLETED":
+            continue
+        if bucket is not None and data.get("object_bucket") != bucket:
+            continue
+        if name is not None and data.get("object_name") != name:
+            continue
+        data["doc_id"] = snapshot.id
+        return data
+    return None

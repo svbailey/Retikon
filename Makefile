@@ -7,9 +7,11 @@ APP_AUDIT_PRO ?= gcp_adapter.audit_service:app
 APP_WORKFLOW_PRO ?= gcp_adapter.workflow_service:app
 APP_DATA_FACTORY_PRO ?= gcp_adapter.data_factory_service:app
 APP_PRIVACY_PRO ?= gcp_adapter.privacy_service:app
+APP_DEV_CONSOLE_PRO ?= gcp_adapter.dev_console_service:app
 DOCKERFILE_PRO ?= Dockerfile.pro
+DOCKERFILE_DEV_CONSOLE ?= Dockerfile.dev-console
 
-.PHONY: lint fmt test run-ingest run-query build-ingest build-query run-gcp-ingest run-gcp-query run-gcp-audit run-gcp-workflow build-audit build-workflow build-data-factory build-privacy
+.PHONY: lint fmt test run-ingest run-query build-ingest build-query run-gcp-ingest run-gcp-query run-gcp-audit run-gcp-workflow build-audit build-workflow build-data-factory build-privacy build-dev-console
 
 lint:
 	$(PYTHON) -m ruff check .
@@ -56,3 +58,6 @@ build-data-factory:
 
 build-privacy:
 	docker build -f $(DOCKERFILE_PRO) -t retikon-privacy:dev --build-arg APP_MODULE=$(APP_PRIVACY_PRO) .
+
+build-dev-console:
+	docker build -f $(DOCKERFILE_DEV_CONSOLE) -t retikon-dev-console:dev --build-arg APP_MODULE=$(APP_DEV_CONSOLE_PRO) --build-arg PRELOAD_MODELS=0 .

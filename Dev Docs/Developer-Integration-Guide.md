@@ -157,6 +157,82 @@ POST /query
 }
 ```
 
+### Demo + Evidence APIs (Staging)
+These endpoints support the sales demo experience and BYO uploads in staging.
+
+#### List curated demo datasets
+```
+GET /demo/datasets
+```
+Configure datasets by setting one of:
+- `DEMO_DATASETS_PATH` pointing to a JSON file (see `Dev Docs/demo-datasets.sample.json`)
+- `DEMO_DATASETS_JSON` containing the JSON payload directly
+
+Response:
+```
+{
+  "datasets": [
+    {
+      "id": "safety-video",
+      "title": "Safety Training Video",
+      "modality": "video",
+      "summary": "Keyframes, transcript highlights, and linked incidents.",
+      "sample_query": "Where are the highest risk safety moments?",
+      "preview_uri": null,
+      "source_uri": null
+    }
+  ]
+}
+```
+
+#### Fetch evidence for a result
+```
+GET /evidence?uri=gs://bucket/raw/videos/sample.mp4
+```
+Response:
+```
+{
+  "uri": "gs://bucket/raw/videos/sample.mp4",
+  "signed_uri": "https://storage.googleapis.com/...",
+  "media_asset_id": null,
+  "frames": [],
+  "transcript_snippets": [],
+  "doc_snippets": [],
+  "graph_links": [],
+  "status": "pending"
+}
+```
+
+Signed URL verification:
+- Run `python scripts/verify_signed_url.py --uri gs://bucket/path` from a staging
+  environment to confirm the service account can sign GCS URLs.
+- The signing service account must have `iam.serviceAccountTokenCreator` and
+  storage read access to the target bucket.
+
+#### Check ingest status for a raw object
+```
+GET /ingest/status?uri=gs://bucket/raw/videos/sample.mp4
+```
+Note: If you are calling through the API Gateway hostname, prefer
+`GET /dev/ingest-status?uri=...` (same payload) because ingestion ingress is
+internal in staging.
+
+Response:
+```
+{
+  "status": "PROCESSING",
+  "uri": "gs://bucket/raw/videos/sample.mp4",
+  "bucket": "bucket",
+  "name": "raw/videos/sample.mp4",
+  "generation": "1",
+  "doc_id": "<sha256>",
+  "firestore": {
+    "status": "PROCESSING",
+    "manifest_uri": "gs://bucket/retikon_v2/manifests/..."
+  }
+}
+```
+
 ## 8) Graph Data Usage
 Retikon writes GraphAr Parquet data under `retikon_v2/`.
 Developers can query directly with DuckDB or Spark.

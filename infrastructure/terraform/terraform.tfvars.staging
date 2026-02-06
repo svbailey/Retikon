@@ -4,9 +4,10 @@ env                              = "staging"
 vpc_connector_name               = "retikon-vpc"
 raw_bucket_name                  = "retikon-raw-simitor-staging"
 graph_bucket_name                = "retikon-graph-simitor-staging"
+graph_prefix                    = "retikon_v2_demo_20260205"
 artifact_repo_name               = "retikon-repo"
 firestore_location               = "nam5"
-snapshot_uri                     = "gs://retikon-graph-simitor-staging/retikon_v2/snapshots/retikon.duckdb"
+snapshot_uri                     = "gs://retikon-graph-simitor-staging/retikon_v2_demo_20260205/snapshots/retikon.duckdb"
 raw_prefix                       = "raw"
 auth_gateway_userinfo            = true
 auth_issuer                      = "https://securetoken.google.com/simitor"
@@ -16,8 +17,8 @@ auth_admin_roles                 = "admin"
 auth_admin_groups                = "admins"
 auth_required_claims             = "sub,iss,aud,exp,iat,org_id"
 dev_console_auth_required_claims = "sub,iss,aud,exp,iat"
-cors_allow_origins               = "https://retikon-dev-console-simitor-dev.storage.googleapis.com,https://storage.googleapis.com"
-dev_console_cors_allow_origins   = "https://retikon-dev-console-simitor-dev.storage.googleapis.com,https://storage.googleapis.com"
+cors_allow_origins               = "https://retikon-dev-console-staging-423745254982.us-central1.run.app,https://retikon-dev-console-staging-yt27ougp4q-uc.a.run.app,https://retikon-dev-console-simitor-dev.storage.googleapis.com,https://storage.googleapis.com"
+dev_console_cors_allow_origins   = "https://retikon-dev-console-staging-423745254982.us-central1.run.app,https://retikon-dev-console-staging-yt27ougp4q-uc.a.run.app,https://retikon-dev-console-simitor-dev.storage.googleapis.com,https://storage.googleapis.com"
 allow_browser_direct_access      = true
 default_org_id                   = "simitor"
 default_site_id                  = ""
@@ -37,9 +38,14 @@ duckdb_auth_provider             = "gcp_adapter.duckdb_auth:GcsDuckDBAuthProvide
 index_builder_work_dir           = "/tmp"
 index_builder_copy_local         = false
 index_builder_fallback_local     = true
-max_frames_per_video             = 600
+max_frames_per_video             = 200
 max_ingest_attempts              = 5
 model_inference_timeout_seconds  = 90
+model_inference_image_timeout_seconds = 120
+video_sample_fps                 = 0.5
+video_sample_interval_seconds    = 2
+video_scene_threshold            = 0.45
+video_scene_min_frames           = 3
 max_preview_bytes                = 52428800
 chunk_target_tokens             = 256
 chunk_overlap_tokens            = 50
@@ -130,8 +136,8 @@ whisper_detect_seconds   = 30
 whisper_task             = "transcribe"
 whisper_non_english_task = "translate"
 
-ingestion_image             = "us-central1-docker.pkg.dev/simitor/retikon-repo/retikon-ingest:dev-20260204-183948"
-query_image                 = "us-central1-docker.pkg.dev/simitor/retikon-repo/retikon-query:dev-20260204-111920"
+ingestion_image             = "us-central1-docker.pkg.dev/simitor/retikon-repo/retikon-ingest:dev-20260205-154349"
+query_image                 = "us-central1-docker.pkg.dev/simitor/retikon-repo/retikon-query:dev-20260205-151800"
 query_embedding_backend     = ""
 query_gpu_enabled           = false
 query_gpu_region            = "us-east4"
@@ -151,10 +157,10 @@ privacy_image               = "us-central1-docker.pkg.dev/simitor/retikon-repo/r
 fleet_image                 = "us-central1-docker.pkg.dev/simitor/retikon-repo/retikon-workflows:dev-20260202-123333"
 data_factory_image          = "us-central1-docker.pkg.dev/simitor/retikon-repo/retikon-workflows:dev-20260202-123333"
 webhook_image               = "us-central1-docker.pkg.dev/simitor/retikon-repo/retikon-workflows:dev-20260202-123333"
-index_image                 = "us-central1-docker.pkg.dev/simitor/retikon-repo/retikon-query:dev-20260202-211610"
-dev_console_image           = "us-central1-docker.pkg.dev/simitor/retikon-repo/retikon-dev-console:dev-20260204-165231563"
-edge_gateway_image          = "us-central1-docker.pkg.dev/simitor/retikon-repo/retikon-edge-gateway:dev-20260202-123333"
-stream_ingest_image         = "us-central1-docker.pkg.dev/simitor/retikon-repo/retikon-stream-ingest:dev-20260204-183948"
+index_image                 = "us-central1-docker.pkg.dev/simitor/retikon-repo/retikon-query:dev-20260205-151800"
+dev_console_image           = "us-central1-docker.pkg.dev/simitor/retikon-repo/retikon-dev-console:dev-20260205-170409"
+edge_gateway_image          = "us-central1-docker.pkg.dev/simitor/retikon-repo/retikon-edge-gateway:dev-20260205-092607"
+stream_ingest_image         = "us-central1-docker.pkg.dev/simitor/retikon-repo/retikon-ingest:dev-20260205-154349"
 compaction_image            = "us-central1-docker.pkg.dev/simitor/retikon-repo/retikon-compaction:dev-20260202-123333"
 
 api_gateway_config_name = "retikon-gateway-config-staging"
@@ -177,3 +183,38 @@ stream_ingest_subscription_name = "retikon-stream-ingest-sub-staging"
 stream_ingest_topic_name = "retikon-stream-ingest-staging"
 webhook_service_account_name = "retikon-webhooks-sa-staging"
 workflow_service_account_name = "retikon-workflows-sa-staging"
+
+
+demo_datasets_json = <<EOT
+{
+  "datasets": [
+    {
+      "id": "safety-video",
+      "title": "Safety Training Video",
+      "modality": "video",
+      "summary": "Keyframes, transcript highlights, and linked incidents.",
+      "sample_query": "Where are the highest risk safety moments?",
+      "preview_uri": "gs://retikon-raw-simitor-staging/raw/videos/demo-20260205/sample.mp4",
+      "source_uri": "gs://retikon-raw-simitor-staging/raw/videos/demo-20260205/sample.mp4"
+    },
+    {
+      "id": "support-audio",
+      "title": "Customer Support Call",
+      "modality": "audio",
+      "summary": "Speaker turns, topic clusters, and sentiment cues.",
+      "sample_query": "Summarize the top customer complaints.",
+      "preview_uri": "gs://retikon-raw-simitor-staging/raw/audio/demo-20260205/sample.wav",
+      "source_uri": "gs://retikon-raw-simitor-staging/raw/audio/demo-20260205/sample.wav"
+    },
+    {
+      "id": "incident-docs",
+      "title": "Security Incident Docs",
+      "modality": "document",
+      "summary": "Policy, log, and incident evidence stitched together.",
+      "sample_query": "Which policies were violated in this incident?",
+      "preview_uri": "gs://retikon-raw-simitor-staging/raw/docs/demo-20260205/sample.pdf",
+      "source_uri": "gs://retikon-raw-simitor-staging/raw/docs/demo-20260205/sample.pdf"
+    }
+  ]
+}
+EOT

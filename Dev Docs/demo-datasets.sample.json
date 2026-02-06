@@ -1,0 +1,31 @@
+{
+  "datasets": [
+    {
+      "id": "safety-video",
+      "title": "Safety Training Video",
+      "modality": "video",
+      "summary": "Keyframes, transcript highlights, and linked incidents.",
+      "sample_query": "Where are the highest risk safety moments?",
+      "preview_uri": "gs://retikon-raw-simitor-staging/raw/videos/demo-20260204/sample.mp4",
+      "source_uri": "gs://retikon-raw-simitor-staging/raw/videos/demo-20260204/sample.mp4"
+    },
+    {
+      "id": "support-audio",
+      "title": "Customer Support Call",
+      "modality": "audio",
+      "summary": "Speaker turns, topic clusters, and sentiment cues.",
+      "sample_query": "Summarize the top customer complaints.",
+      "preview_uri": "gs://retikon-raw-simitor-staging/raw/audio/demo-20260204/sample.wav",
+      "source_uri": "gs://retikon-raw-simitor-staging/raw/audio/demo-20260204/sample.wav"
+    },
+    {
+      "id": "incident-docs",
+      "title": "Security Incident Docs",
+      "modality": "document",
+      "summary": "Policy, log, and incident evidence stitched together.",
+      "sample_query": "Which policies were violated in this incident?",
+      "preview_uri": "gs://retikon-raw-simitor-staging/raw/docs/demo-20260204/sample.pdf",
+      "source_uri": "gs://retikon-raw-simitor-staging/raw/docs/demo-20260204/sample.pdf"
+    }
+  ]
+}

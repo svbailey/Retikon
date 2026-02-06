@@ -22,6 +22,7 @@ Defaults shown match current code where applicable.
 - `USE_REAL_MODELS=0|1`
 - `MODEL_DIR`
 - `EMBEDDING_DEVICE`
+- `DOC_EMBED_BATCH_SIZE` (document embedding batch size; defaults to `32`)
 - `TEXT_MODEL_NAME`
 - `TEXT_MODEL_MAX_TOKENS` (default `512`)
 - `IMAGE_MODEL_NAME`

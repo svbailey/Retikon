@@ -174,6 +174,12 @@ resource "google_service_account" "query" {
   display_name = "Retikon Query Service Account"
 }
 
+resource "google_service_account_iam_member" "query_token_creator" {
+  service_account_id = google_service_account.query.name
+  role               = "roles/iam.serviceAccountTokenCreator"
+  member             = "serviceAccount:${google_service_account.query.email}"
+}
+
 resource "google_service_account" "audit" {
   account_id   = var.audit_service_account_name
   display_name = "Retikon Audit Service Account"
@@ -729,6 +735,10 @@ resource "google_cloud_run_service" "ingestion" {
           value = var.graph_prefix
         }
         env {
+          name  = "GOOGLE_SERVICE_ACCOUNT_EMAIL"
+          value = google_service_account.query.email
+        }
+        env {
           name  = "AUDIT_BATCH_SIZE"
           value = tostring(var.audit_batch_size)
         }
@@ -743,6 +753,14 @@ resource "google_cloud_run_service" "ingestion" {
         env {
           name  = "MODEL_INFERENCE_TIMEOUT_S"
           value = tostring(var.model_inference_timeout_seconds)
+        }
+        env {
+          name  = "MODEL_INFERENCE_IMAGE_TIMEOUT_S"
+          value = tostring(var.model_inference_image_timeout_seconds)
+        }
+        env {
+          name  = "MODEL_INFERENCE_IMAGE_TIMEOUT_S"
+          value = tostring(var.model_inference_image_timeout_seconds)
         }
         env {
           name  = "MAX_VIDEO_SECONDS"
@@ -854,11 +872,19 @@ resource "google_cloud_run_service" "ingestion" {
         }
         env {
           name  = "VIDEO_SAMPLE_FPS"
-          value = "1.0"
+          value = tostring(var.video_sample_fps)
         }
         env {
           name  = "VIDEO_SAMPLE_INTERVAL_SECONDS"
-          value = "0"
+          value = tostring(var.video_sample_interval_seconds)
+        }
+        env {
+          name  = "VIDEO_SCENE_THRESHOLD"
+          value = tostring(var.video_scene_threshold)
+        }
+        env {
+          name  = "VIDEO_SCENE_MIN_FRAMES"
+          value = tostring(var.video_scene_min_frames)
         }
       }
     }
@@ -927,6 +953,10 @@ resource "google_cloud_run_service" "query" {
         env {
           name  = "CORS_ALLOW_ORIGINS"
           value = var.cors_allow_origins
+        }
+        env {
+          name  = "DEMO_DATASETS_JSON"
+          value = var.demo_datasets_json
         }
         env {
           name  = "AUTH_ISSUER"
@@ -1071,6 +1101,10 @@ resource "google_cloud_run_service" "query" {
         env {
           name  = "GRAPH_PREFIX"
           value = var.graph_prefix
+        }
+        env {
+          name  = "GOOGLE_SERVICE_ACCOUNT_EMAIL"
+          value = google_service_account.query.email
         }
         env {
           name  = "AUDIT_BATCH_SIZE"
@@ -1635,6 +1669,10 @@ resource "google_cloud_run_service" "audit" {
         env {
           name  = "LOG_LEVEL"
           value = var.log_level
+        }
+        env {
+          name  = "CORS_ALLOW_ORIGINS"
+          value = var.cors_allow_origins
         }
         env {
           name  = "AUTH_ISSUER"
@@ -3145,6 +3183,10 @@ resource "google_cloud_run_service" "edge_gateway" {
           value = var.log_level
         }
         env {
+          name  = "CORS_ALLOW_ORIGINS"
+          value = var.cors_allow_origins
+        }
+        env {
           name  = "AUTH_ISSUER"
           value = var.auth_issuer
         }
@@ -3235,6 +3277,14 @@ resource "google_cloud_run_service" "edge_gateway" {
         env {
           name  = "RAW_PREFIX"
           value = var.raw_prefix
+        }
+        env {
+          name  = "GRAPH_BUCKET"
+          value = google_storage_bucket.graph.name
+        }
+        env {
+          name  = "GRAPH_PREFIX"
+          value = var.graph_prefix
         }
         env {
           name  = "MAX_RAW_BYTES"
@@ -3590,11 +3640,19 @@ resource "google_cloud_run_service" "stream_ingest" {
         }
         env {
           name  = "VIDEO_SAMPLE_FPS"
-          value = "1.0"
+          value = tostring(var.video_sample_fps)
         }
         env {
           name  = "VIDEO_SAMPLE_INTERVAL_SECONDS"
-          value = "0"
+          value = tostring(var.video_sample_interval_seconds)
+        }
+        env {
+          name  = "VIDEO_SCENE_THRESHOLD"
+          value = tostring(var.video_scene_threshold)
+        }
+        env {
+          name  = "VIDEO_SCENE_MIN_FRAMES"
+          value = tostring(var.video_scene_min_frames)
         }
         env {
           name  = "STREAM_INGEST_TOPIC"

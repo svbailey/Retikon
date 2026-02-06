@@ -21,20 +21,22 @@ def _get_signing_credentials():
     if _SIGNER_CREDS is not None:
         return _SIGNER_CREDS
     creds, _ = google.auth.default()
-    if creds.requires_scopes:
-        creds = creds.with_scopes(
-            [
-                "https://www.googleapis.com/auth/devstorage.read_only",
-                "https://www.googleapis.com/auth/iam",
-            ]
-        )
+    scopes = [
+        "https://www.googleapis.com/auth/devstorage.read_only",
+        "https://www.googleapis.com/auth/iam",
+    ]
+    if hasattr(creds, "with_scopes"):
+        creds = creds.with_scopes(scopes)
     if hasattr(creds, "sign_bytes"):
         _SIGNER_CREDS = creds
         return _SIGNER_CREDS
     request = Request()
-    service_account_email = getattr(creds, "service_account_email", None) or os.getenv(
-        "GOOGLE_SERVICE_ACCOUNT_EMAIL"
+    env_service_account = os.getenv("GOOGLE_SERVICE_ACCOUNT_EMAIL")
+    service_account_email = env_service_account or getattr(
+        creds, "service_account_email", None
     )
+    if service_account_email == "default" and env_service_account:
+        service_account_email = env_service_account
     if not service_account_email:
         raise RecoverableError(
             "Service account email is required to sign URLs via IAM."

@@ -20,6 +20,7 @@ make build-audit
 make build-workflow
 make build-data-factory
 make build-privacy
+make build-dev-console
 ```
 
 ## Optional monolith deployment (single-service Pro)

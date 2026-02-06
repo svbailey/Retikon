@@ -1,11 +1,13 @@
 from __future__ import annotations
 
+import mimetypes
 import os
 import uuid
 from dataclasses import dataclass
 from typing import Annotated
 
 import fsspec
+from google.cloud import storage
 from fastapi import FastAPI, File, Form, HTTPException, Request, UploadFile
 from pydantic import BaseModel
 
@@ -129,6 +131,68 @@ def _force_buffer() -> bool:
     return os.getenv("EDGE_FORCE_BUFFER", "0") == "1"
 
 
+_FALLBACK_CONTENT_TYPES = {
+    ".pdf": "application/pdf",
+    ".txt": "text/plain",
+    ".md": "text/markdown",
+    ".rtf": "application/rtf",
+    ".docx": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+    ".pptx": "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+    ".csv": "text/csv",
+    ".tsv": "text/tab-separated-values",
+    ".xlsx": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    ".xls": "application/vnd.ms-excel",
+    ".jpg": "image/jpeg",
+    ".jpeg": "image/jpeg",
+    ".png": "image/png",
+    ".webp": "image/webp",
+    ".bmp": "image/bmp",
+    ".tiff": "image/tiff",
+    ".gif": "image/gif",
+    ".mp3": "audio/mpeg",
+    ".wav": "audio/wav",
+    ".flac": "audio/flac",
+    ".m4a": "audio/mp4",
+    ".aac": "audio/aac",
+    ".ogg": "audio/ogg",
+    ".opus": "audio/opus",
+    ".mp4": "video/mp4",
+    ".mov": "video/quicktime",
+    ".avi": "video/x-msvideo",
+    ".webm": "video/webm",
+    ".mkv": "video/x-matroska",
+    ".mpeg": "video/mpeg",
+    ".mpg": "video/mpeg",
+}
+
+
+def _normalize_content_type(value: str | None) -> str | None:
+    if not value:
+        return None
+    return value.split(";", 1)[0].strip().lower()
+
+
+def _resolve_content_type(filename: str, content_type: str | None) -> str | None:
+    normalized = _normalize_content_type(content_type)
+    if normalized and normalized != "application/octet-stream":
+        return normalized
+    guessed, _ = mimetypes.guess_type(filename)
+    if guessed:
+        return guessed
+    _, ext = os.path.splitext(filename.lower())
+    return _FALLBACK_CONTENT_TYPES.get(ext)
+
+
+def _split_gs_uri(uri: str) -> tuple[str, str]:
+    if not uri.startswith("gs://"):
+        raise ValueError("Not a GCS URI")
+    path = uri[5:]
+    bucket, _, name = path.partition("/")
+    if not bucket or not name:
+        raise ValueError("Invalid GCS URI")
+    return bucket, name
+
+
 def _init_state() -> GatewayState:
     buffer = EdgeBuffer(
         base_dir=_buffer_dir(),
@@ -207,7 +271,19 @@ def _object_path(
     return f"{modality}/{site}/{device}/{stream}/{slug}_{safe_name}"
 
 
-def _write_to_store(payload: bytes, dest_uri: str) -> int:
+def _write_to_store(
+    payload: bytes,
+    dest_uri: str,
+    *,
+    content_type: str | None,
+    filename: str,
+) -> int:
+    if dest_uri.startswith("gs://"):
+        bucket, name = _split_gs_uri(dest_uri)
+        resolved = _resolve_content_type(filename, content_type)
+        blob = storage.Client().bucket(bucket).blob(name)
+        blob.upload_from_string(payload, content_type=resolved)
+        return len(payload)
     fs, path = fsspec.core.url_to_fs(dest_uri)
     fs.makedirs(os.path.dirname(path), exist_ok=True)
     with fs.open(path, "wb") as handle:
@@ -223,6 +299,7 @@ def _store_payload(
     device_id: str | None,
     stream_id: str | None,
     site_id: str | None,
+    content_type: str | None,
 ) -> tuple[str, int]:
     base_uri = _raw_base_uri().rstrip("/")
     dest_path = _object_path(
@@ -233,7 +310,12 @@ def _store_payload(
         site_id=site_id,
     )
     dest_uri = f"{base_uri}/{dest_path}"
-    bytes_written = _write_to_store(payload, dest_uri)
+    bytes_written = _write_to_store(
+        payload,
+        dest_uri,
+        content_type=content_type,
+        filename=filename,
+    )
     return dest_uri, bytes_written
 
 
@@ -269,6 +351,7 @@ def _replay_item(item: BufferItem) -> bool:
             device_id=meta.get("device_id"),
             stream_id=meta.get("stream_id"),
             site_id=meta.get("site_id"),
+            content_type=meta.get("content_type"),
         )
     except Exception as exc:
         logger.warning("Replay failed", extra={"error_message": str(exc)})
@@ -405,6 +488,7 @@ async def upload(
             device_id=device_id,
             stream_id=stream_id,
             site_id=site_id,
+            content_type=file.content_type,
         )
         logger.info(
             "Edge upload stored",

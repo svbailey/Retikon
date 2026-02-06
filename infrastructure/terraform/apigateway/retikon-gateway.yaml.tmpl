@@ -105,6 +105,48 @@ paths:
       responses:
         "200":
           description: "OK"
+  /demo/datasets:
+    get:
+      operationId: demo_datasets_get
+      x-google-backend:
+        address: "${query_url}"
+        jwt_audience: "${query_url}"
+        path_translation: APPEND_PATH_TO_ADDRESS
+        deadline: 120.0
+      responses:
+        "200":
+          description: "OK"
+    options:
+      operationId: demo_datasets_options
+      security: []
+      x-google-backend:
+        address: "${query_url}"
+        jwt_audience: "${query_url}"
+        path_translation: APPEND_PATH_TO_ADDRESS
+      responses:
+        "200":
+          description: "OK"
+  /evidence:
+    get:
+      operationId: evidence_get
+      x-google-backend:
+        address: "${query_url}"
+        jwt_audience: "${query_url}"
+        path_translation: APPEND_PATH_TO_ADDRESS
+        deadline: 120.0
+      responses:
+        "200":
+          description: "OK"
+    options:
+      operationId: evidence_options
+      security: []
+      x-google-backend:
+        address: "${query_url}"
+        jwt_audience: "${query_url}"
+        path_translation: APPEND_PATH_TO_ADDRESS
+      responses:
+        "200":
+          description: "OK"
   /workflows:
     get:
       operationId: workflows_get
@@ -639,6 +681,16 @@ paths:
       responses:
         "200":
           description: "OK"
+    options:
+      operationId: access_proxy_options
+      security: []
+      x-google-backend:
+        address: "${audit_url}"
+        jwt_audience: "${audit_url}"
+        path_translation: APPEND_PATH_TO_ADDRESS
+      responses:
+        "200":
+          description: "OK"
   /webhooks:
     get:
       operationId: webhooks_get
@@ -1049,16 +1101,6 @@ paths:
       x-google-backend:
         address: "${edge_gateway_url}"
         jwt_audience: "${edge_gateway_url}"
-        path_translation: APPEND_PATH_TO_ADDRESS
-      responses:
-        "200":
-          description: "OK"
-    options:
-      operationId: access_proxy_options
-      security: []
-      x-google-backend:
-        address: "${audit_url}"
-        jwt_audience: "${audit_url}"
         path_translation: APPEND_PATH_TO_ADDRESS
       responses:
         "200":

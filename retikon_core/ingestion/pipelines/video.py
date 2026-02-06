@@ -108,7 +108,7 @@ def ingest_video(
     if config.max_frames_per_video > 0:
         expected_frames = int(math.ceil(probe.duration_seconds * fps))
         if probe.frame_count is not None:
-            expected_frames = max(expected_frames, probe.frame_count)
+            expected_frames = min(expected_frames, probe.frame_count)
         if expected_frames > config.max_frames_per_video:
             raise PermanentError("Video exceeds max frames")
 

@@ -5,6 +5,7 @@ import json
 import os
 import time
 import uuid
+from datetime import datetime
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -18,6 +19,7 @@ import pyarrow.parquet as pq
 import requests  # type: ignore[import-untyped]
 from fastapi import FastAPI, File, Form, HTTPException, Request, UploadFile
 from fastapi.responses import StreamingResponse
+from fastapi.staticfiles import StaticFiles
 from google.auth.transport import requests as google_requests
 from google.auth.transport.requests import AuthorizedSession
 from google.cloud import firestore, storage
@@ -323,6 +325,50 @@ def _load_label_catalog() -> list[LabelEntry]:
     return entries
 
 
+def _parse_rfc3339(value: str | None) -> datetime | None:
+    if not value:
+        return None
+    try:
+        return datetime.fromisoformat(value.replace("Z", "+00:00"))
+    except ValueError:
+        return None
+
+
+def _latest_execution(executions: list[dict[str, object]]) -> dict[str, object] | None:
+    latest = None
+    latest_at = None
+    for execution in executions:
+        created_at = _parse_rfc3339(
+            str(execution.get("createTime") or execution.get("startTime") or "")
+        )
+        if created_at is None:
+            continue
+        if latest_at is None or created_at > latest_at:
+            latest = execution
+            latest_at = created_at
+    return latest
+
+
+def _execution_completion(execution: dict[str, object]) -> tuple[str | None, str | None]:
+    completion_time = execution.get("completionTime")
+    succeeded = execution.get("succeededCount")
+    failed = execution.get("failedCount") or execution.get("cancelledCount")
+    task_count = execution.get("taskCount")
+    if completion_time:
+        if failed:
+            return "FAILED", str(completion_time)
+        if succeeded is not None and task_count is not None:
+            try:
+                if int(succeeded) >= int(task_count):
+                    return "SUCCEEDED", str(completion_time)
+            except (TypeError, ValueError):
+                pass
+        return "COMPLETED", str(completion_time)
+    if execution.get("startTime"):
+        return "RUNNING", None
+    return "PENDING", None
+
+
 def _label_embeddings(cache_key: str) -> tuple[list[LabelEntry], np.ndarray]:
     cached = _LABEL_EMBED_CACHE.get(cache_key)
     if cached is not None:
@@ -443,14 +489,18 @@ def _firestore_client() -> firestore.Client:
 
 
 def _forward_auth_headers(request: Request) -> dict[str, str]:
+    headers: dict[str, str] = {}
     header = (
         request.headers.get("authorization")
         or request.headers.get("x-forwarded-authorization")
         or request.headers.get("x-original-authorization")
     )
-    if not header:
-        return {}
-    return {"authorization": header}
+    if header:
+        headers["authorization"] = header
+    gateway_userinfo = request.headers.get("x-endpoint-api-userinfo")
+    if gateway_userinfo:
+        headers["x-endpoint-api-userinfo"] = gateway_userinfo
+    return headers
 
 
 @app.get("/health")
@@ -841,8 +891,10 @@ async def snapshot_reload(request: Request) -> dict[str, object]:
     )
     base_url = _query_service_url()
     headers = _forward_auth_headers(request)
+    if "x-endpoint-api-userinfo" not in headers and auth_context and auth_context.claims:
+        headers["x-endpoint-api-userinfo"] = json.dumps(auth_context.claims)
     token = _fetch_id_token(base_url)
-    if token and "authorization" not in headers:
+    if token and "authorization" not in headers and "x-endpoint-api-userinfo" not in headers:
         headers["authorization"] = f"Bearer {token}"
     resp = requests.post(
         f"{base_url}/admin/reload-snapshot",
@@ -881,10 +933,35 @@ async def index_status(request: Request) -> dict[str, object]:
     payload = resp.json()
     status = payload.get("status", {})
     latest = status.get("latestCreatedExecution", {})
+    completion_status = latest.get("completionStatus") if isinstance(latest, dict) else None
+    completion_time = latest.get("completionTimestamp") if isinstance(latest, dict) else None
+    latest_name = latest.get("name") if isinstance(latest, dict) else None
+    if not completion_time:
+        executions_url = (
+            f"https://run.googleapis.com/v2/projects/{project}/locations/{region}/jobs/{job_name}/executions?pageSize=5"
+        )
+        executions_resp = session.get(executions_url)
+        if executions_resp.status_code < 300:
+            executions = executions_resp.json().get("executions", [])
+            latest_exec = _latest_execution(executions)
+            if latest_exec:
+                completion_status, completion_time = _execution_completion(latest_exec)
+                latest_name = latest_exec.get("name")
     return {
         "job_name": job_name,
         "region": region,
-        "latest_execution": latest.get("name"),
-        "completion_status": latest.get("completionStatus"),
-        "completion_time": latest.get("completionTimestamp"),
+        "latest_execution": latest_name,
+        "completion_status": completion_status,
+        "completion_time": completion_time,
     }
+
+
+def _mount_static_ui() -> None:
+    static_dir = Path(os.getenv("DEV_CONSOLE_STATIC_DIR", "/app/static"))
+    if not static_dir.exists():
+        return
+    app.mount("/", StaticFiles(directory=str(static_dir), html=True), name="static")
+    logger.info("Static UI enabled", extra={"static_dir": str(static_dir)})
+
+
+_mount_static_ui()

@@ -1,0 +1,1400 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1.0"
+    />
+    <title>Retikon Demo</title>
+    <link
+      rel="preconnect"
+      href="https://fonts.googleapis.com"
+    />
+    <link
+      rel="preconnect"
+      href="https://fonts.gstatic.com"
+      crossorigin
+    />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Manrope:wght@300;400;500;600&family=Space+Grotesk:wght@400;600&display=swap"
+      rel="stylesheet"
+    />
+    <link
+      rel="stylesheet"
+      href="visual-core.css"
+    />
+  </head>
+  <body>
+    <main class="shell">
+      <header class="hero">
+        <div>
+          <span class="pill accent">retikon demo</span>
+          <h1>Retikon turns messy media into trusted answers.</h1>
+          <p class="subtitle">
+            Upload your own files or start with a curated dataset. Retikon
+            extracts evidence, connects context, and delivers answers you can
+            prove.
+          </p>
+          <div class="hero-actions">
+            <button id="startDemo">Start demo</button>
+            <button id="uploadShortcut" class="secondary">Upload your own</button>
+          </div>
+          <p class="notice">
+            Demo runs on staging. Session token stays in this browser tab only.
+          </p>
+        </div>
+        <div class="hero-card">
+          <h3>What you will see</h3>
+          <div class="hero-metrics">
+            <div class="metric">
+              <span>Modalities</span>
+              <strong>Video, Audio, Docs</strong>
+            </div>
+            <div class="metric">
+              <span>Evidence</span>
+              <strong>Frames + Transcript</strong>
+            </div>
+            <div class="metric">
+              <span>Time to answer</span>
+              <strong>&lt; 90 seconds</strong>
+            </div>
+          </div>
+          <div class="notice">
+            Each answer includes provenance, timestamps, and source links.
+          </div>
+        </div>
+      </header>
+
+      <section class="panel">
+        <div class="panel-header">
+          <h2>Demo access</h2>
+          <span class="pill warm">staging</span>
+        </div>
+        <div class="field">
+          <label>Access token (session only)</label>
+          <input
+            id="demoToken"
+            type="password"
+            placeholder="Paste demo JWT"
+          />
+        </div>
+        <div class="field">
+          <label>API base URL (Gateway)</label>
+          <input
+            id="demoApiBase"
+            type="url"
+            placeholder="https://retikon-gateway-staging-...uc.gateway.dev"
+          />
+        </div>
+        <div class="actions">
+          <button id="saveDemoConfig" class="secondary">Save session</button>
+          <button id="clearDemoConfig" class="ghost">Clear</button>
+        </div>
+        <p class="notice">
+          You can still explore the layout without a token. Live calls require
+          staging access.
+        </p>
+      </section>
+
+      <section class="panel" id="datasetSection">
+        <div class="panel-header">
+          <h2>Choose a starting dataset</h2>
+        </div>
+        <div class="dataset-grid" id="datasetGrid">
+          <div
+            class="dataset-card active"
+            data-demo="safety-video"
+            data-query="Where are the highest risk safety moments?"
+            tabindex="0"
+          >
+            <strong>Safety Training Video</strong>
+            <div class="dataset-meta">Video | 3:20 | Warehouse</div>
+            <p class="notice">
+              See key moments, transcript highlights, and linked incidents.
+            </p>
+            <div class="dataset-badges">
+              <span class="tag">Keyframes</span>
+              <span class="tag">Transcript</span>
+              <span class="tag">Relations</span>
+            </div>
+          </div>
+          <div
+            class="dataset-card"
+            data-demo="support-audio"
+            data-query="Summarize the top customer complaints."
+            tabindex="0"
+          >
+            <strong>Customer Support Call</strong>
+            <div class="dataset-meta">Audio | 12:45 | Claims</div>
+            <p class="notice">
+              Listen to critical moments and surface top complaint themes.
+            </p>
+            <div class="dataset-badges">
+              <span class="tag">Speaker turns</span>
+              <span class="tag">Topics</span>
+            </div>
+          </div>
+          <div
+            class="dataset-card"
+            data-demo="incident-docs"
+            data-query="Which policies were violated in this incident?"
+            tabindex="0"
+          >
+            <strong>Security Incident Docs</strong>
+            <div class="dataset-meta">Documents | 14 files</div>
+            <p class="notice">
+              Pull evidence across policies, logs, and incident reports.
+            </p>
+            <div class="dataset-badges">
+              <span class="tag">Doc chunks</span>
+              <span class="tag">Entities</span>
+            </div>
+          </div>
+          <div class="upload-card" id="uploadCard">
+            <strong>Upload your own file</strong>
+            <p class="notice">
+              Supported: PDF, DOCX, PPTX, JPG/PNG, MP3/WAV, MP4/MOV.
+            </p>
+            <div class="field">
+              <label>Modality</label>
+              <select id="uploadModality">
+                <option value="docs">Document</option>
+                <option value="images">Image</option>
+                <option value="audio">Audio</option>
+                <option value="videos">Video</option>
+              </select>
+            </div>
+            <label class="upload-drop" for="demoUpload">
+              Drag and drop a file or click to browse.
+            </label>
+            <input
+              id="demoUpload"
+              type="file"
+              accept=".pdf,.txt,.md,.rtf,.docx,.doc,.pptx,.ppt,.csv,.tsv,.xlsx,.xls,.jpg,.jpeg,.png,.webp,.bmp,.tiff,.gif,.mp3,.wav,.flac,.m4a,.aac,.ogg,.opus,.mp4,.mov,.mkv,.webm,.avi,.mpeg,.mpg"
+            />
+            <div class="notice" id="uploadStatus" role="status" aria-live="polite">
+              No file selected. Max 500 MB. Video limit 300s. Audio limit 20m.
+            </div>
+            <div class="actions">
+              <button id="uploadBtn" class="secondary" disabled>
+                Upload to staging
+              </button>
+              <button id="clearUpload" class="ghost">Reset</button>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="panel pipeline-rail" id="pipelinePanel">
+        <div class="panel-header">
+          <div>
+            <h2>Live pipeline</h2>
+            <p class="panel-subtitle">
+              Track each stage from ingest to query-ready results.
+            </p>
+          </div>
+          <span class="pill accent" id="pipelineStatusPill">idle</span>
+        </div>
+        <div class="pipeline-rail-grid">
+          <div class="pipeline-track" role="list">
+            <article class="rail-step" data-step="upload" data-state="idle" role="listitem">
+              <span class="rail-label">Upload</span>
+              <strong>File received</strong>
+              <span class="rail-status">Waiting for a file</span>
+            </article>
+            <article class="rail-step" data-step="ingest" data-state="queued" role="listitem">
+              <span class="rail-label">Ingest</span>
+              <strong>Validate + register</strong>
+              <span class="rail-status">Queued</span>
+            </article>
+            <article class="rail-step" data-step="extract" data-state="queued" role="listitem">
+              <span class="rail-label">Extract</span>
+              <strong>Frames + transcript</strong>
+              <span class="rail-status">Queued</span>
+            </article>
+            <article class="rail-step" data-step="graph" data-state="queued" role="listitem">
+              <span class="rail-label">Graph + embeddings</span>
+              <strong>Connect evidence</strong>
+              <span class="rail-status">Queued</span>
+            </article>
+            <article class="rail-step" data-step="index" data-state="queued" role="listitem">
+              <span class="rail-label">Index</span>
+              <strong>Optimize for search</strong>
+              <span class="rail-status">Waiting for refresh</span>
+            </article>
+            <article class="rail-step" data-step="ready" data-state="idle" role="listitem">
+              <span class="rail-label">Ready</span>
+              <strong>Query-ready</strong>
+              <span class="rail-status">Not ready yet</span>
+            </article>
+          </div>
+          <div class="pipeline-side">
+            <div class="pipeline-card panel-strong">
+              <span class="rail-label">Current stage</span>
+              <h3 id="pipelineSummaryTitle">Waiting for your file</h3>
+              <p class="notice" id="pipelineSummary">
+                Upload a file or choose a dataset to begin.
+              </p>
+              <div class="pipeline-meta">
+                <div>
+                  <span>Last update</span>
+                  <strong id="pipelineTime">--</strong>
+                </div>
+                <div>
+                  <span>Auto refresh</span>
+                  <strong id="pipelineRefreshState">On</strong>
+                </div>
+              </div>
+              <div class="actions">
+                <button id="pipelineRefresh" class="ghost">Refresh now</button>
+              </div>
+            </div>
+            <div class="pipeline-card panel-strong">
+              <div class="panel-header">
+                <h3>Artifacts</h3>
+                <span class="pill warm">live</span>
+              </div>
+              <div class="artifact-list">
+                <div class="artifact-row" data-artifact="manifest">
+                  <span>Manifest</span>
+                  <strong class="artifact-value">Pending</strong>
+                </div>
+                <div class="artifact-row" data-artifact="text">
+                  <span>Text segments</span>
+                  <strong class="artifact-value">Pending</strong>
+                </div>
+                <div class="artifact-row" data-artifact="visual">
+                  <span>Keyframes</span>
+                  <strong class="artifact-value">Pending</strong>
+                </div>
+                <div class="artifact-row" data-artifact="graph">
+                  <span>Graph links</span>
+                  <strong class="artifact-value">Pending</strong>
+                </div>
+              </div>
+              <p class="notice" id="artifactNote">
+                Artifacts appear as soon as extraction finishes.
+              </p>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="answer-grid">
+        <div class="answer-panel">
+          <div class="panel-header">
+            <h2>Answer</h2>
+            <span class="pill warm" id="answerPill">draft</span>
+          </div>
+          <div class="field">
+            <label>Ask a question</label>
+            <input
+              id="demoQueryText"
+              type="text"
+              value="What are the most critical safety moments?"
+            />
+          </div>
+          <div class="actions">
+            <button id="runQuery">Run query</button>
+            <button id="resetQuery" class="secondary">Reset</button>
+          </div>
+          <p id="answerText" role="status" aria-live="polite">
+            Retikon found three critical safety moments. Two involve forklift
+            proximity violations near the loading dock.
+          </p>
+          <div class="answer-highlights" id="answerHighlights">
+            <div class="summary-item">Violation detected at 00:47.</div>
+            <div class="summary-item">Nearest entity: "pallet jack".</div>
+            <div class="summary-item">Source: Safety Training Video.</div>
+          </div>
+          <div class="dataset-badges" id="answerBadges">
+            <span class="tag">Confidence 0.88</span>
+            <span class="tag">Evidence linked</span>
+          </div>
+        </div>
+
+        <div class="evidence-panel">
+          <div class="panel-header">
+            <h2>Evidence</h2>
+            <span class="pill accent">proof</span>
+          </div>
+          <div class="story-video" id="evidencePlayer">
+            <div class="story-header">
+              <div>
+                <h3>Source preview</h3>
+                <p class="notice">Jump to evidence moments below.</p>
+              </div>
+            </div>
+            <video id="evidenceVideo" controls></video>
+            <div
+              class="notice"
+              id="evidenceVideoStatus"
+              role="status"
+              aria-live="polite"
+            >
+              Video preview not loaded.
+            </div>
+          </div>
+          <div class="evidence-tabs">
+            <button class="evidence-tab active" data-evidence-tab="frames">
+              Frames
+            </button>
+            <button class="evidence-tab" data-evidence-tab="transcript">
+              Transcript
+            </button>
+            <button class="evidence-tab" data-evidence-tab="documents">
+              Docs
+            </button>
+            <button class="evidence-tab" data-evidence-tab="graph">
+              Graph
+            </button>
+          </div>
+          <div
+            class="evidence-grid"
+            data-evidence-content="frames"
+            id="evidenceFrames"
+          >
+            <div class="evidence-card">
+              <img alt="Keyframe" />
+              <div>00:47 | Dock crossing</div>
+              <div class="evidence-meta">Source: video_01.mp4</div>
+            </div>
+          </div>
+          <div
+            class="evidence-grid"
+            data-evidence-content="transcript"
+            id="evidenceTranscript"
+            style="display: none;"
+          >
+            <div class="evidence-card">
+              "...stay within the marked walkway..." (00:44)
+            </div>
+          </div>
+          <div
+            class="evidence-grid"
+            data-evidence-content="documents"
+            id="evidenceDocuments"
+            style="display: none;"
+          >
+            <div class="evidence-card">
+              Safety policy 3.2: pedestrian crossings are prohibited.
+            </div>
+          </div>
+          <div
+            class="evidence-grid"
+            data-evidence-content="graph"
+            id="evidenceGraph"
+            style="display: none;"
+          >
+            <div class="evidence-card">
+              MediaAsset | DerivedFrom | Transcript
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="panel">
+        <div class="panel-header">
+          <h2>Insights</h2>
+        </div>
+        <div class="insights-grid">
+          <div class="insight-card">
+            <span class="fact-label">Entities</span>
+            <strong>Forklift, pallet jack, operator</strong>
+          </div>
+          <div class="insight-card">
+            <span class="fact-label">Key moments</span>
+            <strong>6</strong>
+          </div>
+          <div class="insight-card">
+            <span class="fact-label">Transcript segments</span>
+            <strong>18</strong>
+          </div>
+          <div class="insight-card">
+            <span class="fact-label">Relations</span>
+            <strong>42</strong>
+          </div>
+        </div>
+      </section>
+
+      <section class="panel cta-panel">
+        <h2>Ready to see this on your data?</h2>
+        <p class="notice">
+          Retikon builds provable answers across video, audio, and documents.
+        </p>
+        <div class="actions" style="justify-content: center;">
+          <button>Book a guided pilot</button>
+          <button class="secondary">Contact sales</button>
+        </div>
+      </section>
+    </main>
+
+    <script>
+      const STORAGE_KEY = "retikon_demo_config";
+      const els = {
+        demoToken: document.getElementById("demoToken"),
+        demoApiBase: document.getElementById("demoApiBase"),
+        saveDemoConfig: document.getElementById("saveDemoConfig"),
+        clearDemoConfig: document.getElementById("clearDemoConfig"),
+        startDemo: document.getElementById("startDemo"),
+        uploadShortcut: document.getElementById("uploadShortcut"),
+        datasetCards: Array.from(document.querySelectorAll(".dataset-card")),
+        uploadCard: document.getElementById("uploadCard"),
+        datasetSection: document.getElementById("datasetSection"),
+        uploadInput: document.getElementById("demoUpload"),
+        uploadModality: document.getElementById("uploadModality"),
+        uploadStatus: document.getElementById("uploadStatus"),
+        uploadBtn: document.getElementById("uploadBtn"),
+        clearUpload: document.getElementById("clearUpload"),
+        runQuery: document.getElementById("runQuery"),
+        resetQuery: document.getElementById("resetQuery"),
+        queryText: document.getElementById("demoQueryText"),
+        answerText: document.getElementById("answerText"),
+        answerHighlights: document.getElementById("answerHighlights"),
+        answerBadges: document.getElementById("answerBadges"),
+        answerPill: document.getElementById("answerPill"),
+        evidenceTabs: Array.from(document.querySelectorAll("[data-evidence-tab]")),
+        evidenceContents: Array.from(
+          document.querySelectorAll("[data-evidence-content]")
+        ),
+        evidenceFrames: document.getElementById("evidenceFrames"),
+        evidenceTranscript: document.getElementById("evidenceTranscript"),
+        evidenceDocuments: document.getElementById("evidenceDocuments"),
+        evidenceGraph: document.getElementById("evidenceGraph"),
+        evidenceVideo: document.getElementById("evidenceVideo"),
+        evidenceVideoStatus: document.getElementById("evidenceVideoStatus"),
+        pipelineStatusPill: document.getElementById("pipelineStatusPill"),
+        pipelineSummaryTitle: document.getElementById("pipelineSummaryTitle"),
+        pipelineSummary: document.getElementById("pipelineSummary"),
+        pipelineTime: document.getElementById("pipelineTime"),
+        pipelineRefresh: document.getElementById("pipelineRefresh"),
+        pipelineRefreshState: document.getElementById("pipelineRefreshState"),
+        pipelineSteps: Array.from(document.querySelectorAll(".rail-step")),
+        pipelineArtifacts: Array.from(document.querySelectorAll(".artifact-row")),
+      };
+
+      const state = {
+        selectedDataset: null,
+        uploadUri: null,
+        mediaAssetId: null,
+        ingestStatus: null,
+        datasetsLoaded: false,
+        pipelineMode: "idle",
+        pipelinePolling: false,
+        pipelineReady: false,
+        uploadStartedAt: null,
+        ingestCompletedAt: null,
+        indexTriggered: false,
+        indexExecution: null,
+        indexCompletedAt: null,
+        indexPolling: false,
+        snapshotReloaded: false,
+        snapshotCompletedAt: null,
+        snapshotPolling: false,
+        lastPipelineUpdate: null,
+      };
+      const pipeline = {
+        steps: {},
+        artifacts: {},
+      };
+
+      const resetPipelineTracking = () => {
+        state.indexTriggered = false;
+        state.indexExecution = null;
+        state.indexCompletedAt = null;
+        state.indexPolling = false;
+        state.snapshotReloaded = false;
+        state.snapshotCompletedAt = null;
+        state.snapshotPolling = false;
+      };
+
+      const initPipeline = () => {
+        els.pipelineSteps.forEach((step) => {
+          if (step.dataset.step) {
+            pipeline.steps[step.dataset.step] = step;
+          }
+        });
+        els.pipelineArtifacts.forEach((row) => {
+          if (row.dataset.artifact) {
+            pipeline.artifacts[row.dataset.artifact] = row;
+          }
+        });
+      };
+
+      const formatClock = (date) => {
+        if (!date) return "--";
+        return date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+      };
+
+      const parseTimestamp = (value) => {
+        if (!value) return null;
+        if (typeof value === "string") {
+          const parsed = new Date(value);
+          return Number.isNaN(parsed.getTime()) ? null : parsed;
+        }
+        if (typeof value === "object") {
+          if (typeof value.seconds === "number") {
+            return new Date(value.seconds * 1000);
+          }
+          if (typeof value._seconds === "number") {
+            return new Date(value._seconds * 1000);
+          }
+        }
+        return null;
+      };
+
+      const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
+      const normalizeStatus = (value) =>
+        String(value || "")
+          .trim()
+          .toUpperCase();
+
+      const isIndexSuccess = (value) => {
+        const status = normalizeStatus(value);
+        return status.includes("SUCCEEDED") || status === "SUCCESS";
+      };
+
+      const isIndexFailure = (value) => {
+        const status = normalizeStatus(value);
+        return status.includes("FAILED") || status.includes("CANCELLED");
+      };
+
+      const setPipelinePill = (text, tone) => {
+        if (!els.pipelineStatusPill) return;
+        els.pipelineStatusPill.textContent = text;
+        ["accent", "warm", "success", "danger", "neutral"].forEach((name) => {
+          els.pipelineStatusPill.classList.remove(name);
+        });
+        if (tone) {
+          els.pipelineStatusPill.classList.add(tone);
+        }
+      };
+
+      const setPipelineSummary = (title, message) => {
+        if (els.pipelineSummaryTitle) {
+          els.pipelineSummaryTitle.textContent = title;
+        }
+        if (els.pipelineSummary) {
+          els.pipelineSummary.textContent = message;
+        }
+        state.lastPipelineUpdate = new Date();
+        if (els.pipelineTime) {
+          els.pipelineTime.textContent = formatClock(state.lastPipelineUpdate);
+        }
+      };
+
+      const setRefreshState = (value) => {
+        if (els.pipelineRefreshState) {
+          els.pipelineRefreshState.textContent = value;
+        }
+      };
+
+      const setStepState = (key, stateValue, statusText) => {
+        const step = pipeline.steps[key];
+        if (!step) return;
+        step.dataset.state = stateValue;
+        const statusEl = step.querySelector(".rail-status");
+        if (statusEl && statusText) {
+          statusEl.textContent = statusText;
+        }
+      };
+
+      const setArtifact = (key, value, active) => {
+        const row = pipeline.artifacts[key];
+        if (!row) return;
+        row.classList.toggle("active", Boolean(active));
+        const valueEl = row.querySelector(".artifact-value");
+        if (valueEl && value) {
+          valueEl.textContent = value;
+        }
+      };
+
+      const setPipelineIdle = () => {
+        state.pipelineMode = "idle";
+        state.pipelineReady = false;
+        state.uploadStartedAt = null;
+        state.ingestCompletedAt = null;
+        resetPipelineTracking();
+        setRefreshState("Idle");
+        setPipelinePill("idle", "neutral");
+        setPipelineSummary(
+          "Waiting for your file",
+          "Upload a file or choose a dataset to begin."
+        );
+        setStepState("upload", "idle", "Waiting for a file");
+        setStepState("ingest", "queued", "Queued");
+        setStepState("extract", "queued", "Queued");
+        setStepState("graph", "queued", "Queued");
+        setStepState("index", "queued", "Waiting for refresh");
+        setStepState("ready", "idle", "Not ready yet");
+        setArtifact("manifest", "Pending", false);
+        setArtifact("text", "Pending", false);
+        setArtifact("visual", "Pending", false);
+        setArtifact("graph", "Pending", false);
+      };
+
+      const setPipelineForDataset = (title) => {
+        state.pipelineMode = "dataset";
+        state.pipelineReady = true;
+        resetPipelineTracking();
+        setRefreshState("Idle");
+        setPipelinePill("ready", "success");
+        setPipelineSummary(
+          title ? `${title} ready` : "Dataset ready",
+          "This dataset is already indexed. Run a query to see evidence."
+        );
+        setStepState("upload", "done", "Dataset selected");
+        setStepState("ingest", "done", "Indexed");
+        setStepState("extract", "done", "Artifacts ready");
+        setStepState("graph", "done", "Linked evidence");
+        setStepState("index", "done", "Search optimized");
+        setStepState("ready", "done", "Query-ready");
+        setArtifact("manifest", "Available", true);
+        setArtifact("text", "Ready", true);
+        setArtifact("visual", "Ready", true);
+        setArtifact("graph", "Ready", true);
+      };
+
+      const setPipelineUploading = (fileName) => {
+        state.pipelineMode = "upload";
+        state.pipelineReady = false;
+        state.uploadStartedAt = new Date();
+        resetPipelineTracking();
+        setRefreshState("Active");
+        setPipelinePill("uploading", "accent");
+        setPipelineSummary(
+          "Uploading your file",
+          `${fileName} is being secured in the raw bucket.`
+        );
+        setStepState("upload", "working", "Uploading...");
+        setStepState("ingest", "queued", "Waiting for ingest");
+        setStepState("extract", "queued", "Queued");
+        setStepState("graph", "queued", "Queued");
+        setStepState("index", "queued", "Waiting for refresh");
+        setStepState("ready", "idle", "Not ready yet");
+        setArtifact("manifest", "Pending", false);
+        setArtifact("text", "Pending", false);
+        setArtifact("visual", "Pending", false);
+        setArtifact("graph", "Pending", false);
+      };
+
+      const setPipelinePrepared = (fileName) => {
+        state.pipelineMode = "upload";
+        state.pipelineReady = false;
+        resetPipelineTracking();
+        setRefreshState("Idle");
+        setPipelinePill("ready", "warm");
+        setPipelineSummary(
+          "Ready to upload",
+          `${fileName} selected. Click upload to start ingest.`
+        );
+        setStepState("upload", "queued", "Ready to upload");
+        setStepState("ingest", "queued", "Queued");
+        setStepState("extract", "queued", "Queued");
+        setStepState("graph", "queued", "Queued");
+        setStepState("index", "queued", "Waiting for refresh");
+        setStepState("ready", "idle", "Not ready yet");
+        setArtifact("manifest", "Pending", false);
+        setArtifact("text", "Pending", false);
+        setArtifact("visual", "Pending", false);
+        setArtifact("graph", "Pending", false);
+      };
+
+      const updatePipelineFromIngest = (data) => {
+        const status = data?.status || "UNKNOWN";
+        const firestore = data?.firestore || {};
+        const updatedAt = parseTimestamp(firestore.updated_at);
+        if (status === "PROCESSING" || status === "MISSING") {
+          setPipelinePill("ingesting", "accent");
+          setPipelineSummary(
+            "Ingesting your file",
+            "Validating, extracting, and preparing evidence."
+          );
+          setStepState("upload", "done", "Stored in raw bucket");
+          setStepState("ingest", "working", "Validating + processing");
+          setStepState("extract", "queued", "Queued");
+          setStepState("graph", "queued", "Queued");
+          setStepState("index", "queued", "Waiting for refresh");
+          setStepState("ready", "idle", "Not ready yet");
+        } else if (status === "COMPLETED") {
+          state.ingestCompletedAt = updatedAt || new Date();
+          setPipelinePill("processing", "warm");
+          setPipelineSummary(
+            "Extraction complete",
+            "Waiting for index refresh to make the data searchable."
+          );
+          setStepState("upload", "done", "Stored in raw bucket");
+          setStepState("ingest", "done", "Ingest complete");
+          setStepState("extract", "done", "Artifacts ready");
+          setStepState("graph", "done", "Evidence linked");
+          setStepState("index", "queued", "Waiting for refresh");
+          setStepState("ready", "idle", "Not ready yet");
+        } else if (status === "FAILED" || status === "DLQ") {
+          const errorMessage =
+            firestore.error_message || "Ingest failed. Please retry.";
+          setPipelinePill("issue", "danger");
+          setPipelineSummary("Ingest issue", errorMessage);
+          setStepState("ingest", "error", "Needs attention");
+          setStepState("extract", "queued", "Blocked");
+          setStepState("graph", "queued", "Blocked");
+          setStepState("index", "queued", "Blocked");
+          setStepState("ready", "idle", "Not ready");
+        }
+
+        if (firestore.manifest_uri) {
+          setArtifact("manifest", "Ready", true);
+        }
+        const counts = firestore.counts || {};
+        const textCount = counts.DocChunk || counts.Transcript || 0;
+        const visualCount = counts.ImageAsset || 0;
+        const graphCount = counts.DerivedFrom || 0;
+        setArtifact(
+          "text",
+          textCount ? `${textCount} segments` : "Pending",
+          textCount > 0
+        );
+        setArtifact(
+          "visual",
+          visualCount ? `${visualCount} frames` : "Pending",
+          visualCount > 0
+        );
+        setArtifact(
+          "graph",
+          graphCount ? `${graphCount} links` : "Pending",
+          graphCount > 0
+        );
+      };
+
+      const isFreshIndex = (completedAt) => {
+        if (!completedAt || !state.ingestCompletedAt) return false;
+        return completedAt >= state.ingestCompletedAt;
+      };
+
+      const isFreshSnapshot = (completedAt) => {
+        if (!completedAt || !state.ingestCompletedAt) return false;
+        return completedAt >= state.ingestCompletedAt;
+      };
+
+      const startIndexBuild = async () => {
+        if (state.indexTriggered) return;
+        setStepState("index", "working", "Starting index build");
+        setPipelinePill("processing", "warm");
+        setPipelineSummary(
+          "Optimizing for search",
+          "Building search indexes for the new evidence."
+        );
+        const data = await apiFetch("/dev/index-build", { method: "POST" });
+        state.indexTriggered = true;
+        state.indexExecution = data.execution || null;
+      };
+
+      const pollIndexBuild = async () => {
+        if (state.indexPolling) return;
+        state.indexPolling = true;
+        try {
+          const start = Date.now();
+          while (Date.now() - start < 20 * 60 * 1000) {
+            const indexStatus = await apiFetch("/dev/index-status").catch(
+              () => null
+            );
+            const statusValue = indexStatus?.completion_status || "";
+            const completedAt = parseTimestamp(
+              indexStatus?.completion_time || indexStatus?.completionTime
+            );
+            if (isIndexFailure(statusValue)) {
+              setStepState("index", "error", "Index failed");
+              throw new Error("Index build failed");
+            }
+            if (isIndexSuccess(statusValue) && isFreshIndex(completedAt)) {
+              state.indexCompletedAt = completedAt;
+              setStepState(
+                "index",
+                "done",
+                `Indexed at ${formatClock(completedAt)}`
+              );
+              return;
+            }
+            setStepState("index", "working", "Indexing");
+            await sleep(5000);
+          }
+          throw new Error("Index build timed out");
+        } finally {
+          state.indexPolling = false;
+        }
+      };
+
+      const startSnapshotReload = async () => {
+        if (state.snapshotReloaded) return;
+        setStepState("ready", "working", "Refreshing snapshot");
+        setPipelinePill("processing", "warm");
+        setPipelineSummary(
+          "Refreshing query layer",
+          "Reloading the snapshot for search."
+        );
+        await apiFetch("/dev/snapshot-reload", { method: "POST" });
+        state.snapshotReloaded = true;
+      };
+
+      const pollSnapshotReady = async () => {
+        if (state.snapshotPolling) return;
+        state.snapshotPolling = true;
+        try {
+          const start = Date.now();
+          while (Date.now() - start < 10 * 60 * 1000) {
+            const snapshotStatus = await apiFetch("/dev/snapshot-status").catch(
+              () => null
+            );
+            const completedAt = parseTimestamp(
+              snapshotStatus?.metadata?.completed_at
+            );
+            if (isFreshSnapshot(completedAt)) {
+              state.snapshotCompletedAt = completedAt;
+              state.pipelineReady = true;
+              setPipelinePill("ready", "success");
+              setPipelineSummary(
+                "Query-ready",
+                "Your data is searchable. Run a query to see evidence."
+              );
+              setStepState("ready", "done", "Query-ready");
+              return;
+            }
+            setStepState("ready", "working", "Waiting for snapshot");
+            await sleep(5000);
+          }
+          throw new Error("Snapshot refresh timed out");
+        } finally {
+          state.snapshotPolling = false;
+        }
+      };
+
+      const refreshIndexAndSnapshot = async () => {
+        if (
+          !state.ingestCompletedAt ||
+          state.pipelineReady ||
+          state.indexPolling ||
+          state.snapshotPolling
+        ) {
+          return;
+        }
+        setRefreshState("Active");
+        try {
+          if (!isFreshIndex(state.indexCompletedAt)) {
+            await startIndexBuild();
+            await pollIndexBuild();
+          }
+          setPipelineSummary(
+            "Index complete",
+            "Refreshing snapshot for search."
+          );
+          if (!state.snapshotReloaded) {
+            await startSnapshotReload();
+          }
+          await pollSnapshotReady();
+        } catch (err) {
+          const message = err?.message || "Pipeline stalled. Try refresh.";
+          setPipelinePill("issue", "danger");
+          setPipelineSummary("Pipeline stalled", message);
+          setStepState("ready", "error", "Needs attention");
+        } finally {
+          setRefreshState("Idle");
+        }
+      };
+
+      const saveConfig = () => {
+        const payload = {
+          token: els.demoToken.value.trim(),
+          apiBase: els.demoApiBase.value.trim().replace(/\/$/, ""),
+        };
+        sessionStorage.setItem(STORAGE_KEY, JSON.stringify(payload));
+      };
+
+      const loadConfig = () => {
+        const raw = sessionStorage.getItem(STORAGE_KEY);
+        if (!raw) return;
+        try {
+          const payload = JSON.parse(raw);
+          els.demoToken.value = payload.token || "";
+          els.demoApiBase.value = payload.apiBase || "";
+        } catch {
+          sessionStorage.removeItem(STORAGE_KEY);
+        }
+      };
+
+      const clearConfig = () => {
+        sessionStorage.removeItem(STORAGE_KEY);
+        els.demoToken.value = "";
+        els.demoApiBase.value = "";
+      };
+
+      const getConfig = () => ({
+        token: els.demoToken.value.trim(),
+        apiBase: els.demoApiBase.value.trim().replace(/\/$/, ""),
+      });
+
+      const authHeaders = () => {
+        const { token } = getConfig();
+        return token ? { Authorization: `Bearer ${token}` } : {};
+      };
+
+      const apiFetch = async (path, options = {}) => {
+        const { apiBase } = getConfig();
+        if (!apiBase) {
+          throw new Error("API base URL is required.");
+        }
+        const resp = await fetch(`${apiBase}${path}`, {
+          ...options,
+          headers: {
+            ...(options.headers || {}),
+            ...authHeaders(),
+          },
+        });
+        if (!resp.ok) {
+          const text = await resp.text();
+          throw new Error(text || `Request failed (${resp.status})`);
+        }
+        return resp.json();
+      };
+
+      const setActiveDataset = (selected) => {
+        els.datasetCards.forEach((card) => {
+          card.classList.toggle("active", card === selected);
+        });
+        state.selectedDataset =
+          selected?.dataset?.demoId || selected?.dataset?.demo || null;
+        const query = selected?.dataset?.query || selected?.dataset?.queryText;
+        if (query && els.queryText) {
+          els.queryText.value = query;
+        }
+        const title = selected?.querySelector("strong")?.textContent || "";
+        setPipelineForDataset(title);
+      };
+
+      const activateEvidenceTab = (name) => {
+        els.evidenceTabs.forEach((tab) => {
+          tab.classList.toggle("active", tab.dataset.evidenceTab === name);
+        });
+        els.evidenceContents.forEach((content) => {
+          content.style.display =
+            content.dataset.evidenceContent === name ? "grid" : "none";
+        });
+      };
+
+      const formatTimestamp = (ms) => {
+        if (ms === null || ms === undefined) return "-";
+        const totalSeconds = Math.floor(Number(ms) / 1000);
+        const minutes = Math.floor(totalSeconds / 60);
+        const seconds = totalSeconds % 60;
+        return `${minutes}:${String(seconds).padStart(2, "0")}`;
+      };
+
+      const renderEvidence = (data) => {
+        const { frames, transcript_snippets, doc_snippets, graph_links } = data;
+        if (els.evidenceFrames) {
+          els.evidenceFrames.innerHTML = "";
+          if (!frames?.length) {
+            els.evidenceFrames.textContent = "No frame evidence yet.";
+          } else {
+            frames.forEach((frame) => {
+              const card = document.createElement("div");
+              card.className = "evidence-card";
+              const img = document.createElement("img");
+              img.alt = "Keyframe";
+              if (frame.thumbnail_uri) {
+                img.src = frame.thumbnail_uri;
+              }
+              const title = document.createElement("div");
+              title.textContent = `${formatTimestamp(frame.timestamp_ms)} | Frame`;
+              const meta = document.createElement("div");
+              meta.className = "evidence-meta";
+              meta.textContent = frame.uri || data.uri || "Source unavailable";
+              card.addEventListener("click", () => {
+                if (!els.evidenceVideo) return;
+                if (frame.timestamp_ms !== null && frame.timestamp_ms !== undefined) {
+                  els.evidenceVideo.currentTime = frame.timestamp_ms / 1000;
+                  els.evidenceVideo.play().catch(() => {});
+                }
+              });
+              card.append(img, title, meta);
+              els.evidenceFrames.append(card);
+            });
+          }
+        }
+        if (els.evidenceTranscript) {
+          els.evidenceTranscript.innerHTML = "";
+          if (!transcript_snippets?.length) {
+            els.evidenceTranscript.textContent = "No transcript evidence yet.";
+          } else {
+            transcript_snippets.forEach((snippet) => {
+              const card = document.createElement("div");
+              card.className = "evidence-card";
+              card.textContent = `"${snippet.text}" (${formatTimestamp(
+                snippet.timestamp_ms
+              )})`;
+              els.evidenceTranscript.append(card);
+            });
+          }
+        }
+        if (els.evidenceDocuments) {
+          els.evidenceDocuments.innerHTML = "";
+          if (!doc_snippets?.length) {
+            els.evidenceDocuments.textContent = "No document evidence yet.";
+          } else {
+            doc_snippets.forEach((snippet) => {
+              const card = document.createElement("div");
+              card.className = "evidence-card";
+              card.textContent = snippet.text;
+              els.evidenceDocuments.append(card);
+            });
+          }
+        }
+        if (els.evidenceGraph) {
+          els.evidenceGraph.innerHTML = "";
+          if (!graph_links?.length) {
+            els.evidenceGraph.textContent = "No graph links yet.";
+          } else {
+            graph_links.forEach((link) => {
+              const card = document.createElement("div");
+              card.className = "evidence-card";
+              card.textContent = `${link.source} | ${link.relation || "relates"} | ${link.target}`;
+              els.evidenceGraph.append(card);
+            });
+          }
+        }
+      };
+
+      const renderAnswer = (result) => {
+        if (!result) {
+          els.answerText.textContent = "No results returned.";
+          els.answerHighlights.innerHTML = "";
+          els.answerBadges.innerHTML = "";
+          if (els.answerPill) {
+            els.answerPill.textContent = "draft";
+            els.answerPill.classList.remove("success");
+            els.answerPill.classList.add("warm");
+          }
+          return;
+        }
+        if (els.answerPill) {
+          els.answerPill.textContent = "live";
+          els.answerPill.classList.remove("warm");
+          els.answerPill.classList.add("success");
+        }
+        const snippet = result.snippet || "Relevant evidence found.";
+        els.answerText.textContent = snippet;
+        els.answerHighlights.innerHTML = "";
+        const source = document.createElement("div");
+        source.className = "summary-item";
+        source.textContent = `Source: ${result.uri}`;
+        const modality = document.createElement("div");
+        modality.className = "summary-item";
+        modality.textContent = `Modality: ${result.modality}`;
+        els.answerHighlights.append(source, modality);
+        els.answerBadges.innerHTML = "";
+        const score = document.createElement("span");
+        score.className = "tag";
+        score.textContent = `Confidence ${result.score.toFixed(2)}`;
+        const evidence = document.createElement("span");
+        evidence.className = "tag";
+        evidence.textContent = "Evidence linked";
+        els.answerBadges.append(score, evidence);
+      };
+
+      const detectModality = (file) => {
+        if (!file) return "docs";
+        if (file.type.startsWith("video/")) return "videos";
+        if (file.type.startsWith("audio/")) return "audio";
+        if (file.type.startsWith("image/")) return "images";
+        return "docs";
+      };
+
+      const uploadFile = async () => {
+        const file = els.uploadInput.files[0];
+        if (!file) {
+          throw new Error("Select a file before uploading.");
+        }
+        const modality = els.uploadModality.value;
+        setPipelineUploading(file.name);
+        els.uploadStatus.textContent = "Uploading to staging...";
+        const form = new FormData();
+        form.append("file", file);
+        form.append("modality", modality);
+        const data = await apiFetch("/edge/upload", {
+          method: "POST",
+          body: form,
+        });
+        if (!data.uri) {
+          throw new Error("Upload failed to return a URI.");
+        }
+        state.uploadUri = data.uri;
+        setPipelinePill("ingesting", "accent");
+        setPipelineSummary(
+          "Upload complete",
+          "Ingesting your file and extracting evidence."
+        );
+        setStepState("upload", "done", "Stored in raw bucket");
+        els.uploadStatus.textContent = `Uploaded: ${data.uri}`;
+        return data;
+      };
+
+      const pollIngest = async () => {
+        if (!state.uploadUri) {
+          throw new Error("Upload a file first.");
+        }
+        if (state.pipelinePolling) {
+          return;
+        }
+        state.pipelinePolling = true;
+        setRefreshState("Active");
+        els.uploadStatus.textContent = "Processing upload...";
+        const start = Date.now();
+        try {
+          while (Date.now() - start < 10 * 60 * 1000) {
+            const data = await apiFetch(
+              `/dev/ingest-status?uri=${encodeURIComponent(state.uploadUri)}`
+            );
+            state.ingestStatus = data;
+            const status = data.status || "UNKNOWN";
+            updatePipelineFromIngest(data);
+            els.uploadStatus.textContent = `Ingest status: ${status}`;
+            if (status === "COMPLETED") {
+              state.mediaAssetId = data.firestore?.media_asset_id || null;
+              await refreshIndexAndSnapshot();
+              return data;
+            }
+            if (status === "FAILED" || status === "DLQ") {
+              throw new Error(`Ingest failed with status ${status}`);
+            }
+            await new Promise((resolve) => setTimeout(resolve, 5000));
+          }
+          throw new Error("Ingest polling timed out.");
+        } finally {
+          state.pipelinePolling = false;
+          setRefreshState("Idle");
+        }
+      };
+
+      const runQuery = async () => {
+        const queryText = els.queryText.value.trim();
+        if (!queryText) {
+          throw new Error("Enter a question.");
+        }
+        const data = await apiFetch("/query", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ query_text: queryText, top_k: 5 }),
+        });
+        const top = data?.results?.[0] || null;
+        renderAnswer(top);
+        if (top) {
+          const evidence = await apiFetch(
+            `/evidence?uri=${encodeURIComponent(top.uri)}&media_asset_id=${encodeURIComponent(
+              top.media_asset_id || ""
+            )}`
+          );
+          renderEvidence(evidence);
+          if (els.evidenceVideoStatus && els.evidenceVideo) {
+            if (evidence.signed_uri) {
+              els.evidenceVideo.src = evidence.signed_uri;
+              els.evidenceVideoStatus.textContent = "Preview ready.";
+            } else {
+              els.evidenceVideo.removeAttribute("src");
+              els.evidenceVideoStatus.textContent = "Video preview unavailable.";
+            }
+          }
+        }
+      };
+
+      const loadDatasets = async () => {
+        if (state.datasetsLoaded) return;
+        try {
+          const data = await apiFetch("/demo/datasets");
+          if (!data?.datasets?.length) return;
+          const grid = document.getElementById("datasetGrid");
+          const uploadCard = document.getElementById("uploadCard");
+          grid.innerHTML = "";
+          data.datasets.forEach((dataset, index) => {
+            const card = document.createElement("div");
+            card.className = "dataset-card" + (index === 0 ? " active" : "");
+            card.dataset.demoId = dataset.id;
+            if (dataset.sample_query) {
+              card.dataset.query = dataset.sample_query;
+            }
+            card.tabIndex = 0;
+            const title = document.createElement("strong");
+            title.textContent = dataset.title;
+            const meta = document.createElement("div");
+            meta.className = "dataset-meta";
+            meta.textContent = dataset.modality;
+            const summary = document.createElement("p");
+            summary.className = "notice";
+            summary.textContent = dataset.summary;
+            card.append(title, meta, summary);
+            card.addEventListener("click", () => setActiveDataset(card));
+            card.addEventListener("keydown", (event) => {
+              if (event.key === "Enter" || event.key === " ") {
+                event.preventDefault();
+                setActiveDataset(card);
+              }
+            });
+            grid.append(card);
+          });
+          grid.append(uploadCard);
+          els.datasetCards = Array.from(document.querySelectorAll(".dataset-card"));
+          if (els.datasetCards.length) {
+            setActiveDataset(els.datasetCards[0]);
+          }
+          state.datasetsLoaded = true;
+        } catch {
+          state.datasetsLoaded = false;
+        }
+      };
+
+      if (els.saveDemoConfig) {
+        els.saveDemoConfig.addEventListener("click", saveConfig);
+      }
+      if (els.clearDemoConfig) {
+        els.clearDemoConfig.addEventListener("click", clearConfig);
+      }
+
+      if (els.datasetCards.length) {
+        els.datasetCards.forEach((card) => {
+          card.addEventListener("click", () => setActiveDataset(card));
+          card.addEventListener("keydown", (event) => {
+            if (event.key === "Enter" || event.key === " ") {
+              event.preventDefault();
+              setActiveDataset(card);
+            }
+          });
+        });
+      }
+
+      if (els.uploadInput) {
+        els.uploadInput.addEventListener("change", () => {
+          const file = els.uploadInput.files[0];
+          if (!file) {
+            els.uploadStatus.textContent = "No file selected.";
+            els.uploadBtn.disabled = true;
+            return;
+          }
+          const detected = detectModality(file);
+          if (els.uploadModality) {
+            els.uploadModality.value = detected;
+          }
+          els.uploadStatus.textContent = `Selected: ${file.name}`;
+          els.uploadBtn.disabled = false;
+          setPipelinePrepared(file.name);
+        });
+      }
+
+      if (els.clearUpload) {
+        els.clearUpload.addEventListener("click", () => {
+          els.uploadInput.value = "";
+          els.uploadStatus.textContent = "No file selected.";
+          els.uploadBtn.disabled = true;
+          const active = document.querySelector(".dataset-card.active");
+          if (active) {
+            const title = active.querySelector("strong")?.textContent || "";
+            setPipelineForDataset(title);
+          } else {
+            setPipelineIdle();
+          }
+        });
+      }
+
+      els.evidenceTabs.forEach((tab) => {
+        tab.addEventListener("click", () => {
+          activateEvidenceTab(tab.dataset.evidenceTab);
+        });
+      });
+
+      if (els.uploadBtn) {
+        els.uploadBtn.addEventListener("click", async () => {
+          try {
+            await uploadFile();
+            await pollIngest();
+          } catch (err) {
+            els.uploadStatus.textContent = `Upload failed: ${err.message}`;
+            setPipelinePill("issue", "danger");
+            setPipelineSummary("Upload failed", err.message);
+            setStepState("upload", "error", "Upload failed");
+            setRefreshState("Idle");
+          }
+        });
+      }
+
+      if (els.pipelineRefresh) {
+        els.pipelineRefresh.addEventListener("click", async () => {
+          try {
+            if (state.uploadUri) {
+              const data = await apiFetch(
+                `/dev/ingest-status?uri=${encodeURIComponent(state.uploadUri)}`
+              );
+              updatePipelineFromIngest(data);
+              if (data.status === "COMPLETED") {
+                await refreshIndexAndSnapshot();
+              }
+            } else {
+              const active = document.querySelector(".dataset-card.active");
+              if (active) {
+                const title = active.querySelector("strong")?.textContent || "";
+                setPipelineForDataset(title);
+              }
+            }
+          } catch (err) {
+            setPipelinePill("issue", "danger");
+            setPipelineSummary("Refresh failed", err.message);
+          }
+        });
+      }
+
+      if (els.runQuery) {
+        els.runQuery.addEventListener("click", async () => {
+          try {
+            await runQuery();
+          } catch (err) {
+            els.answerText.textContent = `Query failed: ${err.message}`;
+          }
+        });
+      }
+
+      if (els.resetQuery) {
+        els.resetQuery.addEventListener("click", () => {
+          els.queryText.value = "";
+          els.answerText.textContent = "";
+          els.answerHighlights.innerHTML = "";
+          els.answerBadges.innerHTML = "";
+          if (els.answerPill) {
+            els.answerPill.textContent = "draft";
+            els.answerPill.classList.remove("success");
+            els.answerPill.classList.add("warm");
+          }
+        });
+      }
+
+      if (els.startDemo && els.datasetSection) {
+        els.startDemo.addEventListener("click", () => {
+          els.datasetSection.scrollIntoView({ behavior: "smooth" });
+        });
+      }
+
+      if (els.uploadShortcut && els.uploadCard && els.uploadInput) {
+        els.uploadShortcut.addEventListener("click", () => {
+          els.uploadCard.scrollIntoView({ behavior: "smooth" });
+          els.uploadInput.focus();
+        });
+      }
+
+      initPipeline();
+      setPipelineIdle();
+      loadConfig();
+      loadDatasets();
+      const initialCard = document.querySelector(".dataset-card.active");
+      if (initialCard) {
+        setActiveDataset(initialCard);
+      }
+    </script>
+
+   </body>
+ </html>

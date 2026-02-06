@@ -186,6 +186,35 @@ def _chunk_text(text: str, target_tokens: int, overlap_tokens: int) -> list[Chun
     return chunks
 
 
+def _doc_embed_batch_size() -> int:
+    raw = os.getenv("DOC_EMBED_BATCH_SIZE", "32")
+    try:
+        value = int(raw)
+    except ValueError:
+        value = 32
+    return max(1, value)
+
+
+def _embed_chunks(chunks: list[Chunk]) -> list[list[float]]:
+    if not chunks:
+        return []
+    embedder = get_text_embedder(768)
+    batch_size = _doc_embed_batch_size()
+    embeddings: list[list[float]] = []
+    for start in range(0, len(chunks), batch_size):
+        batch = [chunk.text for chunk in chunks[start : start + batch_size]]
+        batch_vectors = run_inference(
+            "text",
+            lambda batch=batch: embedder.encode(batch),
+        )
+        if not batch_vectors:
+            raise PermanentError("No embeddings produced")
+        embeddings.extend(batch_vectors)
+    if len(embeddings) != len(chunks):
+        raise PermanentError("Embedding count mismatch")
+    return embeddings
+
+
 def ingest_document(
     *,
     source: IngestSource,
@@ -214,11 +243,7 @@ def ingest_document(
     if not chunks:
         raise PermanentError("No chunks produced")
 
-    embedder = get_text_embedder(768)
-    embeddings = run_inference(
-        "text",
-        lambda: embedder.encode([chunk.text for chunk in chunks]),
-    )
+    embeddings = _embed_chunks(chunks)
 
     output_root = output_uri or config.graph_root_uri()
     media_asset_id = str(uuid.uuid4())

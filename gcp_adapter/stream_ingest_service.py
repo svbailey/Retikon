@@ -3,7 +3,7 @@ import contextlib
 import json
 import os
 import uuid
-from datetime import timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Any
 
 from fastapi import FastAPI, Header, HTTPException, Request
@@ -11,7 +11,12 @@ from google.cloud import firestore
 from pydantic import BaseModel
 
 from gcp_adapter.dlq_pubsub import PubSubDlqPublisher
-from gcp_adapter.idempotency_firestore import FirestoreIdempotency
+from gcp_adapter.idempotency_firestore import (
+    FirestoreIdempotency,
+    find_completed_by_checksum,
+    resolve_checksum,
+    update_object_metadata,
+)
 from gcp_adapter.queue_pubsub import PubSubPublisher, parse_pubsub_push
 from retikon_core.config import get_config
 from retikon_core.errors import PermanentError, RecoverableError, ValidationError
@@ -104,6 +109,50 @@ def _init_pipeline() -> StreamIngestPipeline:
         topic=_stream_topic(),
         batcher=batcher,
     )
+
+
+def _apply_checksum_dedupe(
+    *,
+    client: firestore.Client,
+    collection: str,
+    doc_id: str,
+    bucket: str,
+    name: str,
+    checksum: str | None,
+) -> bool:
+    if not checksum:
+        return False
+    try:
+        match = find_completed_by_checksum(
+            client=client,
+            collection=collection,
+            checksum=checksum,
+            bucket=bucket,
+            name=name,
+        )
+    except Exception as exc:
+        logger.warning(
+            "Checksum dedupe lookup failed",
+            extra={
+                "bucket": bucket,
+                "name": name,
+                "error_message": str(exc),
+            },
+        )
+        return False
+    if not match:
+        return False
+    payload: dict[str, object] = {
+        "status": "COMPLETED",
+        "updated_at": datetime.now(timezone.utc),
+        "dedupe_checksum": checksum,
+        "dedupe_source_doc_id": match.get("doc_id"),
+    }
+    for key in ("manifest_uri", "media_asset_id", "counts"):
+        if key in match:
+            payload[key] = match[key]
+    client.collection(collection).document(doc_id).update(payload)
+    return True
 
 
 PIPELINE = _init_pipeline()
@@ -254,6 +303,7 @@ async def ingest_stream_push(request: Request) -> dict[str, Any]:
     skipped = 0
     for event in events:
         storage_event = event.to_storage_event()
+        checksum = resolve_checksum(storage_event.md5_hash, storage_event.crc32c)
         decision = idempotency.begin(
             bucket=storage_event.bucket,
             name=storage_event.name,
@@ -268,6 +318,25 @@ async def ingest_stream_push(request: Request) -> dict[str, Any]:
         if decision.action == "skip_processing":
             skipped += 1
             continue
+        try:
+            update_object_metadata(
+                client=firestore_client,
+                collection=config.firestore_collection,
+                doc_id=decision.doc_id,
+                bucket=storage_event.bucket,
+                name=storage_event.name,
+                generation=storage_event.generation,
+                checksum=checksum,
+            )
+        except Exception as exc:
+            logger.warning(
+                "Failed to update idempotency metadata",
+                extra={
+                    "modality": event.modality,
+                    "attempt_count": attempt_count,
+                    "error_message": str(exc),
+                },
+            )
         if (
             config.max_ingest_attempts > 0
             and attempt_count >= config.max_ingest_attempts
@@ -289,6 +358,16 @@ async def ingest_stream_push(request: Request) -> dict[str, Any]:
             continue
 
         try:
+            if _apply_checksum_dedupe(
+                client=firestore_client,
+                collection=config.firestore_collection,
+                doc_id=decision.doc_id,
+                bucket=storage_event.bucket,
+                name=storage_event.name,
+                checksum=checksum,
+            ):
+                skipped += 1
+                continue
             outcome = process_event(event=storage_event, config=config)
             idempotency.mark_completed(decision.doc_id)
             firestore_client.collection(config.firestore_collection).document(

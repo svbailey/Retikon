@@ -2,17 +2,24 @@ import json
 import os
 import time
 import uuid
-from datetime import timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Any
+from urllib.parse import urlparse
 
 from fastapi import FastAPI, Header, HTTPException, Request
 from google.cloud import firestore
+from google.cloud import storage
 from pydantic import BaseModel
 
 from gcp_adapter.auth import authorize_request
 from gcp_adapter.dlq_pubsub import PubSubDlqPublisher
 from gcp_adapter.eventarc import parse_cloudevent
-from gcp_adapter.idempotency_firestore import FirestoreIdempotency
+from gcp_adapter.idempotency_firestore import (
+    FirestoreIdempotency,
+    find_completed_by_checksum,
+    resolve_checksum,
+    update_object_metadata,
+)
 from gcp_adapter.metering import record_usage
 from gcp_adapter.stores import abac_allowed, is_action_allowed
 from retikon_core.audit import record_audit_log
@@ -20,6 +27,7 @@ from retikon_core.auth import ACTION_INGEST, AuthContext
 from retikon_core.config import Config, get_config
 from retikon_core.errors import PermanentError, RecoverableError, ValidationError
 from retikon_core.ingestion import process_event
+from retikon_core.ingestion.idempotency import build_doc_id
 from retikon_core.ingestion.rate_limit import (
     RateLimitBackendError,
     RateLimitExceeded,
@@ -52,6 +60,16 @@ _dlq_publisher: PubSubDlqPublisher | None = None
 class IngestResponse(BaseModel):
     status: str
     trace_id: str
+
+
+class IngestStatusResponse(BaseModel):
+    status: str
+    uri: str
+    bucket: str
+    name: str
+    generation: str
+    doc_id: str
+    firestore: dict | None = None
 
 
 def _authorize_ingest(request: Request, config: Config) -> AuthContext | None:
@@ -123,9 +141,145 @@ def _default_scope(config: Config) -> TenantScope:
     )
 
 
+def _storage_client() -> storage.Client:
+    return storage.Client()
+
+
+def _firestore_client() -> firestore.Client:
+    return firestore.Client()
+
+
+def _apply_checksum_dedupe(
+    *,
+    client: firestore.Client,
+    collection: str,
+    doc_id: str,
+    bucket: str,
+    name: str,
+    checksum: str | None,
+) -> bool:
+    if not checksum:
+        return False
+    try:
+        match = find_completed_by_checksum(
+            client=client,
+            collection=collection,
+            checksum=checksum,
+            bucket=bucket,
+            name=name,
+        )
+    except Exception as exc:
+        logger.warning(
+            "Checksum dedupe lookup failed",
+            extra={
+                "bucket": bucket,
+                "name": name,
+                "error_message": str(exc),
+            },
+        )
+        return False
+    if not match:
+        return False
+    payload: dict[str, object] = {
+        "status": "COMPLETED",
+        "updated_at": datetime.now(timezone.utc),
+        "dedupe_checksum": checksum,
+        "dedupe_source_doc_id": match.get("doc_id"),
+    }
+    for key in ("manifest_uri", "media_asset_id", "counts"):
+        if key in match:
+            payload[key] = match[key]
+    client.collection(collection).document(doc_id).update(payload)
+    return True
+
+
+def _parse_gs_uri(uri: str) -> tuple[str, str]:
+    parsed = urlparse(uri)
+    if parsed.scheme != "gs" or not parsed.netloc or not parsed.path:
+        raise HTTPException(status_code=400, detail="Invalid gs:// URI")
+    bucket = parsed.netloc
+    name = parsed.path.lstrip("/")
+    return bucket, name
+
+
+def _raw_bucket_name(config: Config) -> str:
+    raw_bucket = config.raw_bucket
+    if raw_bucket.startswith("gs://"):
+        return raw_bucket[len("gs://") :].rstrip("/")
+    return raw_bucket.strip("/")
+
+
+def _ensure_raw_uri(uri: str, config: Config) -> None:
+    bucket = _raw_bucket_name(config)
+    if not uri.startswith(f"gs://{bucket}/"):
+        raise HTTPException(status_code=403, detail="Path outside raw bucket")
+
+
 @app.get("/health", response_model=HealthResponse)
 async def health() -> HealthResponse:
     return build_health_response(SERVICE_NAME)
+
+
+@app.get("/ingest/status", response_model=IngestStatusResponse)
+async def ingest_status(
+    request: Request,
+    uri: str,
+    x_request_id: str | None = Header(default=None),
+) -> IngestStatusResponse:
+    try:
+        config = get_config()
+    except ValueError as exc:
+        raise HTTPException(status_code=500, detail=str(exc)) from exc
+
+    auth_context = _authorize_ingest(request, config)
+    _enforce_access(ACTION_INGEST, auth_context, config)
+    trace_id = x_request_id or str(uuid.uuid4())
+
+    if _audit_logging_enabled():
+        try:
+            record_audit_log(
+                base_uri=config.graph_root_uri(),
+                action="ingest.status.read",
+                decision="allow",
+                auth_context=auth_context,
+                scope=auth_context.scope if auth_context else _default_scope(config),
+                resource=request.url.path,
+                request_id=trace_id,
+                pipeline_version=os.getenv("RETIKON_VERSION", "dev"),
+                schema_version=_schema_version(),
+            )
+        except Exception as exc:
+            logger.warning(
+                "Failed to record audit log",
+                extra={"error_message": str(exc)},
+            )
+
+    _ensure_raw_uri(uri, config)
+    bucket, name = _parse_gs_uri(uri)
+    client = _storage_client()
+    blob = client.bucket(bucket).blob(name)
+    if not blob.exists():
+        raise HTTPException(status_code=404, detail="Object not found")
+    blob.reload()
+    generation = str(blob.generation or "")
+    doc_id = build_doc_id(bucket, name, generation)
+    doc = (
+        _firestore_client()
+        .collection(config.firestore_collection)
+        .document(doc_id)
+        .get()
+    )
+    data = doc.to_dict() if doc.exists else None
+    status = (data or {}).get("status") if data else "MISSING"
+    return IngestStatusResponse(
+        status=status,
+        uri=uri,
+        bucket=bucket,
+        name=name,
+        generation=generation,
+        doc_id=doc_id,
+        firestore=data,
+    )
 
 
 @app.post("/ingest", response_model=IngestResponse, status_code=202)
@@ -200,6 +354,7 @@ async def ingest(
         config.firestore_collection,
         processing_ttl=timedelta(seconds=config.idempotency_ttl_seconds),
     )
+    checksum = resolve_checksum(gcs_event.md5_hash, gcs_event.crc32c)
     decision = idempotency.begin(
         bucket=gcs_event.bucket,
         name=gcs_event.name,
@@ -215,6 +370,25 @@ async def ingest(
         return IngestResponse(status="completed", trace_id=trace_id)
     if decision.action == "skip_processing":
         return IngestResponse(status="processing", trace_id=trace_id)
+    try:
+        update_object_metadata(
+            client=firestore_client,
+            collection=config.firestore_collection,
+            doc_id=decision.doc_id,
+            bucket=gcs_event.bucket,
+            name=gcs_event.name,
+            generation=gcs_event.generation,
+            checksum=checksum,
+        )
+    except Exception as exc:
+        logger.warning(
+            "Failed to update idempotency metadata",
+            extra={
+                "request_id": trace_id,
+                "correlation_id": request.state.correlation_id,
+                "error_message": str(exc),
+            },
+        )
     if config.max_ingest_attempts > 0 and attempt_count >= config.max_ingest_attempts:
         logger.warning(
             "Ingest skipped: max attempts reached",
@@ -241,6 +415,25 @@ async def ingest(
 
     try:
         try:
+            if _apply_checksum_dedupe(
+                client=firestore_client,
+                collection=config.firestore_collection,
+                doc_id=decision.doc_id,
+                bucket=gcs_event.bucket,
+                name=gcs_event.name,
+                checksum=checksum,
+            ):
+                logger.info(
+                    "Ingest deduped by checksum",
+                    extra={
+                        "request_id": trace_id,
+                        "correlation_id": request.state.correlation_id,
+                        "modality": modality,
+                        "bytes_downloaded": gcs_event.size,
+                        "attempt_count": attempt_count,
+                    },
+                )
+                return IngestResponse(status="completed", trace_id=trace_id)
             enforce_rate_limit(modality, config=config, scope=scope)
         except RateLimitExceeded as exc:
             raise HTTPException(status_code=429, detail=str(exc)) from exc

@@ -1,13 +1,18 @@
+import json
 import os
 import time
 import uuid
 from contextlib import asynccontextmanager
 from dataclasses import dataclass, replace
 from datetime import datetime, timezone
+from pathlib import Path
 
+import duckdb
 from fastapi import FastAPI, Header, HTTPException, Request
+from pydantic import BaseModel, Field
 
 from gcp_adapter.auth import authorize_request
+from gcp_adapter.duckdb_uri_signer import sign_gcs_uri
 from gcp_adapter.metering import record_usage
 from gcp_adapter.stores import (
     abac_allowed,
@@ -28,6 +33,12 @@ from retikon_core.query_engine import (
     QueryResult,
     download_snapshot,
     get_secure_connection,
+)
+from retikon_core.query_engine.query_runner import (
+    _connect as _duckdb_connect,
+    _release_conn,
+    _scope_filters,
+    _table_has_column,
 )
 from retikon_core.services.fastapi_scaffolding import (
     HealthResponse,
@@ -99,6 +110,48 @@ class SnapshotState:
 
 
 STATE = SnapshotState()
+
+
+class DemoDataset(BaseModel):
+    id: str
+    title: str
+    modality: str
+    summary: str
+    preview_uri: str | None = None
+    source_uri: str | None = None
+
+
+class DemoDatasetsResponse(BaseModel):
+    datasets: list[DemoDataset]
+
+
+class EvidenceFrame(BaseModel):
+    uri: str | None = None
+    thumbnail_uri: str | None = None
+    timestamp_ms: int | None = None
+
+
+class EvidenceSnippet(BaseModel):
+    text: str
+    uri: str | None = None
+    timestamp_ms: int | None = None
+
+
+class EvidenceLink(BaseModel):
+    source: str
+    target: str
+    relation: str | None = None
+
+
+class EvidenceResponse(BaseModel):
+    uri: str | None = None
+    signed_uri: str | None = None
+    media_asset_id: str | None = None
+    frames: list[EvidenceFrame] = Field(default_factory=list)
+    transcript_snippets: list[EvidenceSnippet] = Field(default_factory=list)
+    doc_snippets: list[EvidenceSnippet] = Field(default_factory=list)
+    graph_links: list[EvidenceLink] = Field(default_factory=list)
+    status: str = "pending"
 
 
 apply_cors_middleware(app)
@@ -207,6 +260,126 @@ def _graph_settings() -> tuple[str, str]:
     return graph_bucket, graph_prefix
 
 
+def _default_demo_datasets() -> list[DemoDataset]:
+    return [
+        DemoDataset(
+            id="safety-video",
+            title="Safety Training Video",
+            modality="video",
+            summary="Keyframes, transcript highlights, and linked incidents.",
+            preview_uri=None,
+            source_uri=None,
+        ),
+        DemoDataset(
+            id="support-audio",
+            title="Customer Support Call",
+            modality="audio",
+            summary="Speaker turns, topic clusters, and sentiment cues.",
+            preview_uri=None,
+            source_uri=None,
+        ),
+        DemoDataset(
+            id="incident-docs",
+            title="Security Incident Docs",
+            modality="document",
+            summary="Policy, log, and incident evidence stitched together.",
+            preview_uri=None,
+            source_uri=None,
+        ),
+    ]
+
+
+def _load_demo_datasets() -> list[DemoDataset]:
+    raw_json = os.getenv("DEMO_DATASETS_JSON")
+    if raw_json:
+        try:
+            payload = json.loads(raw_json)
+        except json.JSONDecodeError as exc:
+            logger.warning(
+                "Invalid DEMO_DATASETS_JSON",
+                extra={"error_message": str(exc)},
+            )
+            return _default_demo_datasets()
+    else:
+        path = os.getenv("DEMO_DATASETS_PATH")
+        payload = None
+        if path:
+            candidate = Path(path)
+            if candidate.exists():
+                try:
+                    payload = json.loads(candidate.read_text())
+                except json.JSONDecodeError as exc:
+                    logger.warning(
+                        "Invalid DEMO_DATASETS_PATH payload",
+                        extra={"error_message": str(exc)},
+                    )
+                    payload = None
+        if payload is None:
+            return _default_demo_datasets()
+
+    if isinstance(payload, dict) and "datasets" in payload:
+        payload = payload["datasets"]
+    if not isinstance(payload, list):
+        logger.warning(
+            "Demo datasets payload must be a list",
+            extra={"payload_type": type(payload).__name__},
+        )
+        return _default_demo_datasets()
+    datasets: list[DemoDataset] = []
+    for item in payload:
+        if not isinstance(item, dict):
+            continue
+        try:
+            datasets.append(DemoDataset(**item))
+        except Exception as exc:
+            logger.warning(
+                "Skipping invalid demo dataset entry",
+                extra={"error_message": str(exc)},
+            )
+    return datasets or _default_demo_datasets()
+
+
+def _safe_query(
+    conn: duckdb.DuckDBPyConnection,
+    sql: str,
+    params: list[object],
+) -> list[tuple]:
+    try:
+        return conn.execute(sql, params).fetchall()
+    except Exception:
+        return []
+
+
+def _apply_scope_filters(
+    conn: duckdb.DuckDBPyConnection,
+    scope,
+    *,
+    alias: str = "m",
+) -> tuple[str, list[object]]:
+    if scope is None or scope.is_empty():
+        return "", []
+    try:
+        clause, params = _scope_filters(conn, scope, alias=alias)
+    except ValueError:
+        return "", []
+    if not clause:
+        return "", []
+    return clause.replace("WHERE ", " AND ", 1), params
+
+
+def _sign_optional(uri: str | None) -> str | None:
+    if not uri:
+        return None
+    try:
+        return sign_gcs_uri(uri)
+    except Exception as exc:
+        logger.warning(
+            "Failed to sign GCS URI",
+            extra={"error_message": str(exc), "uri": uri},
+        )
+        return uri
+
+
 def _load_snapshot() -> None:
     snapshot_uri = os.getenv("SNAPSHOT_URI")
     if not snapshot_uri:
@@ -250,6 +423,161 @@ def _warm_query_models() -> None:
 @app.get("/health", response_model=HealthResponse)
 async def health() -> HealthResponse:
     return build_health_response(SERVICE_NAME)
+
+
+@app.get("/demo/datasets", response_model=DemoDatasetsResponse)
+async def demo_datasets(request: Request) -> DemoDatasetsResponse:
+    auth_context = _authorize(request)
+    _enforce_access(ACTION_QUERY, auth_context)
+    return DemoDatasetsResponse(datasets=_load_demo_datasets())
+
+
+@app.get("/evidence", response_model=EvidenceResponse)
+async def evidence(
+    request: Request,
+    uri: str | None = None,
+    result_id: str | None = None,
+    media_asset_id: str | None = None,
+) -> EvidenceResponse:
+    auth_context = _authorize(request)
+    _enforce_access(ACTION_QUERY, auth_context)
+    target_uri = uri or result_id
+    if not target_uri and not media_asset_id:
+        raise HTTPException(status_code=400, detail="uri or result_id is required")
+    if STATE.local_path is None:
+        try:
+            _load_snapshot()
+        except Exception as exc:
+            raise HTTPException(status_code=503, detail="Snapshot not ready") from exc
+    snapshot_path = STATE.local_path
+    if snapshot_path is None:
+        raise HTTPException(status_code=503, detail="Snapshot not ready")
+
+    conn = _duckdb_connect(snapshot_path)
+    try:
+        scope_clause, scope_params = _apply_scope_filters(
+            conn,
+            auth_context.scope if auth_context else None,
+            alias="m",
+        )
+        resolved_media_asset_id = media_asset_id
+        if not resolved_media_asset_id and target_uri:
+            media_rows = _safe_query(
+                conn,
+                "SELECT id FROM media_assets m WHERE m.uri = ?" + scope_clause + " LIMIT 1",
+                [target_uri, *scope_params],
+            )
+            if media_rows:
+                resolved_media_asset_id = media_rows[0][0]
+
+        frames: list[EvidenceFrame] = []
+        transcript_snippets: list[EvidenceSnippet] = []
+        doc_snippets: list[EvidenceSnippet] = []
+        graph_links: list[EvidenceLink] = []
+
+        if _table_has_column(conn, "image_assets", "media_asset_id"):
+            if resolved_media_asset_id:
+                image_rows = _safe_query(
+                    conn,
+                    "SELECT thumbnail_uri, timestamp_ms FROM image_assets "
+                    "WHERE media_asset_id = ? ORDER BY timestamp_ms LIMIT 12",
+                    [resolved_media_asset_id],
+                )
+            elif target_uri:
+                image_rows = _safe_query(
+                    conn,
+                    "SELECT i.thumbnail_uri, i.timestamp_ms "
+                    "FROM image_assets i "
+                    "JOIN media_assets m ON i.media_asset_id = m.id "
+                    "WHERE m.uri = ?" + scope_clause + " "
+                    "ORDER BY i.timestamp_ms LIMIT 12",
+                    [target_uri, *scope_params],
+                )
+            else:
+                image_rows = []
+            for thumbnail_uri, timestamp_ms in image_rows:
+                frames.append(
+                    EvidenceFrame(
+                        uri=None,
+                        thumbnail_uri=_sign_optional(thumbnail_uri),
+                        timestamp_ms=(
+                            int(timestamp_ms) if timestamp_ms is not None else None
+                        ),
+                    )
+                )
+
+        if _table_has_column(conn, "transcripts", "media_asset_id"):
+            if resolved_media_asset_id:
+                transcript_rows = _safe_query(
+                    conn,
+                    "SELECT content, start_ms FROM transcripts "
+                    "WHERE media_asset_id = ? LIMIT 8",
+                    [resolved_media_asset_id],
+                )
+            elif target_uri:
+                transcript_rows = _safe_query(
+                    conn,
+                    "SELECT t.content, t.start_ms "
+                    "FROM transcripts t "
+                    "JOIN media_assets m ON t.media_asset_id = m.id "
+                    "WHERE m.uri = ?" + scope_clause + " LIMIT 8",
+                    [target_uri, *scope_params],
+                )
+            else:
+                transcript_rows = []
+            for content, start_ms in transcript_rows:
+                transcript_snippets.append(
+                    EvidenceSnippet(
+                        text=str(content),
+                        uri=_sign_optional(target_uri),
+                        timestamp_ms=int(start_ms) if start_ms is not None else None,
+                    )
+                )
+
+        if _table_has_column(conn, "doc_chunks", "media_asset_id"):
+            if resolved_media_asset_id:
+                doc_rows = _safe_query(
+                    conn,
+                    "SELECT content FROM doc_chunks WHERE media_asset_id = ? LIMIT 6",
+                    [resolved_media_asset_id],
+                )
+            elif target_uri:
+                doc_rows = _safe_query(
+                    conn,
+                    "SELECT d.content "
+                    "FROM doc_chunks d "
+                    "JOIN media_assets m ON d.media_asset_id = m.id "
+                    "WHERE m.uri = ?" + scope_clause + " LIMIT 6",
+                    [target_uri, *scope_params],
+                )
+            else:
+                doc_rows = []
+            for (content,) in doc_rows:
+                doc_snippets.append(
+                    EvidenceSnippet(
+                        text=str(content),
+                        uri=_sign_optional(target_uri),
+                        timestamp_ms=None,
+                    )
+                )
+    finally:
+        _release_conn(snapshot_path, conn)
+
+    status = (
+        "ready"
+        if frames or transcript_snippets or doc_snippets or graph_links
+        else "pending"
+    )
+    return EvidenceResponse(
+        uri=target_uri,
+        signed_uri=_sign_optional(target_uri),
+        media_asset_id=resolved_media_asset_id,
+        frames=frames,
+        transcript_snippets=transcript_snippets,
+        doc_snippets=doc_snippets,
+        graph_links=graph_links,
+        status=status,
+    )
 
 
 @app.post("/query", response_model=QueryResponse)

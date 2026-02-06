@@ -11,6 +11,11 @@ variable "env" {
   default = "dev"
 }
 
+variable "demo_datasets_json" {
+  type    = string
+  default = ""
+}
+
 variable "raw_bucket_name" {
   type = string
 }
@@ -953,6 +958,11 @@ variable "model_inference_timeout_seconds" {
   default = 30
 }
 
+variable "model_inference_image_timeout_seconds" {
+  type    = number
+  default = 0
+}
+
 variable "max_video_seconds" {
   type    = number
   default = 300
@@ -966,6 +976,26 @@ variable "max_audio_seconds" {
 variable "max_frames_per_video" {
   type    = number
   default = 600
+}
+
+variable "video_sample_fps" {
+  type    = number
+  default = 1.0
+}
+
+variable "video_sample_interval_seconds" {
+  type    = number
+  default = 0
+}
+
+variable "video_scene_threshold" {
+  type    = number
+  default = 0.3
+}
+
+variable "video_scene_min_frames" {
+  type    = number
+  default = 3
 }
 
 variable "chunk_target_tokens" {
