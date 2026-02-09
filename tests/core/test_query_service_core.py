@@ -21,6 +21,12 @@ def test_resolve_modalities_rejects_unknown():
     assert exc.value.status_code == 400
 
 
+def test_resolve_modalities_from_env(monkeypatch):
+    monkeypatch.setenv("QUERY_DEFAULT_MODALITIES", "image,audio")
+    payload = QueryRequest()
+    assert resolve_modalities(payload) == {"image", "audio"}
+
+
 def test_resolve_search_type_rejects_unknown():
     payload = QueryRequest(search_type="weird")
     with pytest.raises(QueryValidationError) as exc:

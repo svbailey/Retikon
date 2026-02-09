@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import os
 import time
 from dataclasses import replace
 from typing import Iterable
@@ -81,7 +82,18 @@ def resolve_modalities(payload: QueryRequest) -> set[str]:
         raise QueryValidationError(f"Unsupported mode: {payload.mode}")
 
     if payload.modalities is None:
-        return set(ALLOWED_MODALITIES)
+        default_raw = os.getenv("QUERY_DEFAULT_MODALITIES")
+        if not default_raw:
+            return set(ALLOWED_MODALITIES)
+        if default_raw.strip().lower() == "all":
+            return set(ALLOWED_MODALITIES)
+        modalities = {
+            modality.strip().lower()
+            for modality in default_raw.split(",")
+            if modality.strip()
+        }
+        modalities = modalities & ALLOWED_MODALITIES
+        return modalities or set(ALLOWED_MODALITIES)
 
     modalities = {modality.strip().lower() for modality in payload.modalities}
     if not modalities:

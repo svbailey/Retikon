@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import base64
 import io
+import json
 import os
 import threading
 import time
@@ -26,6 +27,27 @@ from retikon_core.tenancy.types import TenantScope
 logger = get_logger(__name__)
 
 _CONN_LOCAL = threading.local()
+
+_DEFAULT_MODALITY_BOOSTS: dict[str, float] = {
+    "document": 1.0,
+    "transcript": 1.0,
+    "image": 1.05,
+    "audio": 1.05,
+}
+_HINT_KEYWORDS: dict[str, set[str]] = {
+    "video": {"image"},
+    "frame": {"image"},
+    "frames": {"image"},
+    "clip": {"image"},
+    "image": {"image"},
+    "photo": {"image"},
+    "visual": {"image"},
+    "audio": {"audio"},
+    "sound": {"audio"},
+    "speech": {"audio", "transcript"},
+    "podcast": {"audio"},
+    "music": {"audio"},
+}
 
 
 def _conn_cache() -> dict[str, tuple[int, int, duckdb.DuckDBPyConnection]]:
@@ -104,6 +126,78 @@ def _clamp_score(value: float) -> float:
 
 def _score_from_distance(distance: float) -> float:
     return _clamp_score(1.0 - float(distance))
+
+
+def _safe_float(value: str | None, default: float) -> float:
+    if value is None or value == "":
+        return default
+    try:
+        return float(value)
+    except ValueError:
+        return default
+
+
+def _parse_modality_boosts(raw: str | None) -> dict[str, float]:
+    if not raw:
+        return dict(_DEFAULT_MODALITY_BOOSTS)
+    cleaned = raw.strip()
+    if not cleaned:
+        return dict(_DEFAULT_MODALITY_BOOSTS)
+    boosts: dict[str, float] = {}
+    if cleaned.startswith("{"):
+        try:
+            parsed = json.loads(cleaned)
+        except json.JSONDecodeError:
+            return dict(_DEFAULT_MODALITY_BOOSTS)
+        if isinstance(parsed, dict):
+            for key, value in parsed.items():
+                try:
+                    boosts[str(key).strip().lower()] = float(value)
+                except (TypeError, ValueError):
+                    continue
+    else:
+        for item in cleaned.split(","):
+            if "=" not in item:
+                continue
+            key, value = item.split("=", 1)
+            key = key.strip().lower()
+            try:
+                boosts[key] = float(value.strip())
+            except ValueError:
+                continue
+    if not boosts:
+        return dict(_DEFAULT_MODALITY_BOOSTS)
+    for key, value in _DEFAULT_MODALITY_BOOSTS.items():
+        boosts.setdefault(key, value)
+    return boosts
+
+
+@lru_cache(maxsize=1)
+def _modality_boosts() -> dict[str, float]:
+    return _parse_modality_boosts(os.getenv("QUERY_MODALITY_BOOSTS"))
+
+
+@lru_cache(maxsize=1)
+def _modality_hint_boost() -> float:
+    return _safe_float(os.getenv("QUERY_MODALITY_HINT_BOOST"), 1.15)
+
+
+def _hinted_modalities(query_text: str) -> set[str]:
+    lowered = query_text.lower()
+    hinted: set[str] = set()
+    for keyword, modalities in _HINT_KEYWORDS.items():
+        if keyword in lowered:
+            hinted.update(modalities)
+    return hinted
+
+
+def _boost_score(score: float, *, modality: str, query_text: str) -> float:
+    multiplier = _modality_boosts().get(modality, 1.0)
+    hint_boost = _modality_hint_boost()
+    if hint_boost != 1.0 and query_text:
+        if modality in _hinted_modalities(query_text):
+            multiplier *= hint_boost
+    return _clamp_score(score * multiplier)
 
 
 def _decode_base64_image(payload: str) -> Image.Image:
@@ -304,6 +398,11 @@ def search_by_text(
                 )
                 trace["doc_rows"] = len(doc_rows)
             for uri, media_type, media_asset_id, content, distance in doc_rows:
+                score = _boost_score(
+                    _score_from_distance(distance),
+                    modality="document",
+                    query_text=query_text,
+                )
                 results.append(
                     QueryResult(
                         modality="document",
@@ -311,7 +410,7 @@ def search_by_text(
                         snippet=content,
                         timestamp_ms=None,
                         thumbnail_uri=None,
-                        score=_score_from_distance(distance),
+                        score=score,
                         media_asset_id=media_asset_id,
                         media_type=media_type,
                     )
@@ -343,6 +442,11 @@ def search_by_text(
             for uri, media_type, media_asset_id, content, start_ms, distance in (
                 transcript_rows
             ):
+                score = _boost_score(
+                    _score_from_distance(distance),
+                    modality="transcript",
+                    query_text=query_text,
+                )
                 results.append(
                     QueryResult(
                         modality="transcript",
@@ -350,7 +454,7 @@ def search_by_text(
                         snippet=content,
                         timestamp_ms=int(start_ms),
                         thumbnail_uri=None,
-                        score=_score_from_distance(distance),
+                        score=score,
                         media_asset_id=media_asset_id,
                         media_type=media_type,
                     )
@@ -382,6 +486,11 @@ def search_by_text(
                 thumbnail_uri,
                 distance,
             ) in image_rows:
+                score = _boost_score(
+                    _score_from_distance(distance),
+                    modality="image",
+                    query_text=query_text,
+                )
                 results.append(
                     QueryResult(
                         modality="image",
@@ -391,7 +500,7 @@ def search_by_text(
                             int(timestamp_ms) if timestamp_ms is not None else None
                         ),
                         thumbnail_uri=thumbnail_uri,
-                        score=_score_from_distance(distance),
+                        score=score,
                         media_asset_id=media_asset_id,
                         media_type=media_type,
                     )
@@ -417,6 +526,11 @@ def search_by_text(
                 )
                 trace["audio_rows"] = len(audio_rows)
             for uri, media_type, media_asset_id, distance in audio_rows:
+                score = _boost_score(
+                    _score_from_distance(distance),
+                    modality="audio",
+                    query_text=query_text,
+                )
                 results.append(
                     QueryResult(
                         modality="audio",
@@ -424,7 +538,7 @@ def search_by_text(
                         snippet=None,
                         timestamp_ms=None,
                         thumbnail_uri=None,
-                        score=_score_from_distance(distance),
+                        score=score,
                         media_asset_id=media_asset_id,
                         media_type=media_type,
                     )

@@ -10,6 +10,7 @@ from retikon_core.errors import PermanentError, RecoverableError
 from retikon_core.ingestion.media import FrameInfo
 from retikon_core.ingestion.pipelines import audio as audio_pipeline
 from retikon_core.ingestion.pipelines import video as video_pipeline
+from retikon_core.ingestion.transcribe import TranscriptSegment
 from retikon_core.ingestion.types import IngestSource
 
 
@@ -154,6 +155,133 @@ def test_audio_pipeline_empty_transcript_skips_embeddings(tmp_path, monkeypatch)
     )
 
     assert result.counts["Transcript"] == 0
+
+
+def test_audio_pipeline_respects_max_segments(tmp_path, monkeypatch):
+    from retikon_core import config as config_module
+
+    monkeypatch.setenv("AUDIO_MAX_SEGMENTS", "1")
+    config_module.get_config.cache_clear()
+    config = config_module.get_config()
+    fixture = Path("tests/fixtures/sample.wav")
+
+    def fake_probe(_path):
+        return type(
+            "Probe",
+            (),
+            {
+                "duration_seconds": 2.0,
+                "has_audio": True,
+                "has_video": False,
+                "audio_sample_rate": 48000,
+                "audio_channels": 1,
+                "video_width": None,
+                "video_height": None,
+                "frame_rate": None,
+                "frame_count": None,
+            },
+        )()
+
+    segments = [
+        TranscriptSegment(
+            index=0,
+            start_ms=0,
+            end_ms=500,
+            text="hello",
+            language="en",
+        ),
+        TranscriptSegment(
+            index=1,
+            start_ms=500,
+            end_ms=1000,
+            text="world",
+            language="en",
+        ),
+    ]
+
+    monkeypatch.setattr(audio_pipeline, "probe_media", fake_probe)
+    monkeypatch.setattr(
+        audio_pipeline,
+        "normalize_audio",
+        lambda _path, sample_rate=48000: str(fixture),
+    )
+    monkeypatch.setattr(audio_pipeline, "transcribe_audio", lambda *_: segments)
+
+    source = IngestSource(
+        bucket="test-raw",
+        name="raw/audio/sample.wav",
+        generation="1",
+        content_type="audio/wav",
+        size_bytes=fixture.stat().st_size,
+        md5_hash=None,
+        crc32c=None,
+        local_path=str(fixture),
+        uri_scheme="gs",
+    )
+
+    result = audio_pipeline.ingest_audio(
+        source=source,
+        config=config,
+        output_uri=tmp_path.as_posix(),
+        pipeline_version="v2.5",
+        schema_version="1",
+    )
+
+    assert result.counts["Transcript"] == 1
+
+
+def test_audio_skip_normalize_for_wav(tmp_path, monkeypatch):
+    from retikon_core import config as config_module
+
+    monkeypatch.setenv("AUDIO_SKIP_NORMALIZE_IF_WAV", "1")
+    config_module.get_config.cache_clear()
+    config = config_module.get_config()
+    fixture = Path("tests/fixtures/sample.wav")
+
+    def fake_probe(_path):
+        return type(
+            "Probe",
+            (),
+            {
+                "duration_seconds": 1.0,
+                "has_audio": True,
+                "has_video": False,
+                "audio_sample_rate": 48000,
+                "audio_channels": 1,
+                "video_width": None,
+                "video_height": None,
+                "frame_rate": None,
+                "frame_count": None,
+            },
+        )()
+
+    def fail_normalize(_path, sample_rate=48000):
+        raise AssertionError("normalize_audio should not be called")
+
+    monkeypatch.setattr(audio_pipeline, "probe_media", fake_probe)
+    monkeypatch.setattr(audio_pipeline, "normalize_audio", fail_normalize)
+
+    source = IngestSource(
+        bucket="test-raw",
+        name="raw/audio/sample.wav",
+        generation="1",
+        content_type="audio/wav",
+        size_bytes=fixture.stat().st_size,
+        md5_hash=None,
+        crc32c=None,
+        local_path=str(fixture),
+        uri_scheme="gs",
+    )
+
+    result = audio_pipeline.ingest_audio(
+        source=source,
+        config=config,
+        output_uri=tmp_path.as_posix(),
+        pipeline_version="v2.5",
+        schema_version="1",
+    )
+
+    assert result.counts["AudioClip"] == 1
 
 
 def test_audio_duration_cap(monkeypatch):
@@ -460,7 +588,7 @@ def test_video_corrupt_file(monkeypatch):
         )
 
 
-def test_video_frame_cap(monkeypatch):
+def test_video_frame_cap(monkeypatch, tmp_path):
     from retikon_core import config as config_module
 
     monkeypatch.setenv("MAX_FRAMES_PER_VIDEO", "2")
@@ -485,6 +613,18 @@ def test_video_frame_cap(monkeypatch):
         )()
 
     monkeypatch.setattr(video_pipeline, "probe_media", fake_probe)
+    captured = {}
+    frame_fixture = Path("tests/fixtures/sample.jpg")
+
+    def fake_extract(*args, **kwargs):
+        captured["fps"] = kwargs.get("fallback_fps")
+        return [
+            FrameInfo(path=str(frame_fixture), timestamp_ms=0),
+            FrameInfo(path=str(frame_fixture), timestamp_ms=5000),
+        ]
+
+    monkeypatch.setattr(video_pipeline, "extract_keyframes", fake_extract)
+    monkeypatch.setattr(video_pipeline, "cleanup_tmp", lambda _path: None)
     source = IngestSource(
         bucket="test-raw",
         name="raw/videos/too-many-frames.mp4",
@@ -493,14 +633,16 @@ def test_video_frame_cap(monkeypatch):
         size_bytes=1,
         md5_hash=None,
         crc32c=None,
-        local_path="dummy",
+        local_path=str(Path("tests/fixtures/sample.mp4")),
         uri_scheme="gs",
     )
-    with pytest.raises(PermanentError):
-        video_pipeline.ingest_video(
-            source=source,
-            config=config,
-            output_uri=None,
-            pipeline_version="v2.5",
-            schema_version="1",
-        )
+    result = video_pipeline.ingest_video(
+        source=source,
+        config=config,
+        output_uri=tmp_path.as_posix(),
+        pipeline_version="v2.5",
+        schema_version="1",
+    )
+
+    assert captured["fps"] == pytest.approx(0.2, rel=1e-3)
+    assert result.counts["ImageAsset"] == 2

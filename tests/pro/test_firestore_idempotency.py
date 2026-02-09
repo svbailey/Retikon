@@ -17,6 +17,36 @@ class _Snapshot:
         return dict(self._data or {})
 
 
+class _QuerySnapshot:
+    def __init__(self, doc_id: str, data: dict | None):
+        self.id = doc_id
+        self._data = data
+
+    def to_dict(self) -> dict:
+        return dict(self._data or {})
+
+
+class _Query:
+    def __init__(self, store: dict, field: str, value: object):
+        self.store = store
+        self.field = field
+        self.value = value
+        self._limit: int | None = None
+
+    def limit(self, limit: int) -> "_Query":
+        self._limit = limit
+        return self
+
+    def stream(self):
+        count = 0
+        for doc_id, data in self.store.items():
+            if data.get(self.field) == self.value:
+                yield _QuerySnapshot(doc_id, data)
+                count += 1
+                if self._limit is not None and count >= self._limit:
+                    break
+
+
 class _Document:
     def __init__(self, store: dict, doc_id: str):
         self.store = store
@@ -42,6 +72,9 @@ class _Collection:
 
     def document(self, doc_id: str) -> _Document:
         return _Document(self.store, doc_id)
+
+    def where(self, field: str, _op: str, value: object) -> _Query:
+        return _Query(self.store, field, value)
 
 
 class _Transaction:
@@ -81,6 +114,7 @@ def test_firestore_idempotency_flow(monkeypatch):
         client=client,
         collection="events",
         processing_ttl=timedelta(seconds=60),
+        completed_ttl=timedelta(seconds=0),
     )
 
     decision = store.begin(
@@ -121,6 +155,7 @@ def test_firestore_idempotency_reprocess(monkeypatch):
         client=client,
         collection="events",
         processing_ttl=timedelta(seconds=60),
+        completed_ttl=timedelta(seconds=0),
     )
 
     decision = store.begin(
@@ -151,6 +186,7 @@ def test_firestore_idempotency_skip_processing_window(monkeypatch):
         client=client,
         collection="events",
         processing_ttl=timedelta(seconds=60),
+        completed_ttl=timedelta(seconds=0),
     )
 
     decision = store.begin(
@@ -172,3 +208,66 @@ def test_firestore_idempotency_skip_processing_window(monkeypatch):
         pipeline_version="v3.0",
     )
     assert decision.action == "skip_processing"
+
+
+def test_resolve_scope_key_checksum_scope():
+    scope_key = idem.resolve_scope_key("org", "site", "stream")
+    assert scope_key == "org:site:stream"
+    assert idem.resolve_scope_key(None, None, None) == "-:-:-"
+    assert (
+        idem.resolve_checksum_scope("md5:abc", scope_key)
+        == "org:site:stream:md5:abc"
+    )
+
+
+def test_find_completed_by_checksum_scope_key():
+    client = _Client()
+    scope_key = idem.resolve_scope_key("org", "site", "stream")
+    checksum = "md5:abc"
+    checksum_scope = idem.resolve_checksum_scope(checksum, scope_key)
+    client.store["doc-1"] = {
+        "status": "COMPLETED",
+        "checksum_scope": checksum_scope,
+        "scope_key": scope_key,
+        "manifest_uri": "gs://example/manifest.json",
+    }
+    result = idem.find_completed_by_checksum(
+        client=client,
+        collection="events",
+        checksum=checksum,
+        scope_key=scope_key,
+    )
+    assert result is not None
+    assert result["doc_id"] == "doc-1"
+
+
+def test_find_completed_by_checksum_signature_filters():
+    client = _Client()
+    checksum = "md5:abc"
+    client.store["doc-1"] = {
+        "status": "COMPLETED",
+        "object_checksum": checksum,
+        "object_size_bytes": 42,
+        "object_content_type": "video/mp4",
+        "object_duration_ms": 1200,
+    }
+
+    match = idem.find_completed_by_checksum(
+        client=client,
+        collection="events",
+        checksum=checksum,
+        size_bytes=42,
+        content_type="video/mp4",
+        duration_ms=1200,
+    )
+    assert match is not None
+    assert match["doc_id"] == "doc-1"
+
+    mismatch = idem.find_completed_by_checksum(
+        client=client,
+        collection="events",
+        checksum=checksum,
+        size_bytes=7,
+        content_type="video/mp4",
+    )
+    assert mismatch is None

@@ -4,6 +4,8 @@ import base64
 import json
 import os
 
+from google.auth.transport import requests as google_requests
+from google.oauth2 import id_token as google_id_token
 from fastapi import HTTPException, Request
 
 from retikon_core.auth.jwt import auth_context_from_claims, decode_jwt
@@ -42,6 +44,39 @@ def authorize_request(
     return context
 
 
+def authorize_internal_service_account(request: Request) -> AuthContext | None:
+    allowed_sas = _split_csv(os.getenv("INTERNAL_AUTH_ALLOWED_SAS"))
+    audiences = _split_csv(os.getenv("INTERNAL_AUTH_AUDIENCE"))
+    if not allowed_sas:
+        return None
+    tokens = _extract_bearer_tokens(request)
+    if not tokens:
+        return None
+    req = google_requests.Request()
+    for token in tokens:
+        for audience in audiences or [None]:
+            claims = _verify_google_oidc(token, req, audience)
+            if not claims:
+                continue
+            email = _coerce_str(claims.get("email"))
+            if not email or email not in allowed_sas:
+                continue
+            if claims.get("email_verified") is False:
+                continue
+            return AuthContext(
+                api_key_id=f"sa:{email}",
+                scope=None,
+                is_admin=True,
+                actor_type="service_account",
+                actor_id=email,
+                email=email,
+                roles=("admin",),
+                groups=("admins",),
+                claims=claims,
+            )
+    return None
+
+
 def _extract_bearer_tokens(request: Request) -> list[str]:
     tokens: list[str] = []
     for header_name in (
@@ -64,6 +99,30 @@ def _parse_bearer_token(header: str | None) -> str | None:
         return None
     token = parts[1].strip()
     return token or None
+
+
+def _verify_google_oidc(
+    token: str,
+    request: google_requests.Request,
+    audience: str | None,
+) -> dict[str, object] | None:
+    try:
+        return google_id_token.verify_oauth2_token(token, request, audience=audience)
+    except Exception:
+        return None
+
+
+def _split_csv(value: str | None) -> list[str]:
+    if not value:
+        return []
+    return [item.strip() for item in value.split(",") if item.strip()]
+
+
+def _coerce_str(value: object) -> str | None:
+    if value is None:
+        return None
+    text = str(value).strip()
+    return text or None
 
 
 def _gateway_userinfo_enabled() -> bool:
@@ -107,4 +166,3 @@ def _decode_jwt_payload(raw: str) -> object | None:
         return json.loads(decoded)
     except Exception:
         return None
-

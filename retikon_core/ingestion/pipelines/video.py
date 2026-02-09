@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import math
 import os
 import shutil
 import tempfile
@@ -48,10 +47,22 @@ def _audio_model() -> str:
     return os.getenv("AUDIO_MODEL_NAME", "laion/clap-htsat-fused")
 
 
-def _resolve_fps(config: Config) -> float:
+def _resolve_fps(config: Config, duration_seconds: float) -> float:
     if config.video_sample_interval_seconds > 0:
-        return 1.0 / config.video_sample_interval_seconds
-    return float(config.video_sample_fps)
+        base_interval = float(config.video_sample_interval_seconds)
+    elif config.video_sample_fps > 0:
+        base_interval = 1.0 / float(config.video_sample_fps)
+    else:
+        base_interval = 1.0
+    effective_interval = base_interval
+    if duration_seconds > 0 and config.max_frames_per_video > 0:
+        budget_interval = duration_seconds / float(config.max_frames_per_video)
+        effective_interval = max(effective_interval, budget_interval)
+        if effective_interval > duration_seconds:
+            effective_interval = duration_seconds
+    if effective_interval <= 0:
+        effective_interval = base_interval if base_interval > 0 else 1.0
+    return 1.0 / effective_interval
 
 
 def _thumbnail_uri(output_root: str, media_asset_id: str, frame_index: int) -> str:
@@ -104,13 +115,7 @@ def ingest_video(
     media_asset_id = str(uuid.uuid4())
     now = datetime.now(timezone.utc)
     duration_ms = int(probe.duration_seconds * 1000.0)
-    fps = _resolve_fps(config)
-    if config.max_frames_per_video > 0:
-        expected_frames = int(math.ceil(probe.duration_seconds * fps))
-        if probe.frame_count is not None:
-            expected_frames = min(expected_frames, probe.frame_count)
-        if expected_frames > config.max_frames_per_video:
-            raise PermanentError("Video exceeds max frames")
+    fps = _resolve_fps(config, probe.duration_seconds)
 
     media_row = {
         "id": media_asset_id,
@@ -428,6 +433,7 @@ def ingest_video(
             },
             manifest_uri=manifest_path,
             media_asset_id=media_asset_id,
+            duration_ms=duration_ms,
         )
     finally:
         shutil.rmtree(frames_dir, ignore_errors=True)

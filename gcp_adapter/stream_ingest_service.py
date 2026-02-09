@@ -15,6 +15,7 @@ from gcp_adapter.idempotency_firestore import (
     FirestoreIdempotency,
     find_completed_by_checksum,
     resolve_checksum,
+    resolve_scope_key,
     update_object_metadata,
 )
 from gcp_adapter.queue_pubsub import PubSubPublisher, parse_pubsub_push
@@ -118,7 +119,10 @@ def _apply_checksum_dedupe(
     doc_id: str,
     bucket: str,
     name: str,
+    scope_key: str,
     checksum: str | None,
+    size_bytes: int | None,
+    content_type: str | None,
 ) -> bool:
     if not checksum:
         return False
@@ -127,8 +131,9 @@ def _apply_checksum_dedupe(
             client=client,
             collection=collection,
             checksum=checksum,
-            bucket=bucket,
-            name=name,
+            scope_key=scope_key,
+            size_bytes=size_bytes,
+            content_type=content_type,
         )
     except Exception as exc:
         logger.warning(
@@ -136,6 +141,7 @@ def _apply_checksum_dedupe(
             extra={
                 "bucket": bucket,
                 "name": name,
+                "scope_key": scope_key,
                 "error_message": str(exc),
             },
         )
@@ -296,12 +302,14 @@ async def ingest_stream_push(request: Request) -> dict[str, Any]:
         firestore_client,
         config.firestore_collection,
         processing_ttl=timedelta(seconds=config.idempotency_ttl_seconds),
+        completed_ttl=timedelta(seconds=config.idempotency_completed_ttl_seconds),
     )
     dlq_publisher = _get_dlq_publisher(config.dlq_topic)
 
     processed = 0
     skipped = 0
     for event in events:
+        scope_key = resolve_scope_key(event.org_id, event.site_id, event.stream_id)
         storage_event = event.to_storage_event()
         checksum = resolve_checksum(storage_event.md5_hash, storage_event.crc32c)
         decision = idempotency.begin(
@@ -327,6 +335,12 @@ async def ingest_stream_push(request: Request) -> dict[str, Any]:
                 name=storage_event.name,
                 generation=storage_event.generation,
                 checksum=checksum,
+                content_type=storage_event.content_type,
+                size_bytes=storage_event.size,
+                scope_key=scope_key,
+                scope_org_id=event.org_id,
+                scope_site_id=event.site_id,
+                scope_stream_id=event.stream_id,
             )
         except Exception as exc:
             logger.warning(
@@ -364,21 +378,25 @@ async def ingest_stream_push(request: Request) -> dict[str, Any]:
                 doc_id=decision.doc_id,
                 bucket=storage_event.bucket,
                 name=storage_event.name,
+                scope_key=scope_key,
                 checksum=checksum,
+                size_bytes=storage_event.size,
+                content_type=storage_event.content_type,
             ):
                 skipped += 1
                 continue
             outcome = process_event(event=storage_event, config=config)
             idempotency.mark_completed(decision.doc_id)
+            update_payload = {
+                "manifest_uri": outcome.manifest_uri,
+                "media_asset_id": outcome.media_asset_id,
+                "counts": outcome.counts,
+            }
+            if outcome.duration_ms is not None:
+                update_payload["object_duration_ms"] = outcome.duration_ms
             firestore_client.collection(config.firestore_collection).document(
                 decision.doc_id
-            ).update(
-                {
-                    "manifest_uri": outcome.manifest_uri,
-                    "media_asset_id": outcome.media_asset_id,
-                    "counts": outcome.counts,
-                }
-            )
+            ).update(update_payload)
             processed += 1
         except PermanentError as exc:
             _publish_dlq(

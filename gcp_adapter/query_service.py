@@ -8,10 +8,11 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 import duckdb
+import fsspec
 from fastapi import FastAPI, Header, HTTPException, Request
 from pydantic import BaseModel, Field
 
-from gcp_adapter.auth import authorize_request
+from gcp_adapter.auth import authorize_internal_service_account, authorize_request
 from gcp_adapter.duckdb_uri_signer import sign_gcs_uri
 from gcp_adapter.metering import record_usage
 from gcp_adapter.stores import (
@@ -59,7 +60,7 @@ from retikon_core.services.query_service_core import (
     validate_query_payload,
     warm_query_models,
 )
-from retikon_core.storage.paths import graph_root, normalize_bucket_uri
+from retikon_core.storage.paths import graph_root, join_uri, normalize_bucket_uri
 
 SERVICE_NAME = "retikon-query"
 
@@ -168,6 +169,24 @@ def _authorize(request: Request) -> AuthContext | None:
         request=request,
         require_admin=False,
     )
+
+
+def _snapshot_reload_allow_internal_sa() -> bool:
+    return os.getenv("SNAPSHOT_RELOAD_ALLOW_INTERNAL_SA", "0") == "1"
+
+
+def _manifest_count(metadata: dict | None) -> int | None:
+    if not metadata:
+        return None
+    if "manifest_count" in metadata:
+        try:
+            return int(metadata["manifest_count"])
+        except (TypeError, ValueError):
+            return None
+    manifest_uris = metadata.get("manifest_uris")
+    if isinstance(manifest_uris, list):
+        return len({str(uri) for uri in manifest_uris})
+    return None
 
 
 def _rbac_enabled() -> bool:
@@ -380,6 +399,50 @@ def _sign_optional(uri: str | None) -> str | None:
         return uri
 
 
+def _thumbnail_fallback_frames(
+    media_asset_id: str,
+    *,
+    limit: int = 12,
+) -> list["EvidenceFrame"]:
+    graph_root_uri = _graph_root_uri()
+    prefix = join_uri(graph_root_uri, "thumbnails", media_asset_id)
+    try:
+        fs, path = fsspec.core.url_to_fs(prefix)
+        if not fs.exists(path):
+            return []
+        entries = fs.ls(path)
+    except Exception as exc:
+        logger.warning(
+            "Failed to list thumbnail frames",
+            extra={"error_message": str(exc), "prefix": prefix},
+        )
+        return []
+
+    uris: list[str] = []
+    for entry in entries:
+        name = entry.get("name") if isinstance(entry, dict) else str(entry)
+        if not name or name.endswith("/"):
+            continue
+        if name.startswith("gs://"):
+            uris.append(name)
+        elif prefix.startswith("gs://"):
+            uris.append(f"gs://{name}")
+        else:
+            uris.append(name)
+
+    uris = sorted(uris)[:limit]
+    frames: list[EvidenceFrame] = []
+    for uri in uris:
+        frames.append(
+            EvidenceFrame(
+                uri=None,
+                thumbnail_uri=_sign_optional(uri),
+                timestamp_ms=None,
+            )
+        )
+    return frames
+
+
 def _load_snapshot() -> None:
     snapshot_uri = os.getenv("SNAPSHOT_URI")
     if not snapshot_uri:
@@ -505,6 +568,8 @@ async def evidence(
                         ),
                     )
                 )
+        if not frames and resolved_media_asset_id:
+            frames = _thumbnail_fallback_frames(resolved_media_asset_id)
 
         if _table_has_column(conn, "transcripts", "media_asset_id"):
             if resolved_media_asset_id:
@@ -757,14 +822,37 @@ async def query(
 
 @app.post("/admin/reload-snapshot", response_model=HealthResponse)
 async def reload_snapshot(request: Request) -> HealthResponse:
-    auth_context = _authorize(request)
-    if auth_context and not auth_context.is_admin:
+    auth_context = None
+    try:
+        auth_context = _authorize(request)
+    except HTTPException as exc:
+        if exc.status_code != 401:
+            raise
+    if auth_context is None and _snapshot_reload_allow_internal_sa():
+        auth_context = authorize_internal_service_account(request)
+    if auth_context is None:
+        raise HTTPException(status_code=401, detail="Unauthorized")
+    if not auth_context.is_admin:
         raise HTTPException(status_code=403, detail="Admin access required")
 
+    graph_bucket, graph_prefix = _graph_settings()
+    snapshot_uri = os.getenv("SNAPSHOT_URI") or (
+        f"gs://{graph_bucket}/{graph_prefix}/snapshots/retikon.duckdb"
+    )
+    reload_start = time.monotonic()
     try:
         _load_snapshot()
     except Exception as exc:
         raise HTTPException(status_code=500, detail=str(exc)) from exc
+    load_ms = int((time.monotonic() - reload_start) * 1000)
+    logger.info(
+        "Snapshot reload complete",
+        extra={
+            "snapshot_uri": snapshot_uri,
+            "snapshot_load_ms": load_ms,
+            "manifest_count": _manifest_count(STATE.metadata),
+        },
+    )
 
     return HealthResponse(
         status="ok",

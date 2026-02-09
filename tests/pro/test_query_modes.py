@@ -118,3 +118,38 @@ def test_search_by_text_skips_unused_embeddings(monkeypatch):
         modalities=["document", "transcript"],
     )
     assert results == []
+
+
+def test_search_by_text_applies_modality_boosts(monkeypatch):
+    class DummyConn:
+        def close(self) -> None:
+            return None
+
+    def fake_query_rows(_conn, sql, _params):
+        if "FROM doc_chunks" in sql:
+            return [("gs://doc", "document", "doc-id", "doc text", 0.05)]
+        if "FROM image_assets" in sql:
+            return [("gs://img", "video", "img-id", 1000, "gs://thumb", 0.06)]
+        return []
+
+    monkeypatch.setattr(query_runner, "_connect", lambda snapshot_path: DummyConn())
+    monkeypatch.setattr(query_runner, "_table_has_column", lambda *args, **kwargs: True)
+    monkeypatch.setattr(query_runner, "_query_rows", fake_query_rows)
+    monkeypatch.setattr(query_runner, "_cached_text_vector", lambda text: [0.0])
+    monkeypatch.setattr(query_runner, "_cached_image_text_vector", lambda text: [0.0])
+
+    monkeypatch.setenv(
+        "QUERY_MODALITY_BOOSTS",
+        "document=1.0,transcript=1.0,image=1.2,audio=1.0",
+    )
+    monkeypatch.setenv("QUERY_MODALITY_HINT_BOOST", "1.0")
+    query_runner._modality_boosts.cache_clear()
+    query_runner._modality_hint_boost.cache_clear()
+
+    results = query_runner.search_by_text(
+        snapshot_path="/tmp/retikon-test.duckdb",
+        query_text="video query",
+        top_k=2,
+        modalities=["document", "image"],
+    )
+    assert results[0].modality == "image"

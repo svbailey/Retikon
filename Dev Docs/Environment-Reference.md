@@ -27,12 +27,24 @@ Defaults shown match current code where applicable.
 - `TEXT_MODEL_MAX_TOKENS` (default `512`)
 - `IMAGE_MODEL_NAME`
 - `AUDIO_MODEL_NAME`
+- `AUDIO_TRANSCRIBE=0|1`
+- `AUDIO_PROFILE=0|1`
+- `AUDIO_SKIP_NORMALIZE_IF_WAV=0|1`
+- `AUDIO_MAX_SEGMENTS`
 - `WHISPER_MODEL_NAME`
 - `ENABLE_OCR=0|1`
 - `OCR_MAX_PAGES`
 - `RETIKON_TOKENIZER` (set to `stub`/`simple` for test/dev)
 - `RETIKON_EDITION` (defaults to `core`)
 - `RETIKON_CAPABILITIES`
+- `INGEST_WARMUP=0|1`
+- `INGEST_WARMUP_AUDIO=0|1`
+- `INGEST_WARMUP_TEXT=0|1`
+- `VIDEO_SAMPLE_FPS`
+- `VIDEO_SAMPLE_INTERVAL_SECONDS`
+- `VIDEO_SCENE_THRESHOLD`
+- `VIDEO_SCENE_MIN_FRAMES`
+- `VIDEO_THUMBNAIL_WIDTH`
 
 ## Query service config (shared Core/Pro)
 
@@ -43,6 +55,12 @@ Defaults shown match current code where applicable.
 - `QUERY_WARMUP=0|1` (defaults to `1`)
 - `QUERY_WARMUP_TEXT="retikon warmup"`
 - `QUERY_WARMUP_STEPS=text,image_text,audio_text,image`
+- `QUERY_DEFAULT_MODALITIES`
+- `QUERY_MODALITY_BOOSTS`
+- `QUERY_MODALITY_HINT_BOOST`
+- `SNAPSHOT_RELOAD_ALLOW_INTERNAL_SA=0|1`
+- `INTERNAL_AUTH_ALLOWED_SAS` (comma-separated service account emails)
+- `DEV_CONSOLE_SNAPSHOT_RELOAD_ALLOW_SA=0|1`
 - `MODEL_INFERENCE_TIMEOUT_S` (global inference timeout in seconds; `0` disables)
 - `MODEL_INFERENCE_TEXT_TIMEOUT_S` (optional override)
 - `MODEL_INFERENCE_IMAGE_TIMEOUT_S` (optional override)
@@ -64,6 +82,17 @@ Defaults shown match current code where applicable.
 - `DUCKDB_GCS_FALLBACK=0|1` (GCS provider only)
 - `DUCKDB_SKIP_HEALTHCHECK=0|1`
 - `DUCKDB_HEALTHCHECK_TMP_DIR` (optional, default `/tmp/retikon_healthcheck`)
+
+## Index builder (Core/Pro)
+
+- `INDEX_BUILDER_WORK_DIR` (defaults to `/tmp`)
+- `INDEX_BUILDER_COPY_LOCAL=0|1`
+- `INDEX_BUILDER_FALLBACK_LOCAL=0|1`
+- `INDEX_BUILDER_SKIP_IF_UNCHANGED=0|1` (skip rebuild when manifests are unchanged)
+- `INDEX_BUILDER_USE_LATEST_COMPACTION=0|1` (index only manifests at/after the latest compaction)
+- `INDEX_BUILDER_INCREMENTAL=0|1` (append-only indexing using prior snapshot)
+- `INDEX_BUILDER_INCREMENTAL_MAX_NEW_MANIFESTS` (0 = no limit)
+- `INDEX_BUILDER_SKIP_MISSING_FILES=0|1` (skip missing parquet referenced by manifests)
 
 ## Pro (GCP) required
 
@@ -150,6 +179,7 @@ Repo defaults:
 - `DLQ_TOPIC`
 - `FIRESTORE_COLLECTION`
 - `IDEMPOTENCY_TTL_SECONDS`
+- `IDEMPOTENCY_COMPLETED_TTL_SECONDS`
 - `MAX_INGEST_ATTEMPTS`
 - `SCHEMA_VERSION`
 

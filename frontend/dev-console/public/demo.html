@@ -476,6 +476,8 @@
 
       const state = {
         selectedDataset: null,
+        datasetModality: null,
+        uploadModality: null,
         uploadUri: null,
         mediaAssetId: null,
         ingestStatus: null,
@@ -490,6 +492,7 @@
         indexCompletedAt: null,
         indexPolling: false,
         snapshotReloaded: false,
+        snapshotReloadAt: null,
         snapshotCompletedAt: null,
         snapshotPolling: false,
         lastPipelineUpdate: null,
@@ -505,6 +508,7 @@
         state.indexCompletedAt = null;
         state.indexPolling = false;
         state.snapshotReloaded = false;
+        state.snapshotReloadAt = null;
         state.snapshotCompletedAt = null;
         state.snapshotPolling = false;
       };
@@ -777,6 +781,29 @@
         return completedAt >= state.ingestCompletedAt;
       };
 
+      const modalityToQueryModalities = (value) => {
+        const normalized = String(value || "").trim().toLowerCase();
+        if (!normalized) return null;
+        if (normalized === "video" || normalized === "videos") {
+          return ["image", "transcript"];
+        }
+        if (normalized === "audio") {
+          return ["audio", "transcript"];
+        }
+        if (normalized === "image" || normalized === "images") {
+          return ["image"];
+        }
+        if (normalized === "document" || normalized === "docs") {
+          return ["document", "transcript"];
+        }
+        return null;
+      };
+
+      const resolveQueryModalities = () => {
+        const hint = state.uploadModality || state.datasetModality;
+        return modalityToQueryModalities(hint);
+      };
+
       const startIndexBuild = async () => {
         if (state.indexTriggered) return;
         setStepState("index", "working", "Starting index build");
@@ -835,6 +862,7 @@
         );
         await apiFetch("/dev/snapshot-reload", { method: "POST" });
         state.snapshotReloaded = true;
+        state.snapshotReloadAt = new Date();
       };
 
       const pollSnapshotReady = async () => {
@@ -846,9 +874,28 @@
             const snapshotStatus = await apiFetch("/dev/snapshot-status").catch(
               () => null
             );
+            const indexStatus = await apiFetch("/dev/index-status").catch(
+              () => null
+            );
             const completedAt = parseTimestamp(
               snapshotStatus?.metadata?.completed_at
             );
+            const queueLength = Number(indexStatus?.index_queue_length || 0);
+            const ageMinutes = completedAt
+              ? (Date.now() - completedAt.getTime()) / 60000
+              : null;
+            const needsReload =
+              queueLength > 0 || (ageMinutes !== null && ageMinutes > 10);
+            if (needsReload) {
+              const lastReloadAt = state.snapshotReloadAt;
+              const canRetry =
+                !lastReloadAt ||
+                Date.now() - lastReloadAt.getTime() > 60 * 1000;
+              if (!state.snapshotReloaded || canRetry) {
+                state.snapshotReloaded = false;
+                await startSnapshotReload();
+              }
+            }
             if (isFreshSnapshot(completedAt)) {
               state.snapshotCompletedAt = completedAt;
               state.pipelineReady = true;
@@ -893,7 +940,10 @@
           }
           await pollSnapshotReady();
         } catch (err) {
-          const message = err?.message || "Pipeline stalled. Try refresh.";
+          const rawMessage = err?.message || "Pipeline stalled. Try refresh.";
+          const message = rawMessage.includes("Unauthorized")
+            ? "Session expired. Refresh the token in settings."
+            : rawMessage;
           setPipelinePill("issue", "danger");
           setPipelineSummary("Pipeline stalled", message);
           setStepState("ready", "error", "Needs attention");
@@ -952,6 +1002,9 @@
         });
         if (!resp.ok) {
           const text = await resp.text();
+          if (resp.status === 401) {
+            throw new Error("Unauthorized: refresh your token");
+          }
           throw new Error(text || `Request failed (${resp.status})`);
         }
         return resp.json();
@@ -963,6 +1016,8 @@
         });
         state.selectedDataset =
           selected?.dataset?.demoId || selected?.dataset?.demo || null;
+        state.datasetModality = selected?.dataset?.modality || null;
+        state.uploadModality = null;
         const query = selected?.dataset?.query || selected?.dataset?.queryText;
         if (query && els.queryText) {
           els.queryText.value = query;
@@ -1115,6 +1170,7 @@
           throw new Error("Select a file before uploading.");
         }
         const modality = els.uploadModality.value;
+        state.uploadModality = modality;
         setPipelineUploading(file.name);
         els.uploadStatus.textContent = "Uploading to staging...";
         const form = new FormData();
@@ -1180,10 +1236,15 @@
         if (!queryText) {
           throw new Error("Enter a question.");
         }
+        const payload = { query_text: queryText, top_k: 5 };
+        const modalities = resolveQueryModalities();
+        if (modalities?.length) {
+          payload.modalities = modalities;
+        }
         const data = await apiFetch("/query", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ query_text: queryText, top_k: 5 }),
+          body: JSON.stringify(payload),
         });
         const top = data?.results?.[0] || null;
         renderAnswer(top);
@@ -1220,6 +1281,9 @@
             card.dataset.demoId = dataset.id;
             if (dataset.sample_query) {
               card.dataset.query = dataset.sample_query;
+            }
+            if (dataset.modality) {
+              card.dataset.modality = dataset.modality;
             }
             card.tabIndex = 0;
             const title = document.createElement("strong");
@@ -1282,9 +1346,16 @@
           if (els.uploadModality) {
             els.uploadModality.value = detected;
           }
+          state.uploadModality = detected;
           els.uploadStatus.textContent = `Selected: ${file.name}`;
           els.uploadBtn.disabled = false;
           setPipelinePrepared(file.name);
+        });
+      }
+
+      if (els.uploadModality) {
+        els.uploadModality.addEventListener("change", () => {
+          state.uploadModality = els.uploadModality.value;
         });
       }
 
@@ -1293,6 +1364,7 @@
           els.uploadInput.value = "";
           els.uploadStatus.textContent = "No file selected.";
           els.uploadBtn.disabled = true;
+          state.uploadModality = null;
           const active = document.querySelector(".dataset-card.active");
           if (active) {
             const title = active.querySelector("strong")?.textContent || "";

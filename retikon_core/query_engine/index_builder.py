@@ -1,10 +1,11 @@
 from __future__ import annotations
 
+import hashlib
 import json
 import os
 import shutil
 import time
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Iterable
@@ -42,8 +43,13 @@ class IndexBuildReport:
     duration_seconds: float
     tables: dict[str, dict[str, Any]]
     indexes: dict[str, dict[str, Any]]
+    manifest_fingerprint: str | None
+    manifest_count: int
     duckdb_version: str
     file_size_bytes: int
+    manifest_uris: list[str] | None = None
+    new_manifest_count: int | None = None
+    skipped: bool = False
 
 
 @dataclass(frozen=True)
@@ -70,6 +76,16 @@ class ManifestGroup:
     vector: str | None = None
 
 
+@dataclass(frozen=True)
+class ManifestEntry:
+    uri: str
+    run_id: str
+    completed_at: datetime
+    is_compaction: bool
+    content_hash: str
+    files: tuple[dict[str, Any], ...]
+
+
 def _parse_remote_uri(uri: str) -> tuple[str, str, str]:
     parsed = urlparse(uri)
     if not parsed.scheme or not parsed.netloc:
@@ -85,6 +101,52 @@ def _is_remote(uri: str) -> bool:
     return bool(parsed.scheme and parsed.netloc)
 
 
+def _parse_iso(value: str | None) -> datetime:
+    if not value:
+        return datetime.now(timezone.utc)
+    if value.endswith("Z"):
+        value = f"{value[:-1]}+00:00"
+    return datetime.fromisoformat(value).astimezone(timezone.utc)
+
+
+def _run_id_from_manifest_uri(uri: str) -> str:
+    parsed = urlparse(uri)
+    path = parsed.path if parsed.scheme else uri
+    parts = path.strip("/").split("/")
+    if "manifests" in parts:
+        idx = parts.index("manifests")
+        if len(parts) > idx + 1:
+            return parts[idx + 1]
+    return "unknown"
+
+
+def _manifest_hash(payload: dict[str, Any]) -> str:
+    serialized = json.dumps(payload, sort_keys=True).encode("utf-8")
+    return hashlib.sha256(serialized).hexdigest()
+
+
+def _manifest_fingerprint(entries: Iterable[ManifestEntry]) -> str | None:
+    parts = sorted(f"{entry.run_id}:{entry.content_hash}" for entry in entries)
+    if not parts:
+        return None
+    return hashlib.sha256("\n".join(parts).encode("utf-8")).hexdigest()
+
+
+def _select_manifest_entries(
+    entries: list[ManifestEntry],
+    *,
+    use_latest_compaction: bool,
+) -> list[ManifestEntry]:
+    if not use_latest_compaction:
+        return entries
+    compactions = [entry for entry in entries if entry.is_compaction]
+    if not compactions:
+        return entries
+    latest = max(compactions, key=lambda entry: entry.completed_at)
+    cutoff = latest.completed_at
+    return [entry for entry in entries if entry.completed_at >= cutoff]
+
+
 def _glob_files(pattern: str) -> list[str]:
     fs, path = fsspec.core.url_to_fs(pattern)
     matches = sorted(fs.glob(path))
@@ -92,6 +154,11 @@ def _glob_files(pattern: str) -> list[str]:
     if protocol in {"file", "local"}:
         return matches
     return [f"{protocol}://{match}" for match in matches]
+
+
+def _uri_exists(uri: str) -> bool:
+    fs, path = fsspec.core.url_to_fs(uri)
+    return fs.exists(path)
 
 
 def _normalize_uri(uri: str) -> str:
@@ -141,11 +208,15 @@ def _load_manifest_groups(
     base_uri: str,
     *,
     source_uri: str | None = None,
-) -> tuple[dict[str, list[ManifestGroup]], list[str], bool]:
-    manifest_glob = join_uri(base_uri, "manifests", "*", "manifest.json")
-    manifest_uris = _glob_files(manifest_glob)
+    use_latest_compaction: bool = False,
+    manifest_uris: list[str] | None = None,
+    skip_missing_files: bool = False,
+) -> tuple[dict[str, list[ManifestGroup]], list[str], bool, str | None, int, list[str]]:
+    if manifest_uris is None:
+        manifest_glob = join_uri(base_uri, "manifests", "*", "manifest.json")
+        manifest_uris = _glob_files(manifest_glob)
     if not manifest_uris:
-        return {}, [], False
+        return {}, [], False, None, 0, []
 
     local_root = Path(base_uri).resolve()
     map_to_local = source_uri is not None and not _is_remote(base_uri)
@@ -157,14 +228,46 @@ def _load_manifest_groups(
             raise ValueError("source_uri is required when mapping manifests locally")
         source_scheme, source_container, source_prefix = _parse_remote_uri(source_uri)
 
+    entries: list[ManifestEntry] = []
+    for manifest_uri in manifest_uris:
+        manifest = _read_manifest(manifest_uri)
+        files_raw = manifest.get("files")
+        files = (
+            tuple(item for item in files_raw if isinstance(item, dict))
+            if isinstance(files_raw, list)
+            else tuple()
+        )
+        run_id = _run_id_from_manifest_uri(manifest_uri)
+        completed_at = _parse_iso(
+            str(manifest.get("completed_at") or manifest.get("started_at") or "")
+        )
+        entries.append(
+            ManifestEntry(
+                uri=manifest_uri,
+                run_id=run_id,
+                completed_at=completed_at,
+                is_compaction=run_id.startswith("compaction-"),
+                content_hash=_manifest_hash(manifest),
+                files=files,
+            )
+        )
+
+    selected_entries = _select_manifest_entries(
+        entries,
+        use_latest_compaction=use_latest_compaction,
+    )
+    manifest_fingerprint = _manifest_fingerprint(selected_entries)
+    manifest_count = len(selected_entries)
+    selected_uris = [entry.uri for entry in selected_entries]
+
     groups: dict[str, list[ManifestGroup]] = {}
     counters: dict[str, int] = {}
     media_files: list[str] = []
+    missing_files: list[str] = []
 
-    for manifest_uri in manifest_uris:
-        manifest = _read_manifest(manifest_uri)
+    for entry in selected_entries:
         by_vertex: dict[str, dict[str, str]] = {}
-        for item in manifest.get("files", []):
+        for item in entry.files:
             uri = item.get("uri")
             if not uri:
                 continue
@@ -177,13 +280,17 @@ def _load_manifest_groups(
                     container=source_container,
                     prefix=source_prefix,
                 )
-            info = _vertex_kind_from_uri(normalized)
+            if skip_missing_files and not _uri_exists(normalized):
+                missing_files.append(normalized)
+                continue
+            duckdb_uri = _rewrite_duckdb_uri(normalized)
+            info = _vertex_kind_from_uri(duckdb_uri)
             if not info:
                 continue
             vertex_type, file_kind = info
             if vertex_type == "MediaAsset" and file_kind == "core":
-                media_files.append(normalized)
-            by_vertex.setdefault(vertex_type, {})[file_kind] = normalized
+                media_files.append(duckdb_uri)
+            by_vertex.setdefault(vertex_type, {})[file_kind] = duckdb_uri
 
         for vertex_type, files in by_vertex.items():
             if vertex_type == "MediaAsset":
@@ -198,7 +305,22 @@ def _load_manifest_groups(
                 )
             )
 
-    return groups, sorted(set(media_files)), True
+    if missing_files:
+        logger.warning(
+            "Skipping missing GraphAr files referenced by manifests.",
+            extra={
+                "missing_count": len(missing_files),
+                "missing_sample": missing_files[:5],
+            },
+        )
+    return (
+        groups,
+        sorted(set(media_files)),
+        bool(selected_entries),
+        manifest_fingerprint,
+        manifest_count,
+        selected_uris,
+    )
 
 
 def _relative_object_path(path: str, container: str, prefix: str) -> str:
@@ -312,6 +434,42 @@ def _create_table(
     return int(row[0])
 
 
+def _create_table_from_base(
+    conn: duckdb.DuckDBPyConnection,
+    table: str,
+    empty_sql: str,
+) -> int:
+    if _table_exists(conn, "base", table):
+        conn.execute(f"CREATE TABLE {table} AS SELECT * FROM base.{table}")
+    else:
+        conn.execute(empty_sql)
+    row = conn.execute(f"SELECT COUNT(*) FROM {table}").fetchone()
+    return int(row[0]) if row is not None else 0
+
+
+def _append_table_from_select(
+    conn: duckdb.DuckDBPyConnection,
+    table: str,
+    source: TableSource,
+    create_sql: str,
+) -> int:
+    if not source.ready():
+        return 0
+    temp_table = f"{table}_new"
+    marker = f"CREATE TABLE {table} AS"
+    create_temp_sql = create_sql.replace(
+        marker,
+        f"CREATE TEMP TABLE {temp_table} AS",
+        1,
+    )
+    conn.execute(f"DROP TABLE IF EXISTS {temp_table}")
+    conn.execute(create_temp_sql)
+    conn.execute(f"INSERT INTO {table} SELECT * FROM {temp_table}")
+    row = conn.execute(f"SELECT COUNT(*) FROM {table}").fetchone()
+    conn.execute(f"DROP TABLE {temp_table}")
+    return int(row[0]) if row is not None else 0
+
+
 def _file_size_bytes(path: str) -> int:
     p = Path(path)
     if not p.exists():
@@ -319,8 +477,76 @@ def _file_size_bytes(path: str) -> int:
     return p.stat().st_size
 
 
+def _table_exists(
+    conn: duckdb.DuckDBPyConnection,
+    catalog: str,
+    table: str,
+) -> bool:
+    row = conn.execute(
+        "SELECT 1 FROM information_schema.tables "
+        "WHERE table_catalog = ? AND table_name = ? LIMIT 1",
+        [catalog, table],
+    ).fetchone()
+    return row is not None
+
+
+def _download_snapshot(snapshot_uri: str, work_dir: str) -> str | None:
+    parsed = urlparse(snapshot_uri)
+    if not parsed.scheme or not parsed.netloc:
+        path = Path(snapshot_uri)
+        return str(path) if path.exists() else None
+    fs, path = fsspec.core.url_to_fs(snapshot_uri)
+    if not fs.exists(path):
+        return None
+    dest = Path(work_dir) / "base_snapshot.duckdb"
+    dest.parent.mkdir(parents=True, exist_ok=True)
+    fs.get(path, str(dest))
+    return str(dest)
+
+
 def _write_report(report: IndexBuildReport, dest_path: str) -> None:
     Path(dest_path).write_text(json.dumps(report.__dict__, indent=2), encoding="utf-8")
+
+
+def _read_snapshot_report(snapshot_uri: str) -> dict[str, Any] | None:
+    meta_uri = f"{snapshot_uri}.json"
+    fs, path = fsspec.core.url_to_fs(meta_uri)
+    if not fs.exists(path):
+        return None
+    try:
+        with fs.open(path, "rb") as handle:
+            payload = json.load(handle)
+    except Exception:
+        return None
+    return payload if isinstance(payload, dict) else None
+
+
+def _report_from_existing(
+    payload: dict[str, Any],
+    *,
+    graph_uri: str,
+    snapshot_uri: str,
+    manifest_fingerprint: str | None,
+    manifest_count: int,
+) -> IndexBuildReport:
+    return IndexBuildReport(
+        graph_uri=str(payload.get("graph_uri") or graph_uri),
+        snapshot_uri=str(payload.get("snapshot_uri") or snapshot_uri),
+        started_at=str(payload.get("started_at") or datetime.now(timezone.utc).isoformat()),
+        completed_at=str(
+            payload.get("completed_at") or datetime.now(timezone.utc).isoformat()
+        ),
+        duration_seconds=float(payload.get("duration_seconds") or 0.0),
+        tables=payload.get("tables") or {},
+        indexes=payload.get("indexes") or {},
+        manifest_fingerprint=manifest_fingerprint or payload.get("manifest_fingerprint"),
+        manifest_count=manifest_count or int(payload.get("manifest_count") or 0),
+        duckdb_version=str(payload.get("duckdb_version") or duckdb.__version__),
+        file_size_bytes=int(payload.get("file_size_bytes") or 0),
+        manifest_uris=payload.get("manifest_uris"),
+        new_manifest_count=payload.get("new_manifest_count"),
+        skipped=True,
+    )
 
 
 def _upload_file(src_path: str, dest_uri: str) -> None:
@@ -351,6 +577,16 @@ def _sql_list(items: Iterable[str]) -> str:
     return "[" + ", ".join(f"'{item}'" for item in escaped) + "]"
 
 
+def _uri_basename(uri: str) -> str:
+    parsed = urlparse(uri)
+    path = parsed.path if parsed.scheme else uri
+    return Path(path).name
+
+
+def _filename_basename_sql(column: str) -> str:
+    return f"regexp_extract({column}, '(?:.*/)?([^/?]+)(?:\\\\?.*)?$', 1)"
+
+
 def _table_has_column(
     conn: duckdb.DuckDBPyConnection,
     table: str,
@@ -369,6 +605,31 @@ def _table_columns(conn: duckdb.DuckDBPyConnection, table: str) -> list[str]:
     except duckdb.Error:
         return []
     return [row[1] for row in rows]
+
+
+def _apply_duckdb_settings(
+    conn: duckdb.DuckDBPyConnection,
+    work_dir: str,
+) -> dict[str, str]:
+    settings: dict[str, str] = {}
+    threads = os.getenv("INDEX_BUILDER_DUCKDB_THREADS") or os.getenv("DUCKDB_THREADS")
+    if threads:
+        conn.execute(f"PRAGMA threads={int(threads)}")
+        settings["duckdb_threads"] = threads
+    memory_limit = os.getenv("INDEX_BUILDER_DUCKDB_MEMORY_LIMIT") or os.getenv(
+        "DUCKDB_MEMORY_LIMIT"
+    )
+    if memory_limit:
+        conn.execute(f"PRAGMA memory_limit='{memory_limit}'")
+        settings["duckdb_memory_limit"] = memory_limit
+    temp_dir = os.getenv("INDEX_BUILDER_DUCKDB_TEMP_DIRECTORY") or os.getenv(
+        "DUCKDB_TEMP_DIRECTORY"
+    )
+    if temp_dir:
+        Path(temp_dir).mkdir(parents=True, exist_ok=True)
+        conn.execute(f"PRAGMA temp_directory='{temp_dir}'")
+        settings["duckdb_temp_directory"] = temp_dir
+    return settings
 
 
 def _env_optional(name: str) -> str | None:
@@ -426,6 +687,11 @@ def build_snapshot(
     copy_local: bool,
     fallback_local: bool,
     allow_install: bool,
+    skip_if_unchanged: bool = False,
+    use_latest_compaction: bool = False,
+    incremental: bool = False,
+    incremental_max_new_manifests: int | None = None,
+    skip_missing_files: bool = False,
 ) -> IndexBuildReport:
     start = time.time()
     started_at = datetime.now(timezone.utc).isoformat()
@@ -440,12 +706,117 @@ def build_snapshot(
     db_path.parent.mkdir(parents=True, exist_ok=True)
     if db_path.exists():
         db_path.unlink()
+    prior_report = _read_snapshot_report(snapshot_uri) if (skip_if_unchanged or incremental) else None
 
     def build_with_base(
         base_uri: str,
         source_uri: str | None = None,
     ) -> tuple[IndexBuildReport, str]:
+        (
+            groups,
+            media_files,
+            has_manifests,
+            manifest_fingerprint,
+            manifest_count,
+            manifest_uris,
+        ) = _load_manifest_groups(
+            base_uri,
+            source_uri=source_uri,
+            use_latest_compaction=use_latest_compaction,
+            skip_missing_files=skip_missing_files,
+        )
+        if skip_if_unchanged and manifest_fingerprint and prior_report:
+            if prior_report.get("manifest_fingerprint") == manifest_fingerprint:
+                logger.info(
+                    "Index build skipped; manifests unchanged.",
+                    extra={
+                        "manifest_fingerprint": manifest_fingerprint,
+                        "manifest_count": manifest_count,
+                    },
+                )
+                return (
+                    _report_from_existing(
+                        prior_report,
+                        graph_uri=base_uri,
+                        snapshot_uri=snapshot_uri,
+                        manifest_fingerprint=manifest_fingerprint,
+                        manifest_count=manifest_count,
+                    ),
+                    "",
+                )
+
+        incremental_enabled = incremental
+        new_manifest_uris: list[str] | None = None
+        new_manifest_count: int | None = None
+        if incremental_enabled and use_latest_compaction:
+            if any("compaction-" in uri for uri in manifest_uris):
+                incremental_enabled = False
+        if incremental_enabled and prior_report:
+            prior_uris = set(prior_report.get("manifest_uris") or [])
+            if prior_uris:
+                new_manifest_uris = [uri for uri in manifest_uris if uri not in prior_uris]
+                new_manifest_count = len(new_manifest_uris)
+                if new_manifest_count == 0:
+                    logger.info(
+                        "Index build skipped; no new manifests.",
+                        extra={
+                            "manifest_fingerprint": manifest_fingerprint,
+                            "manifest_count": manifest_count,
+                        },
+                    )
+                    report = _report_from_existing(
+                        prior_report,
+                        graph_uri=base_uri,
+                        snapshot_uri=snapshot_uri,
+                        manifest_fingerprint=manifest_fingerprint,
+                        manifest_count=manifest_count,
+                    )
+                    return (replace(report, manifest_uris=manifest_uris, new_manifest_count=0), "")
+                if (
+                    incremental_max_new_manifests is not None
+                    and incremental_max_new_manifests > 0
+                    and new_manifest_count > incremental_max_new_manifests
+                ):
+                    logger.info(
+                        "Incremental index build disabled; too many new manifests.",
+                        extra={
+                            "new_manifest_count": new_manifest_count,
+                            "manifest_count": manifest_count,
+                        },
+                    )
+                    new_manifest_uris = None
+                    new_manifest_count = None
+
+        base_snapshot_path: str | None = None
+        if new_manifest_uris:
+            base_snapshot_path = _download_snapshot(snapshot_uri, work_dir)
+            if not base_snapshot_path:
+                logger.warning("Incremental index build disabled; base snapshot missing.")
+                new_manifest_uris = None
+                new_manifest_count = None
+        if new_manifest_uris:
+            (
+                groups,
+                media_files,
+                has_manifests,
+                _,
+                _,
+                _,
+            ) = _load_manifest_groups(
+                base_uri,
+                source_uri=source_uri,
+                use_latest_compaction=use_latest_compaction,
+                manifest_uris=new_manifest_uris,
+                skip_missing_files=skip_missing_files,
+            )
+
         conn = duckdb.connect(str(db_path))
+        if base_snapshot_path:
+            conn.execute(f"ATTACH '{base_snapshot_path}' AS base (READ_ONLY)")
+        incremental_mode = base_snapshot_path is not None
+        settings = _apply_duckdb_settings(conn, work_dir)
+        if settings:
+            logger.info("DuckDB settings applied.", extra=settings)
         extensions = load_extensions(conn, ("httpfs", "vss"), allow_install)
         provider = load_duckdb_auth_provider()
         context = DuckDBAuthContext(
@@ -455,10 +826,6 @@ def build_snapshot(
         auth_path, fallback_used = provider.configure(conn, context)
         conn.execute("SET hnsw_enable_experimental_persistence=true")
 
-        groups, media_files, has_manifests = _load_manifest_groups(
-            base_uri,
-            source_uri=source_uri,
-        )
         sources = _table_sources(base_uri)
         if not has_manifests:
             if any(
@@ -477,36 +844,67 @@ def build_snapshot(
 
         media_source = TableSource(core=media_files)
         media_rows = 0
-        if media_source.ready():
-            conn.execute(
-                f"""
-                CREATE TEMP VIEW media_assets_src AS
-                SELECT *
-                FROM read_parquet({_sql_list(media_files)}, union_by_name=true)
-                """
-            )
-            select_list = _media_assets_select(
+        media_assets_empty_sql = (
+            "CREATE TABLE media_assets "
+            "(id VARCHAR, uri VARCHAR, media_type VARCHAR, "
+            "content_type VARCHAR, org_id VARCHAR, site_id VARCHAR, "
+            "stream_id VARCHAR)"
+        )
+        if incremental_mode:
+            media_rows = _create_table_from_base(
                 conn,
-                "media_assets_src",
-                _media_scope_defaults(),
+                "media_assets",
+                media_assets_empty_sql,
             )
-            conn.execute(
-                f"""
-                CREATE TABLE media_assets AS
-                SELECT {select_list}
-                FROM media_assets_src
-                """
-            )
-            row = conn.execute("SELECT COUNT(*) FROM media_assets").fetchone()
-            if row is not None:
-                media_rows = int(row[0])
+            if media_source.ready():
+                conn.execute(
+                    f"""
+                    CREATE TEMP VIEW media_assets_src AS
+                    SELECT *
+                    FROM read_parquet({_sql_list(media_files)}, union_by_name=true)
+                    """
+                )
+                select_list = _media_assets_select(
+                    conn,
+                    "media_assets_src",
+                    _media_scope_defaults(),
+                )
+                conn.execute(
+                    f"""
+                    INSERT INTO media_assets
+                    SELECT {select_list}
+                    FROM media_assets_src
+                    """
+                )
+                row = conn.execute("SELECT COUNT(*) FROM media_assets").fetchone()
+                if row is not None:
+                    media_rows = int(row[0])
         else:
-            conn.execute(
-                "CREATE TABLE media_assets "
-                "(id VARCHAR, uri VARCHAR, media_type VARCHAR, "
-                "content_type VARCHAR, org_id VARCHAR, site_id VARCHAR, "
-                "stream_id VARCHAR)"
-            )
+            if media_source.ready():
+                conn.execute(
+                    f"""
+                    CREATE TEMP VIEW media_assets_src AS
+                    SELECT *
+                    FROM read_parquet({_sql_list(media_files)}, union_by_name=true)
+                    """
+                )
+                select_list = _media_assets_select(
+                    conn,
+                    "media_assets_src",
+                    _media_scope_defaults(),
+                )
+                conn.execute(
+                    f"""
+                    CREATE TABLE media_assets AS
+                    SELECT {select_list}
+                    FROM media_assets_src
+                    """
+                )
+                row = conn.execute("SELECT COUNT(*) FROM media_assets").fetchone()
+                if row is not None:
+                    media_rows = int(row[0])
+            else:
+                conn.execute(media_assets_empty_sql)
         tables["media_assets"] = {"rows": media_rows}
 
         doc_groups = [
@@ -522,7 +920,12 @@ def build_snapshot(
             conn.executemany(
                 "INSERT INTO doc_chunk_map VALUES (?, ?, ?, ?)",
                 [
-                    (group.group_id, group.core, group.text, group.vector)
+                    (
+                        group.group_id,
+                        _uri_basename(group.core),
+                        _uri_basename(group.text),
+                        _uri_basename(group.vector),
+                    )
                     for group in doc_groups
                 ],
             )
@@ -541,7 +944,8 @@ def build_snapshot(
                                   filename=true,
                                   file_row_number=true,
                                   union_by_name=true) AS c
-                JOIN doc_chunk_map m ON c.filename = m.core
+                JOIN doc_chunk_map m
+                  ON {_filename_basename_sql('c.filename')} = m.core
                 """
             )
             conn.execute(
@@ -554,7 +958,8 @@ def build_snapshot(
                                   filename=true,
                                   file_row_number=true,
                                   union_by_name=true) AS t
-                JOIN doc_chunk_map m ON t.filename = m.text
+                JOIN doc_chunk_map m
+                  ON {_filename_basename_sql('t.filename')} = m.text
                 """
             )
             conn.execute(
@@ -567,17 +972,14 @@ def build_snapshot(
                                   filename=true,
                                   file_row_number=true,
                                   union_by_name=true) AS v
-                JOIN doc_chunk_map m ON v.filename = m.vector
+                JOIN doc_chunk_map m
+                  ON {_filename_basename_sql('v.filename')} = m.vector
                 """
             )
-        tables["doc_chunks"] = {
-            "rows": _create_table(
-                conn,
-                "doc_chunks",
-                TableSource(
-                    core=[group.core for group in doc_groups if group.core is not None]
-                ),
-                """
+        doc_chunks_source = TableSource(
+            core=[group.core for group in doc_groups if group.core is not None]
+        )
+        doc_chunks_create_sql = """
                 CREATE TABLE doc_chunks AS
                 SELECT core.media_asset_id,
                        text.content,
@@ -589,17 +991,38 @@ def build_snapshot(
                 JOIN doc_chunk_vector AS vector
                   ON core.group_id = vector.group_id
                  AND core.row_number = vector.row_number
-                """,
                 """
+        doc_chunks_empty_sql = """
                 CREATE TABLE doc_chunks (
                   media_asset_id VARCHAR,
                   content VARCHAR,
                   text_vector FLOAT[768]
                 )
-                """,
+                """
+        if incremental_mode:
+            doc_chunks_rows = _create_table_from_base(
+                conn,
+                "doc_chunks",
+                doc_chunks_empty_sql,
+            )
+            appended_rows = _append_table_from_select(
+                conn,
+                "doc_chunks",
+                doc_chunks_source,
+                doc_chunks_create_sql,
+            )
+            if appended_rows:
+                doc_chunks_rows = appended_rows
+        else:
+            doc_chunks_rows = _create_table(
+                conn,
+                "doc_chunks",
+                doc_chunks_source,
+                doc_chunks_create_sql,
+                doc_chunks_empty_sql,
                 [],
             )
-        }
+        tables["doc_chunks"] = {"rows": doc_chunks_rows}
 
         transcript_groups = [
             group
@@ -614,7 +1037,12 @@ def build_snapshot(
             conn.executemany(
                 "INSERT INTO transcript_map VALUES (?, ?, ?, ?)",
                 [
-                    (group.group_id, group.core, group.text, group.vector)
+                    (
+                        group.group_id,
+                        _uri_basename(group.core),
+                        _uri_basename(group.text),
+                        _uri_basename(group.vector),
+                    )
                     for group in transcript_groups
                 ],
             )
@@ -640,7 +1068,8 @@ def build_snapshot(
                                   filename=true,
                                   file_row_number=true,
                                   union_by_name=true) AS c
-                JOIN transcript_map m ON c.filename = m.core
+                JOIN transcript_map m
+                  ON {_filename_basename_sql('c.filename')} = m.core
                 """
             )
             conn.execute(
@@ -653,7 +1082,8 @@ def build_snapshot(
                                   filename=true,
                                   file_row_number=true,
                                   union_by_name=true) AS t
-                JOIN transcript_map m ON t.filename = m.text
+                JOIN transcript_map m
+                  ON {_filename_basename_sql('t.filename')} = m.text
                 """
             )
             conn.execute(
@@ -666,21 +1096,14 @@ def build_snapshot(
                                   filename=true,
                                   file_row_number=true,
                                   union_by_name=true) AS v
-                JOIN transcript_map m ON v.filename = m.vector
+                JOIN transcript_map m
+                  ON {_filename_basename_sql('v.filename')} = m.vector
                 """
             )
-        tables["transcripts"] = {
-            "rows": _create_table(
-                conn,
-                "transcripts",
-                TableSource(
-                    core=[
-                        group.core
-                        for group in transcript_groups
-                        if group.core is not None
-                    ]
-                ),
-                """
+        transcript_source = TableSource(
+            core=[group.core for group in transcript_groups if group.core is not None]
+        )
+        transcript_create_sql = """
                 CREATE TABLE transcripts AS
                 SELECT core.media_asset_id,
                        text.content,
@@ -693,18 +1116,39 @@ def build_snapshot(
                 JOIN transcript_vector AS vector
                   ON core.group_id = vector.group_id
                  AND core.row_number = vector.row_number
-                """,
                 """
+        transcript_empty_sql = """
                 CREATE TABLE transcripts (
                   media_asset_id VARCHAR,
                   content VARCHAR,
                   start_ms BIGINT,
                   text_embedding FLOAT[768]
                 )
-                """,
+                """
+        if incremental_mode:
+            transcript_rows = _create_table_from_base(
+                conn,
+                "transcripts",
+                transcript_empty_sql,
+            )
+            appended_rows = _append_table_from_select(
+                conn,
+                "transcripts",
+                transcript_source,
+                transcript_create_sql,
+            )
+            if appended_rows:
+                transcript_rows = appended_rows
+        else:
+            transcript_rows = _create_table(
+                conn,
+                "transcripts",
+                transcript_source,
+                transcript_create_sql,
+                transcript_empty_sql,
                 [],
             )
-        }
+        tables["transcripts"] = {"rows": transcript_rows}
 
         image_groups = [
             group
@@ -719,7 +1163,11 @@ def build_snapshot(
             conn.executemany(
                 "INSERT INTO image_asset_map VALUES (?, ?, ?)",
                 [
-                    (group.group_id, group.core, group.vector)
+                    (
+                        group.group_id,
+                        _uri_basename(group.core),
+                        _uri_basename(group.vector),
+                    )
                     for group in image_groups
                 ],
             )
@@ -753,7 +1201,8 @@ def build_snapshot(
                        c.timestamp_ms,
                        {thumbnail_expr}
                 FROM image_asset_core_raw AS c
-                JOIN image_asset_map m ON c.filename = m.core
+                JOIN image_asset_map m
+                  ON {_filename_basename_sql('c.filename')} = m.core
                 """
             )
             conn.execute(
@@ -766,21 +1215,14 @@ def build_snapshot(
                                   filename=true,
                                   file_row_number=true,
                                   union_by_name=true) AS v
-                JOIN image_asset_map m ON v.filename = m.vector
+                JOIN image_asset_map m
+                  ON {_filename_basename_sql('v.filename')} = m.vector
                 """
             )
-        tables["image_assets"] = {
-            "rows": _create_table(
-                conn,
-                "image_assets",
-                TableSource(
-                    core=[
-                        group.core
-                        for group in image_groups
-                        if group.core is not None
-                    ]
-                ),
-                """
+        image_source = TableSource(
+            core=[group.core for group in image_groups if group.core is not None]
+        )
+        image_create_sql = """
                 CREATE TABLE image_assets AS
                 SELECT core.media_asset_id,
                        core.timestamp_ms,
@@ -790,18 +1232,39 @@ def build_snapshot(
                 JOIN image_asset_vector AS vector
                   ON core.group_id = vector.group_id
                  AND core.row_number = vector.row_number
-                """,
                 """
+        image_empty_sql = """
                 CREATE TABLE image_assets (
                   media_asset_id VARCHAR,
                   timestamp_ms BIGINT,
                   thumbnail_uri VARCHAR,
                   clip_vector FLOAT[512]
                 )
-                """,
+                """
+        if incremental_mode:
+            image_rows = _create_table_from_base(
+                conn,
+                "image_assets",
+                image_empty_sql,
+            )
+            appended_rows = _append_table_from_select(
+                conn,
+                "image_assets",
+                image_source,
+                image_create_sql,
+            )
+            if appended_rows:
+                image_rows = appended_rows
+        else:
+            image_rows = _create_table(
+                conn,
+                "image_assets",
+                image_source,
+                image_create_sql,
+                image_empty_sql,
                 [],
             )
-        }
+        tables["image_assets"] = {"rows": image_rows}
 
         audio_groups = [
             group
@@ -816,7 +1279,11 @@ def build_snapshot(
             conn.executemany(
                 "INSERT INTO audio_clip_map VALUES (?, ?, ?)",
                 [
-                    (group.group_id, group.core, group.vector)
+                    (
+                        group.group_id,
+                        _uri_basename(group.core),
+                        _uri_basename(group.vector),
+                    )
                     for group in audio_groups
                 ],
             )
@@ -836,7 +1303,8 @@ def build_snapshot(
                                   filename=true,
                                   file_row_number=true,
                                   union_by_name=true) AS c
-                JOIN audio_clip_map m ON c.filename = m.core
+                JOIN audio_clip_map m
+                  ON {_filename_basename_sql('c.filename')} = m.core
                 """
             )
             conn.execute(
@@ -849,21 +1317,14 @@ def build_snapshot(
                                   filename=true,
                                   file_row_number=true,
                                   union_by_name=true) AS v
-                JOIN audio_clip_map m ON v.filename = m.vector
+                JOIN audio_clip_map m
+                  ON {_filename_basename_sql('v.filename')} = m.vector
                 """
             )
-        tables["audio_clips"] = {
-            "rows": _create_table(
-                conn,
-                "audio_clips",
-                TableSource(
-                    core=[
-                        group.core
-                        for group in audio_groups
-                        if group.core is not None
-                    ]
-                ),
-                """
+        audio_source = TableSource(
+            core=[group.core for group in audio_groups if group.core is not None]
+        )
+        audio_create_sql = """
                 CREATE TABLE audio_clips AS
                 SELECT core.media_asset_id,
                        CAST(vector.clap_embedding AS FLOAT[512]) AS clap_embedding
@@ -871,16 +1332,37 @@ def build_snapshot(
                 JOIN audio_clip_vector AS vector
                   ON core.group_id = vector.group_id
                  AND core.row_number = vector.row_number
-                """,
                 """
+        audio_empty_sql = """
                 CREATE TABLE audio_clips (
                   media_asset_id VARCHAR,
                   clap_embedding FLOAT[512]
                 )
-                """,
+                """
+        if incremental_mode:
+            audio_rows = _create_table_from_base(
+                conn,
+                "audio_clips",
+                audio_empty_sql,
+            )
+            appended_rows = _append_table_from_select(
+                conn,
+                "audio_clips",
+                audio_source,
+                audio_create_sql,
+            )
+            if appended_rows:
+                audio_rows = appended_rows
+        else:
+            audio_rows = _create_table(
+                conn,
+                "audio_clips",
+                audio_source,
+                audio_create_sql,
+                audio_empty_sql,
                 [],
             )
-        }
+        tables["audio_clips"] = {"rows": audio_rows}
 
         conn.execute("CHECKPOINT")
 
@@ -918,8 +1400,12 @@ def build_snapshot(
             duration_seconds=round(time.time() - start, 2),
             tables=tables,
             indexes=indexes,
+            manifest_fingerprint=manifest_fingerprint,
+            manifest_count=manifest_count,
             duckdb_version=duckdb.__version__,
             file_size_bytes=_file_size_bytes(str(db_path)),
+            manifest_uris=manifest_uris,
+            new_manifest_count=new_manifest_count,
         )
         logger.info(
             "DuckDB auth initialized",
@@ -953,6 +1439,10 @@ def build_snapshot(
             raise
 
     report_path = str(Path(work_dir) / "retikon.duckdb.json")
+    if report.skipped:
+        if cleanup_dir and cleanup_dir.exists():
+            shutil.rmtree(cleanup_dir, ignore_errors=True)
+        return report
     _write_report(report, report_path)
 
     _upload_file(str(db_path), snapshot_uri)
@@ -965,6 +1455,8 @@ def build_snapshot(
             "duckdb_extensions": extensions,
             "tables": report.tables,
             "indexes": report.indexes,
+            "manifest_count": report.manifest_count,
+            "new_manifest_count": report.new_manifest_count,
         },
     )
 
@@ -1000,6 +1492,10 @@ def _config_from_env() -> dict[str, Any]:
     if not snapshot_uri:
         raise ValueError("SNAPSHOT_URI is required")
 
+    incremental_max = os.getenv("INDEX_BUILDER_INCREMENTAL_MAX_NEW_MANIFESTS")
+    incremental_max_value: int | None = None
+    if incremental_max and incremental_max.isdigit():
+        incremental_max_value = int(incremental_max)
     return {
         "graph_uri": graph_uri,
         "snapshot_uri": snapshot_uri,
@@ -1007,6 +1503,13 @@ def _config_from_env() -> dict[str, Any]:
         "copy_local": os.getenv("INDEX_BUILDER_COPY_LOCAL", "0") == "1",
         "fallback_local": os.getenv("INDEX_BUILDER_FALLBACK_LOCAL", "1") == "1",
         "allow_install": os.getenv("DUCKDB_ALLOW_INSTALL", "0") == "1",
+        "skip_if_unchanged": os.getenv("INDEX_BUILDER_SKIP_IF_UNCHANGED", "0") == "1",
+        "use_latest_compaction": os.getenv("INDEX_BUILDER_USE_LATEST_COMPACTION", "0")
+        == "1",
+        "incremental": os.getenv("INDEX_BUILDER_INCREMENTAL", "0") == "1",
+        "incremental_max_new_manifests": incremental_max_value,
+        "skip_missing_files": os.getenv("INDEX_BUILDER_SKIP_MISSING_FILES", "0")
+        == "1",
     }
 
 

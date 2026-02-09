@@ -49,7 +49,7 @@ def _media_row(
     }
 
 
-def _write_manifest(output_root: str, files, counts) -> None:
+def _write_manifest(output_root: str, files, counts, run_id: str | None = None) -> None:
     started_at = datetime.now(timezone.utc)
     completed_at = datetime.now(timezone.utc)
     manifest = build_manifest(
@@ -60,7 +60,7 @@ def _write_manifest(output_root: str, files, counts) -> None:
         started_at=started_at,
         completed_at=completed_at,
     )
-    run_id = str(uuid.uuid4())
+    run_id = run_id or str(uuid.uuid4())
     write_manifest(manifest, manifest_uri(output_root, run_id))
 
 
@@ -348,6 +348,8 @@ def test_index_builder_creates_snapshot(tmp_path):
     assert report_payload["tables"]["transcripts"]["rows"] == 1
     assert report_payload["tables"]["image_assets"]["rows"] == 1
     assert report_payload["tables"]["audio_clips"]["rows"] == 1
+    assert report_payload["manifest_count"] > 0
+    assert report_payload["manifest_fingerprint"]
 
     conn = duckdb.connect(snapshot_uri, read_only=True)
     try:
@@ -373,3 +375,250 @@ def test_index_builder_parses_remote_uri():
     assert scheme == "s3"
     assert container == "retikon-graph"
     assert path == "retikon_v2"
+
+
+def test_index_builder_rewrites_manifest_uris_for_duckdb(tmp_path, monkeypatch):
+    monkeypatch.setenv("DUCKDB_GCS_URI_SCHEME", "gcs")
+    manifest = {
+        "pipeline_version": "test",
+        "schema_version": "1",
+        "started_at": datetime.now(timezone.utc).isoformat(),
+        "completed_at": datetime.now(timezone.utc).isoformat(),
+        "counts": {"ImageAsset": 1, "MediaAsset": 1},
+        "files": [
+            {
+                "uri": "gs://bucket/retikon_v2/vertices/MediaAsset/core/part-media.parquet",
+                "rows": 1,
+                "bytes_written": 1,
+                "sha256": "deadbeef",
+            },
+            {
+                "uri": "gs://bucket/retikon_v2/vertices/ImageAsset/core/part-core.parquet",
+                "rows": 1,
+                "bytes_written": 1,
+                "sha256": "deadbeef",
+            },
+            {
+                "uri": "gs://bucket/retikon_v2/vertices/ImageAsset/vector/part-vector.parquet",
+                "rows": 1,
+                "bytes_written": 1,
+                "sha256": "deadbeef",
+            },
+        ],
+    }
+    manifest_path = tmp_path / "manifest.json"
+    manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
+
+    groups, media_files, has_manifests, *_ = index_builder._load_manifest_groups(
+        base_uri=str(tmp_path),
+        manifest_uris=[str(manifest_path)],
+    )
+
+    assert has_manifests is True
+    assert media_files[0].startswith("gcs://")
+    image_group = groups["ImageAsset"][0]
+    assert image_group.core.startswith("gcs://")
+    assert image_group.vector.startswith("gcs://")
+
+
+def test_index_builder_skips_when_manifests_unchanged(tmp_path):
+    graph_root = tmp_path / "graph"
+    graph_root.mkdir()
+    output_root = str(graph_root)
+    paths = GraphPaths(base_uri=output_root)
+
+    _write_doc_run(output_root, paths)
+
+    snapshot_uri = str(tmp_path / "snapshot" / "retikon.duckdb")
+    try:
+        build_snapshot(
+            graph_uri=output_root,
+            snapshot_uri=snapshot_uri,
+            work_dir=str(tmp_path / "work"),
+            copy_local=False,
+            fallback_local=False,
+            allow_install=True,
+        )
+    except RecoverableError as exc:
+        if "vss" in str(exc).lower():
+            pytest.skip("DuckDB vss extension unavailable")
+        raise
+
+    before_mtime = Path(snapshot_uri).stat().st_mtime
+
+    report = build_snapshot(
+        graph_uri=output_root,
+        snapshot_uri=snapshot_uri,
+        work_dir=str(tmp_path / "work"),
+        copy_local=False,
+        fallback_local=False,
+        allow_install=True,
+        skip_if_unchanged=True,
+    )
+
+    assert report.skipped is True
+    assert Path(snapshot_uri).stat().st_mtime == before_mtime
+
+
+def test_index_builder_incremental_appends(tmp_path):
+    graph_root = tmp_path / "graph"
+    graph_root.mkdir()
+    output_root = str(graph_root)
+    paths = GraphPaths(base_uri=output_root)
+
+    _write_doc_run(output_root, paths)
+
+    snapshot_uri = str(tmp_path / "snapshot" / "retikon.duckdb")
+    try:
+        build_snapshot(
+            graph_uri=output_root,
+            snapshot_uri=snapshot_uri,
+            work_dir=str(tmp_path / "work"),
+            copy_local=False,
+            fallback_local=False,
+            allow_install=True,
+        )
+    except RecoverableError as exc:
+        if "vss" in str(exc).lower():
+            pytest.skip("DuckDB vss extension unavailable")
+        raise
+
+    _write_doc_run(output_root, paths)
+
+    report = build_snapshot(
+        graph_uri=output_root,
+        snapshot_uri=snapshot_uri,
+        work_dir=str(tmp_path / "work2"),
+        copy_local=False,
+        fallback_local=False,
+        allow_install=True,
+        incremental=True,
+    )
+
+    assert report.new_manifest_count == 1
+    assert report.tables["doc_chunks"]["rows"] == 2
+
+
+def test_index_builder_uses_latest_compaction(tmp_path):
+    graph_root = tmp_path / "graph"
+    graph_root.mkdir()
+    output_root = str(graph_root)
+    paths = GraphPaths(base_uri=output_root)
+
+    _write_doc_run(output_root, paths)
+    _write_doc_run(output_root, paths)
+
+    media_id = str(uuid.uuid4())
+    media_row = _media_row(
+        media_id=media_id,
+        uri="gs://raw/raw/docs/compacted.pdf",
+        media_type="document",
+        content_type="application/pdf",
+    )
+    chunk_id = str(uuid.uuid4())
+    chunk_core = {
+        "id": chunk_id,
+        "media_asset_id": media_id,
+        "chunk_index": 0,
+        "char_start": 0,
+        "char_end": 8,
+        "token_start": 0,
+        "token_end": 2,
+        "token_count": 2,
+        "embedding_model": "stub",
+        "pipeline_version": "test",
+        "schema_version": "1",
+    }
+    chunk_text = {"content": "compact"}
+    chunk_vector = {"text_vector": _vector(768, 9.0)}
+
+    files = []
+    files.append(
+        write_parquet(
+            [media_row],
+            schema_for("MediaAsset", "core"),
+            paths.vertex("MediaAsset", "core", str(uuid.uuid4())),
+        )
+    )
+    files.append(
+        write_parquet(
+            [chunk_core],
+            schema_for("DocChunk", "core"),
+            paths.vertex("DocChunk", "core", str(uuid.uuid4())),
+        )
+    )
+    files.append(
+        write_parquet(
+            [chunk_text],
+            schema_for("DocChunk", "text"),
+            paths.vertex("DocChunk", "text", str(uuid.uuid4())),
+        )
+    )
+    files.append(
+        write_parquet(
+            [chunk_vector],
+            schema_for("DocChunk", "vector"),
+            paths.vertex("DocChunk", "vector", str(uuid.uuid4())),
+        )
+    )
+    _write_manifest(
+        output_root,
+        files,
+        {"MediaAsset": 1, "DocChunk": 1},
+        run_id="compaction-test",
+    )
+
+    snapshot_uri = str(tmp_path / "snapshot" / "retikon.duckdb")
+    try:
+        report = build_snapshot(
+            graph_uri=output_root,
+            snapshot_uri=snapshot_uri,
+            work_dir=str(tmp_path / "work"),
+            copy_local=False,
+            fallback_local=False,
+            allow_install=True,
+            use_latest_compaction=True,
+        )
+    except RecoverableError as exc:
+        if "vss" in str(exc).lower():
+            pytest.skip("DuckDB vss extension unavailable")
+        raise
+
+    assert report.tables["doc_chunks"]["rows"] == 1
+
+
+def test_index_builder_skip_missing_files(tmp_path):
+    output_root = tmp_path / "graph"
+    output_root.mkdir()
+    run_id = str(uuid.uuid4())
+    missing_uri = str(
+        GraphPaths(str(output_root)).vertex("MediaAsset", "core", str(uuid.uuid4()))
+    )
+    manifest = {
+        "pipeline_version": "test",
+        "schema_version": "1",
+        "started_at": datetime.now(timezone.utc).isoformat(),
+        "completed_at": datetime.now(timezone.utc).isoformat(),
+        "counts": {},
+        "files": [
+            {
+                "uri": missing_uri,
+                "rows": 0,
+                "bytes_written": 0,
+                "sha256": "",
+            }
+        ],
+    }
+    write_manifest(manifest, manifest_uri(str(output_root), run_id))
+
+    snapshot_uri = str(output_root / "snapshots" / "retikon.duckdb")
+    report = build_snapshot(
+        graph_uri=str(output_root),
+        snapshot_uri=snapshot_uri,
+        work_dir=str(tmp_path / "work"),
+        copy_local=False,
+        fallback_local=False,
+        allow_install=False,
+        skip_missing_files=True,
+    )
+    assert report.tables["media_assets"]["rows"] == 0

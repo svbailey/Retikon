@@ -12,7 +12,7 @@ from urllib.request import urlopen
 from fastapi import FastAPI, HTTPException, Request
 from pydantic import BaseModel
 
-from gcp_adapter.auth import authorize_request
+from gcp_adapter.auth import authorize_internal_service_account, authorize_request
 from gcp_adapter.queue_pubsub import PubSubPublisher, parse_pubsub_push
 from gcp_adapter.stores import abac_allowed, get_control_plane_stores, is_action_allowed
 from retikon_core.audit import record_audit_log
@@ -141,6 +141,22 @@ def _authorize(request: Request) -> AuthContext | None:
         request=request,
         require_admin=_require_admin(),
     )
+
+
+def _authorize_internal(request: Request) -> AuthContext:
+    context = authorize_internal_service_account(request)
+    if context is None:
+        raise HTTPException(status_code=401, detail="Unauthorized")
+    return context
+
+
+def _authorize_tick(request: Request) -> AuthContext:
+    try:
+        return _authorize(request)
+    except HTTPException as exc:
+        if exc.status_code != 401:
+            raise
+    return _authorize_internal(request)
 
 
 def _get_config():
@@ -742,7 +758,7 @@ def _execute_workflow_run(
 
 
 def _runner_authorized(request: Request) -> None:
-    _authorize(request)
+    _authorize_tick(request)
 
 
 @app.get("/health", response_model=HealthResponse)
@@ -886,7 +902,7 @@ async def schedule_tick(
     request: Request,
     dry_run: bool = False,
 ) -> ScheduleTickResponse:
-    auth_context = _authorize(request)
+    auth_context = _authorize_tick(request)
     _enforce_access(ACTION_WORKFLOWS_SCHEDULE_TICK, auth_context)
     trace_id = _request_id(request)
     _record_audit(

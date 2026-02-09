@@ -24,6 +24,16 @@ variable "graph_bucket_name" {
   type = string
 }
 
+variable "graph_lifecycle_ttl_days" {
+  type    = number
+  default = 0
+}
+
+variable "graph_lifecycle_prefixes" {
+  type    = list(string)
+  default = []
+}
+
 variable "artifact_repo_name" {
   type    = string
   default = "retikon-repo"
@@ -394,6 +404,21 @@ variable "query_warmup_steps" {
   default = "text,image_text,audio_text,image"
 }
 
+variable "query_default_modalities" {
+  type    = string
+  default = "document,transcript,image,audio"
+}
+
+variable "query_modality_boosts" {
+  type    = string
+  default = "document=1.0,transcript=1.0,image=1.05,audio=1.05"
+}
+
+variable "query_modality_hint_boost" {
+  type    = number
+  default = 1.15
+}
+
 variable "query_embedding_backend" {
   type    = string
   default = ""
@@ -410,6 +435,21 @@ variable "duckdb_memory_limit" {
 }
 
 variable "duckdb_temp_directory" {
+  type    = string
+  default = ""
+}
+
+variable "index_duckdb_threads" {
+  type    = number
+  default = null
+}
+
+variable "index_duckdb_memory_limit" {
+  type    = string
+  default = ""
+}
+
+variable "index_duckdb_temp_directory" {
   type    = string
   default = ""
 }
@@ -774,6 +814,11 @@ variable "index_memory" {
   default = "2Gi"
 }
 
+variable "index_job_timeout" {
+  type    = string
+  default = "900s"
+}
+
 variable "index_cpu" {
   type    = string
   default = "1000m"
@@ -804,6 +849,46 @@ variable "index_builder_fallback_local" {
   default = true
 }
 
+variable "index_builder_skip_if_unchanged" {
+  type    = bool
+  default = false
+}
+
+variable "index_builder_use_latest_compaction" {
+  type    = bool
+  default = false
+}
+
+variable "index_builder_skip_missing_files" {
+  type    = bool
+  default = false
+}
+
+variable "index_builder_incremental" {
+  type    = bool
+  default = false
+}
+
+variable "index_builder_incremental_max_new_manifests" {
+  type    = number
+  default = 0
+}
+
+variable "index_schedule" {
+  type    = string
+  default = "0 * * * *"
+}
+
+variable "index_schedule_timezone" {
+  type    = string
+  default = "Etc/UTC"
+}
+
+variable "index_schedule_enabled" {
+  type    = bool
+  default = false
+}
+
 variable "compaction_schedule" {
   type    = string
   default = "0 * * * *"
@@ -812,6 +897,11 @@ variable "compaction_schedule" {
 variable "compaction_schedule_timezone" {
   type    = string
   default = "Etc/UTC"
+}
+
+variable "compaction_enabled" {
+  type    = bool
+  default = true
 }
 
 variable "workflow_schedule" {
@@ -973,6 +1063,26 @@ variable "max_audio_seconds" {
   default = 1200
 }
 
+variable "audio_transcribe" {
+  type    = bool
+  default = true
+}
+
+variable "audio_profile" {
+  type    = bool
+  default = false
+}
+
+variable "audio_skip_normalize_if_wav" {
+  type    = bool
+  default = false
+}
+
+variable "audio_max_segments" {
+  type    = number
+  default = 0
+}
+
 variable "max_frames_per_video" {
   type    = number
   default = 600
@@ -998,6 +1108,11 @@ variable "video_scene_min_frames" {
   default = 3
 }
 
+variable "video_thumbnail_width" {
+  type    = number
+  default = 320
+}
+
 variable "chunk_target_tokens" {
   type    = number
   default = 512
@@ -1011,6 +1126,16 @@ variable "chunk_overlap_tokens" {
 variable "max_ingest_attempts" {
   type    = number
   default = 5
+}
+
+variable "idempotency_ttl_seconds" {
+  type    = number
+  default = 600
+}
+
+variable "idempotency_completed_ttl_seconds" {
+  type    = number
+  default = 0
 }
 
 variable "rate_limit_doc_per_min" {
@@ -1296,6 +1421,31 @@ variable "metering_firestore_enabled" {
 variable "metering_firestore_collection" {
   type    = string
   default = "usage_events"
+}
+
+variable "ingest_warmup" {
+  type    = bool
+  default = true
+}
+
+variable "ingest_warmup_audio" {
+  type    = bool
+  default = true
+}
+
+variable "ingest_warmup_text" {
+  type    = bool
+  default = true
+}
+
+variable "snapshot_reload_allow_internal_sa" {
+  type    = bool
+  default = false
+}
+
+variable "dev_console_snapshot_reload_allow_sa" {
+  type    = bool
+  default = false
 }
 
 variable "metering_collection_prefix" {

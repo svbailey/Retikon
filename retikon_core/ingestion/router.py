@@ -22,6 +22,7 @@ class PipelineOutcome:
     manifest_uri: str | None = None
     modality: str | None = None
     media_asset_id: str | None = None
+    duration_ms: int | None = None
 
 
 def pipeline_version() -> str:
@@ -32,14 +33,15 @@ def _schema_version() -> str:
     return "1"
 
 
-def _modality_for_name(name: str) -> str:
-    if name.startswith("raw/docs/"):
+def _modality_for_name(name: str, raw_prefix: str) -> str:
+    prefix = raw_prefix.strip("/")
+    if name.startswith(f"{prefix}/docs/"):
         return "document"
-    if name.startswith("raw/images/"):
+    if name.startswith(f"{prefix}/images/"):
         return "image"
-    if name.startswith("raw/audio/"):
+    if name.startswith(f"{prefix}/audio/"):
         return "audio"
-    if name.startswith("raw/videos/"):
+    if name.startswith(f"{prefix}/videos/"):
         return "video"
     raise PermanentError(f"Unsupported object prefix: {name}")
 
@@ -198,6 +200,7 @@ def _run_pipeline(
             manifest_uri=result.manifest_uri,
             modality=modality,
             media_asset_id=result.media_asset_id,
+            duration_ms=result.duration_ms,
         )
     if modality == "image":
         if source is None:
@@ -215,6 +218,7 @@ def _run_pipeline(
             manifest_uri=result.manifest_uri,
             modality=modality,
             media_asset_id=result.media_asset_id,
+            duration_ms=result.duration_ms,
         )
     if modality == "audio":
         if source is None:
@@ -232,6 +236,7 @@ def _run_pipeline(
             manifest_uri=result.manifest_uri,
             modality=modality,
             media_asset_id=result.media_asset_id,
+            duration_ms=result.duration_ms,
         )
     if modality == "video":
         if source is None:
@@ -249,6 +254,7 @@ def _run_pipeline(
             manifest_uri=result.manifest_uri,
             modality=modality,
             media_asset_id=result.media_asset_id,
+            duration_ms=result.duration_ms,
         )
     raise PermanentError(f"Unsupported modality: {modality}")
 
@@ -261,7 +267,7 @@ def process_event(
     skip_rate_limit: bool = False,
 ) -> PipelineOutcome:
     _check_size(event, config)
-    modality = _modality_for_name(event.name)
+    modality = _modality_for_name(event.name, config.raw_prefix)
     _ensure_allowed(event, config, modality)
     if not skip_rate_limit:
         enforce_rate_limit(modality, config, scope=rate_limit_scope)

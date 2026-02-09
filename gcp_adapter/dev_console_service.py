@@ -182,6 +182,22 @@ def _graph_settings() -> tuple[str, str]:
     return bucket, prefix
 
 
+def _glob_files(pattern: str) -> list[str]:
+    fs, path = fsspec.core.url_to_fs(pattern)
+    matches = sorted(fs.glob(path))
+    protocol = fs.protocol[0] if isinstance(fs.protocol, tuple) else fs.protocol
+    if protocol in {"file", "local"}:
+        return matches
+    return [f"{protocol}://{match}" for match in matches]
+
+
+def _manifest_uris() -> list[str]:
+    bucket, prefix = _graph_settings()
+    base_uri = graph_root(normalize_bucket_uri(bucket, scheme="gs"), prefix)
+    manifest_glob = join_uri(base_uri, "manifests", "*", "manifest.json")
+    return _glob_files(manifest_glob)
+
+
 def _raw_bucket() -> str:
     bucket = os.getenv("RAW_BUCKET")
     if not bucket:
@@ -199,6 +215,19 @@ def _max_raw_bytes() -> int:
 
 def _max_preview_bytes() -> int:
     return int(os.getenv("MAX_PREVIEW_BYTES", "5242880"))
+
+
+def _read_snapshot_report(snapshot_uri: str) -> dict[str, object] | None:
+    meta_uri = f"{snapshot_uri}.json"
+    fs, path = fsspec.core.url_to_fs(meta_uri)
+    if not fs.exists(path):
+        return None
+    try:
+        with fs.open(path, "rb") as handle:
+            payload = json.loads(handle.read().decode("utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return None
+    return payload if isinstance(payload, dict) else None
 
 
 _LABEL_CATALOG: list[LabelEntry] | None = None
@@ -222,6 +251,10 @@ def _fetch_id_token(audience: str) -> str | None:
         return None
     request = google_requests.Request()
     return id_token.fetch_id_token(request, audience)
+
+
+def _snapshot_reload_allow_sa() -> bool:
+    return os.getenv("DEV_CONSOLE_SNAPSHOT_RELOAD_ALLOW_SA", "0") == "1"
 
 
 def _parse_gs_uri(uri: str) -> ObjectRef:
@@ -900,6 +933,11 @@ async def snapshot_reload(request: Request) -> dict[str, object]:
         f"{base_url}/admin/reload-snapshot",
         headers=headers,
     )
+    if resp.status_code in {401, 403} and _snapshot_reload_allow_sa() and token:
+        resp = requests.post(
+            f"{base_url}/admin/reload-snapshot",
+            headers={"authorization": f"Bearer {token}"},
+        )
     if resp.status_code >= 300:
         raise HTTPException(status_code=resp.status_code, detail=resp.text)
     return resp.json()
@@ -947,12 +985,41 @@ async def index_status(request: Request) -> dict[str, object]:
             if latest_exec:
                 completion_status, completion_time = _execution_completion(latest_exec)
                 latest_name = latest_exec.get("name")
+    manifest_count: int | None = None
+    snapshot_manifest_count: int | None = None
+    index_queue_length: int | None = None
+    try:
+        manifest_uris = _manifest_uris()
+        manifest_count = len(manifest_uris)
+        snapshot_uri = os.getenv("SNAPSHOT_URI")
+        if snapshot_uri:
+            report = _read_snapshot_report(snapshot_uri)
+            if report:
+                report_uris = report.get("manifest_uris")
+                if isinstance(report_uris, list):
+                    snapshot_manifest_count = len({str(uri) for uri in report_uris})
+                else:
+                    report_count = report.get("manifest_count")
+                    if report_count is not None:
+                        snapshot_manifest_count = int(report_count)
+                if snapshot_manifest_count is not None:
+                    index_queue_length = max(
+                        0, manifest_count - snapshot_manifest_count
+                    )
+    except Exception as exc:  # pragma: no cover - best-effort diagnostics
+        logger.warning(
+            "Failed to compute index queue length",
+            extra={"error_message": str(exc)},
+        )
     return {
         "job_name": job_name,
         "region": region,
         "latest_execution": latest_name,
         "completion_status": completion_status,
         "completion_time": completion_time,
+        "manifest_count": manifest_count,
+        "snapshot_manifest_count": snapshot_manifest_count,
+        "index_queue_length": index_queue_length,
     }
 
 

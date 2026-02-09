@@ -1,7 +1,11 @@
+import base64
+import binascii
+import io
 import json
 import os
 import time
 import uuid
+import wave
 from datetime import datetime, timedelta, timezone
 from typing import Any
 from urllib.parse import urlparse
@@ -18,6 +22,7 @@ from gcp_adapter.idempotency_firestore import (
     FirestoreIdempotency,
     find_completed_by_checksum,
     resolve_checksum,
+    resolve_scope_key,
     update_object_metadata,
 )
 from gcp_adapter.metering import record_usage
@@ -25,6 +30,8 @@ from gcp_adapter.stores import abac_allowed, is_action_allowed
 from retikon_core.audit import record_audit_log
 from retikon_core.auth import ACTION_INGEST, AuthContext
 from retikon_core.config import Config, get_config
+from retikon_core.embeddings import get_audio_embedder, get_text_embedder
+from retikon_core.embeddings.timeout import run_inference
 from retikon_core.errors import PermanentError, RecoverableError, ValidationError
 from retikon_core.ingestion import process_event
 from retikon_core.ingestion.idempotency import build_doc_id
@@ -55,6 +62,11 @@ app = FastAPI()
 add_correlation_id_middleware(app)
 
 _dlq_publisher: PubSubDlqPublisher | None = None
+
+
+@app.on_event("startup")
+async def _warmup_on_startup() -> None:
+    _warm_ingest_models()
 
 
 class IngestResponse(BaseModel):
@@ -107,6 +119,10 @@ def _abac_enabled() -> bool:
     return os.getenv("ABAC_ENFORCE", "0") == "1"
 
 
+def _raw_prefix() -> str:
+    return os.getenv("RAW_PREFIX", "raw").strip("/")
+
+
 def _enforce_access(
     action: str,
     auth_context: AuthContext | None,
@@ -141,12 +157,77 @@ def _default_scope(config: Config) -> TenantScope:
     )
 
 
+def _scope_key(scope: TenantScope | None) -> str:
+    if scope is None:
+        return resolve_scope_key(None, None, None)
+    return resolve_scope_key(scope.org_id, scope.site_id, scope.stream_id)
+
+
 def _storage_client() -> storage.Client:
     return storage.Client()
 
 
 def _firestore_client() -> firestore.Client:
     return firestore.Client()
+
+
+def _warmup_enabled() -> bool:
+    env = os.getenv("ENV", "dev").lower()
+    default = "0" if env in {"dev", "local", "test"} else "1"
+    return os.getenv("INGEST_WARMUP", default) == "1"
+
+
+def _warmup_audio_enabled() -> bool:
+    return os.getenv("INGEST_WARMUP_AUDIO", "1") == "1"
+
+
+def _warmup_text_enabled() -> bool:
+    return os.getenv("INGEST_WARMUP_TEXT", "1") == "1"
+
+
+def _silent_wav_bytes(
+    duration_ms: int = 250,
+    sample_rate: int = 48000,
+) -> bytes:
+    frames = int(sample_rate * duration_ms / 1000)
+    buffer = io.BytesIO()
+    with wave.open(buffer, "wb") as handle:
+        handle.setnchannels(1)
+        handle.setsampwidth(2)
+        handle.setframerate(sample_rate)
+        handle.writeframes(b"\x00\x00" * frames)
+    return buffer.getvalue()
+
+
+def _warm_ingest_models() -> None:
+    if not _warmup_enabled():
+        return
+    warmup_start = time.monotonic()
+    if _warmup_audio_enabled():
+        try:
+            audio_bytes = _silent_wav_bytes()
+            run_inference(
+                "audio_warmup",
+                lambda: get_audio_embedder(512).encode([audio_bytes])[0],
+            )
+            logger.info("Audio embedder warmed")
+        except Exception as exc:
+            logger.warning("Audio warmup failed", extra={"error_message": str(exc)})
+    if _warmup_text_enabled():
+        try:
+            run_inference(
+                "text_warmup",
+                lambda: get_text_embedder(768).encode(["retikon warmup"]),
+            )
+            logger.info("Text embedder warmed")
+        except Exception as exc:
+            logger.warning("Text warmup failed", extra={"error_message": str(exc)})
+    logger.info(
+        "Ingest warmup complete",
+        extra={
+            "warmup_ms": int((time.monotonic() - warmup_start) * 1000),
+        },
+    )
 
 
 def _apply_checksum_dedupe(
@@ -156,7 +237,10 @@ def _apply_checksum_dedupe(
     doc_id: str,
     bucket: str,
     name: str,
+    scope_key: str,
     checksum: str | None,
+    size_bytes: int | None,
+    content_type: str | None,
 ) -> bool:
     if not checksum:
         return False
@@ -165,8 +249,9 @@ def _apply_checksum_dedupe(
             client=client,
             collection=collection,
             checksum=checksum,
-            bucket=bucket,
-            name=name,
+            scope_key=scope_key,
+            size_bytes=size_bytes,
+            content_type=content_type,
         )
     except Exception as exc:
         logger.warning(
@@ -174,6 +259,7 @@ def _apply_checksum_dedupe(
             extra={
                 "bucket": bucket,
                 "name": name,
+                "scope_key": scope_key,
                 "error_message": str(exc),
             },
         )
@@ -338,6 +424,7 @@ async def ingest(
     if modality is None:
         raise HTTPException(status_code=400, detail="Unsupported modality")
     scope = auth_context.scope if auth_context else _default_scope(config)
+    scope_key = _scope_key(scope)
 
     if config.ingestion_dry_run:
         try:
@@ -353,6 +440,7 @@ async def ingest(
         firestore_client,
         config.firestore_collection,
         processing_ttl=timedelta(seconds=config.idempotency_ttl_seconds),
+        completed_ttl=timedelta(seconds=config.idempotency_completed_ttl_seconds),
     )
     checksum = resolve_checksum(gcs_event.md5_hash, gcs_event.crc32c)
     decision = idempotency.begin(
@@ -379,6 +467,12 @@ async def ingest(
             name=gcs_event.name,
             generation=gcs_event.generation,
             checksum=checksum,
+            content_type=gcs_event.content_type,
+            size_bytes=gcs_event.size,
+            scope_key=scope_key,
+            scope_org_id=scope.org_id,
+            scope_site_id=scope.site_id,
+            scope_stream_id=scope.stream_id,
         )
     except Exception as exc:
         logger.warning(
@@ -421,7 +515,10 @@ async def ingest(
                 doc_id=decision.doc_id,
                 bucket=gcs_event.bucket,
                 name=gcs_event.name,
+                scope_key=scope_key,
                 checksum=checksum,
+                size_bytes=gcs_event.size,
+                content_type=gcs_event.content_type,
             ):
                 logger.info(
                     "Ingest deduped by checksum",
@@ -446,15 +543,16 @@ async def ingest(
             skip_rate_limit=True,
         )
         idempotency.mark_completed(decision.doc_id)
+        update_payload = {
+            "manifest_uri": outcome.manifest_uri,
+            "media_asset_id": outcome.media_asset_id,
+            "counts": outcome.counts,
+        }
+        if outcome.duration_ms is not None:
+            update_payload["object_duration_ms"] = outcome.duration_ms
         firestore_client.collection(config.firestore_collection).document(
             decision.doc_id
-        ).update(
-            {
-                "manifest_uri": outcome.manifest_uri,
-                "media_asset_id": outcome.media_asset_id,
-                "counts": outcome.counts,
-            }
-        )
+        ).update(update_payload)
         duration_ms = int((time.monotonic() - start_time) * 1000)
         logger.info(
             "Ingest completed",
@@ -582,6 +680,33 @@ def _coerce_cloudevent(request: Request, body: Any) -> dict[str, Any]:
     def header(name: str) -> str | None:
         return request.headers.get(name)
 
+    def _decode_json_payload(raw: Any) -> dict[str, Any] | None:
+        if isinstance(raw, dict):
+            return raw
+        if isinstance(raw, str):
+            try:
+                return json.loads(raw)
+            except json.JSONDecodeError:
+                try:
+                    decoded = base64.b64decode(raw.encode("utf-8"))
+                except (ValueError, binascii.Error):
+                    return None
+                try:
+                    return json.loads(decoded.decode("utf-8"))
+                except json.JSONDecodeError:
+                    return None
+        return None
+
+    data: dict[str, Any] | None = None
+    if isinstance(body, dict):
+        message = body.get("message") if isinstance(body.get("message"), dict) else None
+        if message and "data" in message:
+            data = _decode_json_payload(message.get("data"))
+        else:
+            data = body
+    else:
+        data = _decode_json_payload(body)
+
     return {
         "id": header("ce-id"),
         "type": header("ce-type"),
@@ -589,7 +714,7 @@ def _coerce_cloudevent(request: Request, body: Any) -> dict[str, Any]:
         "specversion": header("ce-specversion") or "1.0",
         "time": header("ce-time"),
         "subject": header("ce-subject"),
-        "data": body if isinstance(body, dict) else None,
+        "data": data,
     }
 
 
@@ -630,12 +755,14 @@ def _publish_dlq(
 
 
 def _modality_from_name(name: str) -> str | None:
-    if name.startswith("raw/docs/"):
+    raw_prefix = _raw_prefix()
+    prefix = f"{raw_prefix}/"
+    if name.startswith(f"{prefix}docs/"):
         return "document"
-    if name.startswith("raw/images/"):
+    if name.startswith(f"{prefix}images/"):
         return "image"
-    if name.startswith("raw/audio/"):
+    if name.startswith(f"{prefix}audio/"):
         return "audio"
-    if name.startswith("raw/videos/"):
+    if name.startswith(f"{prefix}videos/"):
         return "video"
     return None

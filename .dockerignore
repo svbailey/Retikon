@@ -8,6 +8,8 @@ __pycache__
 venv
 .devcontainer
 .DS_Store
+node_modules
+frontend/dev-console/node_modules
 infrastructure/terraform/.terraform
 infrastructure/terraform/terraform.tfstate
 infrastructure/terraform/terraform.tfstate.backup

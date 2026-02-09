@@ -43,6 +43,7 @@ This runbook covers routine checks and incident response for Retikon services.
   - Prod: rebuild snapshot every 1 hour.
 - Trigger:
   - Scheduled Cloud Run Job (index builder) via Cloud Scheduler.
+    - Terraform: `index_schedule_enabled=true`, `index_schedule`, `index_schedule_timezone`.
   - Manual on-demand trigger via Dev Console `/dev/index-build`.
 - Validation:
   - After build, call `/admin/reload-snapshot` on the query service.

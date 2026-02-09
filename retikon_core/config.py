@@ -17,6 +17,7 @@ class Config:
     raw_bucket: str
     graph_bucket: str
     graph_prefix: str
+    raw_prefix: str
     storage_backend: str
     local_graph_root: str | None
     env: str
@@ -31,8 +32,13 @@ class Config:
     video_scene_min_frames: int
     video_thumbnail_width: int
     video_segment_preview_seconds: int
+    audio_transcribe: bool
+    audio_profile: bool
+    audio_skip_normalize_if_wav: bool
+    audio_max_segments: int
     firestore_collection: str
     idempotency_ttl_seconds: int
+    idempotency_completed_ttl_seconds: int
     max_ingest_attempts: int
     allowed_doc_ext: tuple[str, ...]
     allowed_image_ext: tuple[str, ...]
@@ -128,6 +134,7 @@ class Config:
         graph_prefix = require("GRAPH_PREFIX") if remote_required else os.getenv(
             "GRAPH_PREFIX", ""
         )
+        raw_prefix = os.getenv("RAW_PREFIX", "raw").strip("/")
         local_graph_root = os.getenv("LOCAL_GRAPH_ROOT")
         if storage_backend == "local" and not local_graph_root:
             missing.append("LOCAL_GRAPH_ROOT")
@@ -145,8 +152,18 @@ class Config:
         video_segment_preview_seconds = int(
             os.getenv("VIDEO_SEGMENT_PREVIEW_SECONDS", "5")
         )
+        audio_transcribe = _parse_bool(os.getenv("AUDIO_TRANSCRIBE"), True)
+        audio_profile = _parse_bool(os.getenv("AUDIO_PROFILE"), False)
+        audio_skip_normalize_if_wav = _parse_bool(
+            os.getenv("AUDIO_SKIP_NORMALIZE_IF_WAV"),
+            False,
+        )
+        audio_max_segments = int(os.getenv("AUDIO_MAX_SEGMENTS", "0"))
         firestore_collection = os.getenv("FIRESTORE_COLLECTION", "ingestion_events")
         idempotency_ttl_seconds = int(os.getenv("IDEMPOTENCY_TTL_SECONDS", "600"))
+        idempotency_completed_ttl_seconds = int(
+            os.getenv("IDEMPOTENCY_COMPLETED_TTL_SECONDS", "0")
+        )
         max_ingest_attempts = int(os.getenv("MAX_INGEST_ATTEMPTS", "5"))
         allowed_doc_ext = _parse_ext_list(
             os.getenv(
@@ -236,6 +253,7 @@ class Config:
             raw_bucket=raw_bucket,
             graph_bucket=graph_bucket,
             graph_prefix=graph_prefix,
+            raw_prefix=raw_prefix,
             storage_backend=storage_backend,
             local_graph_root=local_graph_root,
             env=env,
@@ -250,8 +268,13 @@ class Config:
             video_scene_min_frames=video_scene_min_frames,
             video_thumbnail_width=video_thumbnail_width,
             video_segment_preview_seconds=video_segment_preview_seconds,
+            audio_transcribe=audio_transcribe,
+            audio_profile=audio_profile,
+            audio_skip_normalize_if_wav=audio_skip_normalize_if_wav,
+            audio_max_segments=audio_max_segments,
             firestore_collection=firestore_collection,
             idempotency_ttl_seconds=idempotency_ttl_seconds,
+            idempotency_completed_ttl_seconds=idempotency_completed_ttl_seconds,
             max_ingest_attempts=max_ingest_attempts,
             allowed_doc_ext=allowed_doc_ext,
             allowed_image_ext=allowed_image_ext,
@@ -303,6 +326,12 @@ def _parse_float(value: str) -> float:
         return float(value)
     except ValueError as exc:
         raise ValueError(f"Invalid float value: {value}") from exc
+
+
+def _parse_bool(value: str | None, default: bool) -> bool:
+    if value is None or value == "":
+        return default
+    return value.strip().lower() in {"1", "true", "yes", "y", "on"}
 
 
 @lru_cache(maxsize=1)

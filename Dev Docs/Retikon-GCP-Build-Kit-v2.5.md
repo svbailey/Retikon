@@ -696,11 +696,23 @@ Enable these APIs in the target project:
   - `RAW_BUCKET`, `GRAPH_BUCKET`, `GRAPH_PREFIX`, `ENV`, `LOG_LEVEL`
   - `MAX_RAW_BYTES`, `MAX_VIDEO_SECONDS`, `MAX_AUDIO_SECONDS`
   - `CHUNK_TARGET_TOKENS`, `CHUNK_OVERLAP_TOKENS`
+  - `AUDIO_TRANSCRIBE` (optional, default 1)
+  - `AUDIO_PROFILE` (optional, default 0)
+  - `AUDIO_SKIP_NORMALIZE_IF_WAV` (optional, default 0)
+  - `AUDIO_MAX_SEGMENTS` (optional, default 0)
   - `ENABLE_OCR` (optional, default 0), `OCR_MAX_PAGES` (optional)
   - `SNAPSHOT_URI` (query service)
   - `QUERY_WARMUP` (optional, default 1), `QUERY_WARMUP_TEXT` (optional)
   - `QUERY_WARMUP_STEPS` (optional, default `text,image_text,audio_text,image`)
   - `SLOW_QUERY_MS` (optional), `LOG_QUERY_TIMINGS` (optional)
+  - `QUERY_MODALITY_BOOSTS` (optional, default `document=1.0,transcript=1.0,image=1.05,audio=1.05`)
+  - `QUERY_MODALITY_HINT_BOOST` (optional, default 1.15)
+  - `QUERY_DEFAULT_MODALITIES` (optional, default `document,transcript,image,audio`)
+  - `INGEST_WARMUP` (optional, default 1 in non-dev)
+  - `INGEST_WARMUP_AUDIO` (optional, default 1 when warmup enabled)
+  - `INGEST_WARMUP_TEXT` (optional, default 1 when warmup enabled)
+  - `SNAPSHOT_RELOAD_ALLOW_INTERNAL_SA` (optional, default 0)
+  - `DEV_CONSOLE_SNAPSHOT_RELOAD_ALLOW_SA` (optional, default 0)
   - `RETIKON_DUCKDB_AUTH_PROVIDER` (GCP: `gcp_adapter.duckdb_auth:GcsDuckDBAuthProvider`)
   - `DUCKDB_GCS_FALLBACK` (optional)
 - Local `.env` file for dev (non-prod only).

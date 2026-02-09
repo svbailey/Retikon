@@ -81,6 +81,19 @@ resource "google_storage_bucket" "graph" {
   location                    = var.region
   uniform_bucket_level_access = true
   force_destroy               = var.bucket_force_destroy
+
+  dynamic "lifecycle_rule" {
+    for_each = var.graph_lifecycle_ttl_days > 0 && length(var.graph_lifecycle_prefixes) > 0 ? [1] : []
+    content {
+      condition {
+        age            = var.graph_lifecycle_ttl_days
+        matches_prefix = var.graph_lifecycle_prefixes
+      }
+      action {
+        type = "Delete"
+      }
+    }
+  }
 }
 
 resource "google_artifact_registry_repository" "repo" {
@@ -255,6 +268,18 @@ resource "google_secret_manager_secret_iam_member" "query_hf_token_accessor" {
   secret_id = "retikon-hf-token"
   role      = "roles/secretmanager.secretAccessor"
   member    = "serviceAccount:${google_service_account.query.email}"
+}
+
+resource "google_secret_manager_secret_iam_member" "ingestion_hf_token_accessor" {
+  secret_id = "retikon-hf-token"
+  role      = "roles/secretmanager.secretAccessor"
+  member    = "serviceAccount:${google_service_account.ingestion.email}"
+}
+
+resource "google_secret_manager_secret_iam_member" "workflow_hf_token_accessor" {
+  secret_id = "retikon-hf-token"
+  role      = "roles/secretmanager.secretAccessor"
+  member    = "serviceAccount:${google_service_account.workflow.email}"
 }
 
 resource "google_storage_bucket_iam_member" "ingest_raw_view" {
@@ -543,6 +568,10 @@ resource "google_cloud_run_service" "ingestion" {
         }
 
         env {
+          name  = "APP_MODULE"
+          value = "gcp_adapter.ingestion_service:app"
+        }
+        env {
           name  = "ENV"
           value = var.env
         }
@@ -691,6 +720,18 @@ resource "google_cloud_run_service" "ingestion" {
           value = var.audio_model_name
         }
         env {
+          name  = "INGEST_WARMUP"
+          value = var.ingest_warmup ? "1" : "0"
+        }
+        env {
+          name  = "INGEST_WARMUP_AUDIO"
+          value = var.ingest_warmup_audio ? "1" : "0"
+        }
+        env {
+          name  = "INGEST_WARMUP_TEXT"
+          value = var.ingest_warmup_text ? "1" : "0"
+        }
+        env {
           name  = "WHISPER_MODEL_NAME"
           value = var.whisper_model_name
         }
@@ -725,6 +766,10 @@ resource "google_cloud_run_service" "ingestion" {
         env {
           name  = "RAW_BUCKET"
           value = google_storage_bucket.raw.name
+        }
+        env {
+          name  = "RAW_PREFIX"
+          value = var.raw_prefix
         }
         env {
           name  = "GRAPH_BUCKET"
@@ -771,6 +816,22 @@ resource "google_cloud_run_service" "ingestion" {
           value = tostring(var.max_audio_seconds)
         }
         env {
+          name  = "AUDIO_TRANSCRIBE"
+          value = var.audio_transcribe ? "1" : "0"
+        }
+        env {
+          name  = "AUDIO_PROFILE"
+          value = var.audio_profile ? "1" : "0"
+        }
+        env {
+          name  = "AUDIO_SKIP_NORMALIZE_IF_WAV"
+          value = var.audio_skip_normalize_if_wav ? "1" : "0"
+        }
+        env {
+          name  = "AUDIO_MAX_SEGMENTS"
+          value = tostring(var.audio_max_segments)
+        }
+        env {
           name  = "MAX_FRAMES_PER_VIDEO"
           value = tostring(var.max_frames_per_video)
         }
@@ -781,6 +842,24 @@ resource "google_cloud_run_service" "ingestion" {
         env {
           name  = "CHUNK_OVERLAP_TOKENS"
           value = tostring(var.chunk_overlap_tokens)
+        }
+        env {
+          name = "HF_TOKEN"
+          value_from {
+            secret_key_ref {
+              name = "retikon-hf-token"
+              key  = "latest"
+            }
+          }
+        }
+        env {
+          name = "HUGGINGFACE_HUB_TOKEN"
+          value_from {
+            secret_key_ref {
+              name = "retikon-hf-token"
+              key  = "latest"
+            }
+          }
         }
         env {
           name  = "MAX_INGEST_ATTEMPTS"
@@ -848,7 +927,11 @@ resource "google_cloud_run_service" "ingestion" {
         }
         env {
           name  = "IDEMPOTENCY_TTL_SECONDS"
-          value = "600"
+          value = tostring(var.idempotency_ttl_seconds)
+        }
+        env {
+          name  = "IDEMPOTENCY_COMPLETED_TTL_SECONDS"
+          value = tostring(var.idempotency_completed_ttl_seconds)
         }
         env {
           name  = "ALLOWED_DOC_EXT"
@@ -885,6 +968,10 @@ resource "google_cloud_run_service" "ingestion" {
         env {
           name  = "VIDEO_SCENE_MIN_FRAMES"
           value = tostring(var.video_scene_min_frames)
+        }
+        env {
+          name  = "VIDEO_THUMBNAIL_WIDTH"
+          value = tostring(var.video_thumbnail_width)
         }
       }
     }
@@ -1152,6 +1239,15 @@ resource "google_cloud_run_service" "query" {
           }
         }
         env {
+          name = "HUGGINGFACE_HUB_TOKEN"
+          value_from {
+            secret_key_ref {
+              name = "retikon-hf-token"
+              key  = "latest"
+            }
+          }
+        }
+        env {
           name  = "MAX_QUERY_BYTES"
           value = tostring(var.max_query_bytes)
         }
@@ -1232,8 +1328,28 @@ resource "google_cloud_run_service" "query" {
           value = var.query_warmup_steps
         }
         env {
+          name  = "QUERY_DEFAULT_MODALITIES"
+          value = var.query_default_modalities
+        }
+        env {
+          name  = "QUERY_MODALITY_BOOSTS"
+          value = var.query_modality_boosts
+        }
+        env {
+          name  = "QUERY_MODALITY_HINT_BOOST"
+          value = tostring(var.query_modality_hint_boost)
+        }
+        env {
           name  = "EMBEDDING_BACKEND"
           value = var.query_embedding_backend
+        }
+        env {
+          name  = "SNAPSHOT_RELOAD_ALLOW_INTERNAL_SA"
+          value = var.snapshot_reload_allow_internal_sa ? "1" : "0"
+        }
+        env {
+          name  = "INTERNAL_AUTH_ALLOWED_SAS"
+          value = var.snapshot_reload_allow_internal_sa ? google_service_account.dev_console.email : ""
         }
         env {
           name  = "DUCKDB_THREADS"
@@ -1511,6 +1627,15 @@ resource "google_cloud_run_service" "query_gpu" {
           }
         }
         env {
+          name = "HUGGINGFACE_HUB_TOKEN"
+          value_from {
+            secret_key_ref {
+              name = "retikon-hf-token"
+              key  = "latest"
+            }
+          }
+        }
+        env {
           name  = "MAX_QUERY_BYTES"
           value = tostring(var.max_query_bytes)
         }
@@ -1587,8 +1712,32 @@ resource "google_cloud_run_service" "query_gpu" {
           value = var.query_warmup_text
         }
         env {
+          name  = "QUERY_WARMUP_STEPS"
+          value = var.query_warmup_steps
+        }
+        env {
+          name  = "QUERY_DEFAULT_MODALITIES"
+          value = var.query_default_modalities
+        }
+        env {
+          name  = "QUERY_MODALITY_BOOSTS"
+          value = var.query_modality_boosts
+        }
+        env {
+          name  = "QUERY_MODALITY_HINT_BOOST"
+          value = tostring(var.query_modality_hint_boost)
+        }
+        env {
           name  = "EMBEDDING_BACKEND"
           value = var.query_embedding_backend
+        }
+        env {
+          name  = "SNAPSHOT_RELOAD_ALLOW_INTERNAL_SA"
+          value = var.snapshot_reload_allow_internal_sa ? "1" : "0"
+        }
+        env {
+          name  = "INTERNAL_AUTH_ALLOWED_SAS"
+          value = var.snapshot_reload_allow_internal_sa ? google_service_account.dev_console.email : ""
         }
         env {
           name  = "DUCKDB_THREADS"
@@ -1977,6 +2126,28 @@ resource "google_cloud_run_service" "workflow" {
         env {
           name  = "CHUNK_OVERLAP_TOKENS"
           value = tostring(var.chunk_overlap_tokens)
+        }
+        env {
+          name = "HF_TOKEN"
+          value_from {
+            secret_key_ref {
+              name = "retikon-hf-token"
+              key  = "latest"
+            }
+          }
+        }
+        env {
+          name = "HUGGINGFACE_HUB_TOKEN"
+          value_from {
+            secret_key_ref {
+              name = "retikon-hf-token"
+              key  = "latest"
+            }
+          }
+        }
+        env {
+          name  = "INTERNAL_AUTH_ALLOWED_SAS"
+          value = google_service_account.workflow.email
         }
         env {
           name  = "WORKFLOW_REQUIRE_ADMIN"
@@ -3097,6 +3268,10 @@ resource "google_cloud_run_service" "dev_console" {
           value = google_cloud_run_service.query.status[0].url
         }
         env {
+          name  = "DEV_CONSOLE_SNAPSHOT_RELOAD_ALLOW_SA"
+          value = var.dev_console_snapshot_reload_allow_sa ? "1" : "0"
+        }
+        env {
           name  = "INDEX_JOB_NAME"
           value = google_cloud_run_v2_job.index_builder.name
         }
@@ -3616,7 +3791,11 @@ resource "google_cloud_run_service" "stream_ingest" {
         }
         env {
           name  = "IDEMPOTENCY_TTL_SECONDS"
-          value = "600"
+          value = tostring(var.idempotency_ttl_seconds)
+        }
+        env {
+          name  = "IDEMPOTENCY_COMPLETED_TTL_SECONDS"
+          value = tostring(var.idempotency_completed_ttl_seconds)
         }
         env {
           name  = "ALLOWED_DOC_EXT"
@@ -3653,6 +3832,10 @@ resource "google_cloud_run_service" "stream_ingest" {
         env {
           name  = "VIDEO_SCENE_MIN_FRAMES"
           value = tostring(var.video_scene_min_frames)
+        }
+        env {
+          name  = "VIDEO_THUMBNAIL_WIDTH"
+          value = tostring(var.video_thumbnail_width)
         }
         env {
           name  = "STREAM_INGEST_TOPIC"
@@ -3901,7 +4084,7 @@ resource "google_cloud_run_v2_job" "index_builder" {
     template {
       service_account = google_service_account.index_builder.email
       max_retries     = 0
-      timeout         = "900s"
+      timeout         = var.index_job_timeout
 
       containers {
         image   = var.index_image
@@ -3945,6 +4128,18 @@ resource "google_cloud_run_v2_job" "index_builder" {
           value = var.snapshot_uri
         }
         env {
+          name  = "INDEX_BUILDER_DUCKDB_THREADS"
+          value = var.index_duckdb_threads == null ? "" : tostring(var.index_duckdb_threads)
+        }
+        env {
+          name  = "INDEX_BUILDER_DUCKDB_MEMORY_LIMIT"
+          value = var.index_duckdb_memory_limit
+        }
+        env {
+          name  = "INDEX_BUILDER_DUCKDB_TEMP_DIRECTORY"
+          value = var.index_duckdb_temp_directory
+        }
+        env {
           name  = "DUCKDB_ALLOW_INSTALL"
           value = var.duckdb_allow_install ? "1" : "0"
         }
@@ -3971,6 +4166,26 @@ resource "google_cloud_run_v2_job" "index_builder" {
         env {
           name  = "INDEX_BUILDER_FALLBACK_LOCAL"
           value = var.index_builder_fallback_local ? "1" : "0"
+        }
+        env {
+          name  = "INDEX_BUILDER_SKIP_IF_UNCHANGED"
+          value = var.index_builder_skip_if_unchanged ? "1" : "0"
+        }
+        env {
+          name  = "INDEX_BUILDER_USE_LATEST_COMPACTION"
+          value = var.index_builder_use_latest_compaction ? "1" : "0"
+        }
+        env {
+          name  = "INDEX_BUILDER_SKIP_MISSING_FILES"
+          value = var.index_builder_skip_missing_files ? "1" : "0"
+        }
+        env {
+          name  = "INDEX_BUILDER_INCREMENTAL"
+          value = var.index_builder_incremental ? "1" : "0"
+        }
+        env {
+          name  = "INDEX_BUILDER_INCREMENTAL_MAX_NEW_MANIFESTS"
+          value = tostring(var.index_builder_incremental_max_new_manifests)
         }
 
         resources {
@@ -4121,7 +4336,24 @@ resource "google_cloud_run_v2_job" "compaction" {
   }
 }
 
+resource "google_cloud_scheduler_job" "index_builder" {
+  count     = var.index_schedule_enabled ? 1 : 0
+  name      = "${var.index_job_name}-${var.env}"
+  schedule  = var.index_schedule
+  time_zone = var.index_schedule_timezone
+
+  http_target {
+    http_method = "POST"
+    uri         = "https://run.googleapis.com/v2/projects/${var.project_id}/locations/${var.region}/jobs/${google_cloud_run_v2_job.index_builder.name}:run"
+
+    oauth_token {
+      service_account_email = google_service_account.index_builder.email
+    }
+  }
+}
+
 resource "google_cloud_scheduler_job" "compaction" {
+  count     = var.compaction_enabled ? 1 : 0
   name      = "${var.compaction_job_name}-${var.env}"
   schedule  = var.compaction_schedule
   time_zone = var.compaction_schedule_timezone
