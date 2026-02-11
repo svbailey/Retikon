@@ -14,9 +14,14 @@ class TranscriptSegment:
     language: str | None
 
 
-def transcribe_audio(path: str, duration_seconds: float) -> list[TranscriptSegment]:
+def transcribe_audio(
+    path: str,
+    duration_seconds: float,
+    *,
+    tier: str | None = None,
+) -> list[TranscriptSegment]:
     if _use_real_models():
-        return _whisper_transcribe(path)
+        return _whisper_transcribe(path, tier=tier)
     return _stub_transcribe(duration_seconds)
 
 
@@ -69,11 +74,31 @@ def _stub_transcribe(duration_seconds: float) -> list[TranscriptSegment]:
     ]
 
 
-@lru_cache(maxsize=1)
-def _load_whisper_model():
+def _resolve_model_name(tier: str | None) -> str:
+    resolved = (tier or "").strip().lower()
+    if resolved == "fast":
+        return (
+            _env_str("WHISPER_MODEL_NAME_FAST")
+            or _env_str("WHISPER_MODEL_NAME")
+            or "base"
+        )
+    if resolved == "accurate":
+        return (
+            _env_str("WHISPER_MODEL_NAME_ACCURATE")
+            or _env_str("WHISPER_MODEL_NAME")
+            or "small"
+        )
+    return _env_str("WHISPER_MODEL_NAME") or "small"
+
+
+def resolve_transcribe_model_name(tier: str | None = None) -> str:
+    return _resolve_model_name(tier or _env_str("TRANSCRIBE_TIER", "accurate"))
+
+
+@lru_cache(maxsize=4)
+def _load_whisper_model(model_name: str):
     import whisper
 
-    model_name = os.getenv("WHISPER_MODEL_NAME", "small")
     model_dir = os.getenv("MODEL_DIR", "/app/models")
     return whisper.load_model(model_name, download_root=model_dir)
 
@@ -135,8 +160,9 @@ def _resolve_transcribe_options(
     return None, task
 
 
-def _whisper_transcribe(path: str) -> list[TranscriptSegment]:
-    model = _load_whisper_model()
+def _whisper_transcribe(path: str, *, tier: str | None = None) -> list[TranscriptSegment]:
+    model_name = resolve_transcribe_model_name(tier)
+    model = _load_whisper_model(model_name)
     language, task = _resolve_transcribe_options(model, path)
     result = model.transcribe(
         path,

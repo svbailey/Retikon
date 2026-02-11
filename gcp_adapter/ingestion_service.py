@@ -3,6 +3,8 @@ import binascii
 import io
 import json
 import os
+import resource
+import threading
 import time
 import uuid
 import wave
@@ -10,12 +12,15 @@ from datetime import datetime, timedelta, timezone
 from typing import Any
 from urllib.parse import urlparse
 
+import requests  # type: ignore[import-untyped]
+from google.auth.transport import requests as google_requests
+from google.oauth2 import id_token
 from fastapi import FastAPI, Header, HTTPException, Request
 from google.cloud import firestore
 from google.cloud import storage
 from pydantic import BaseModel
 
-from gcp_adapter.auth import authorize_request
+from gcp_adapter.auth import authorize_internal_service_account, authorize_request
 from gcp_adapter.dlq_pubsub import PubSubDlqPublisher
 from gcp_adapter.eventarc import parse_cloudevent
 from gcp_adapter.idempotency_firestore import (
@@ -26,6 +31,8 @@ from gcp_adapter.idempotency_firestore import (
     update_object_metadata,
 )
 from gcp_adapter.metering import record_usage
+from gcp_adapter.queue_monitor import load_queue_monitor
+from gcp_adapter.queue_pubsub import PubSubPublisher
 from gcp_adapter.stores import abac_allowed, is_action_allowed
 from retikon_core.audit import record_audit_log
 from retikon_core.auth import ACTION_INGEST, AuthContext
@@ -41,6 +48,7 @@ from retikon_core.ingestion.rate_limit import (
     enforce_rate_limit,
 )
 from retikon_core.ingestion.router import pipeline_version
+from retikon_core.ingestion.storage_event import StorageEvent
 from retikon_core.logging import configure_logging, get_logger
 from retikon_core.services.fastapi_scaffolding import (
     HealthResponse,
@@ -62,11 +70,42 @@ app = FastAPI()
 add_correlation_id_middleware(app)
 
 _dlq_publisher: PubSubDlqPublisher | None = None
+_media_publisher: PubSubPublisher | None = None
+_queue_monitor = None
+_cold_start = True
+_cold_start_lock = threading.Lock()
+
+
+class _IngestLoadTracker:
+    def __init__(self) -> None:
+        self._lock = threading.Lock()
+        self._counts: dict[str, int] = {}
+
+    def increment(self, modality: str) -> dict[str, int]:
+        with self._lock:
+            self._counts[modality] = self._counts.get(modality, 0) + 1
+            total = sum(self._counts.values())
+            return {
+                "inflight": self._counts[modality],
+                "inflight_total": total,
+            }
+
+    def decrement(self, modality: str) -> None:
+        with self._lock:
+            current = self._counts.get(modality, 0)
+            if current <= 1:
+                self._counts.pop(modality, None)
+            else:
+                self._counts[modality] = current - 1
+
+
+_ingest_load = _IngestLoadTracker()
 
 
 @app.on_event("startup")
 async def _warmup_on_startup() -> None:
     _warm_ingest_models()
+    _start_queue_monitor()
 
 
 class IngestResponse(BaseModel):
@@ -93,12 +132,22 @@ def _authorize_ingest(request: Request, config: Config) -> AuthContext | None:
             )
         except HTTPException as exc:
             if exc.status_code == 401:
+                internal = authorize_internal_service_account(request)
+                if internal:
+                    return internal
                 return None
             raise
-    return authorize_request(
-        request=request,
-        require_admin=False,
-    )
+    try:
+        return authorize_request(
+            request=request,
+            require_admin=False,
+        )
+    except HTTPException as exc:
+        if exc.status_code == 401:
+            internal = authorize_internal_service_account(request)
+            if internal:
+                return internal
+        raise
 
 
 def _is_gcs_notification(request: Request) -> bool:
@@ -121,6 +170,98 @@ def _abac_enabled() -> bool:
 
 def _raw_prefix() -> str:
     return os.getenv("RAW_PREFIX", "raw").strip("/")
+
+
+def _allowed_modalities() -> set[str] | None:
+    raw = os.getenv("INGEST_ALLOWED_MODALITIES", "").strip()
+    if not raw:
+        return None
+    return {item.strip() for item in raw.split(",") if item.strip()}
+
+
+def _media_delegate_url() -> str | None:
+    raw = os.getenv("INGEST_MEDIA_URL", "").strip()
+    if not raw:
+        return None
+    if raw.endswith("/ingest"):
+        return raw
+    return raw.rstrip("/") + "/ingest"
+
+
+def _media_delegate_topic() -> str | None:
+    raw = os.getenv("INGEST_MEDIA_TOPIC", "").strip()
+    return raw or None
+
+
+def _media_delegate_modalities() -> set[str]:
+    raw = os.getenv("INGEST_MEDIA_MODALITIES", "audio,video").strip()
+    return {item.strip() for item in raw.split(",") if item.strip()}
+
+
+def _fetch_id_token(audience: str) -> str | None:
+    env = os.getenv("ENV", "dev").lower()
+    if env in {"dev", "local", "test"}:
+        return None
+    if audience.startswith(("http://localhost", "http://127.0.0.1")):
+        return None
+    request = google_requests.Request()
+    return id_token.fetch_id_token(request, audience)
+
+
+def _get_media_publisher() -> PubSubPublisher:
+    global _media_publisher
+    if _media_publisher is None:
+        _media_publisher = PubSubPublisher()
+    return _media_publisher
+
+
+def _publish_media_ingest(
+    *,
+    topic: str,
+    payload: dict[str, Any],
+    trace_id: str,
+    correlation_id: str | None,
+    modality: str,
+) -> IngestResponse:
+    publisher = _get_media_publisher()
+    attributes: dict[str, str] = {"modality": modality}
+    if trace_id:
+        attributes["request_id"] = trace_id
+    if correlation_id:
+        attributes["correlation_id"] = correlation_id
+    publisher.publish_json(topic=topic, payload=payload, attributes=attributes)
+    return IngestResponse(status="queued", trace_id=trace_id)
+
+
+def _delegate_media_ingest(
+    *,
+    url: str,
+    payload: dict[str, Any],
+    trace_id: str,
+    correlation_id: str | None,
+) -> IngestResponse:
+    parsed = urlparse(url)
+    audience = f"{parsed.scheme}://{parsed.netloc}" if parsed.scheme else url
+    token = _fetch_id_token(audience)
+    headers = {"content-type": "application/json"}
+    if token:
+        headers["authorization"] = f"Bearer {token}"
+    if trace_id:
+        headers["x-request-id"] = trace_id
+    if correlation_id:
+        headers["x-correlation-id"] = correlation_id
+    resp = requests.post(url, json=payload, headers=headers, timeout=30)
+    if resp.status_code >= 300:
+        raise HTTPException(status_code=resp.status_code, detail=resp.text)
+    data = {}
+    try:
+        data = resp.json()
+    except ValueError:
+        data = {}
+    return IngestResponse(
+        status=str(data.get("status", "accepted")),
+        trace_id=str(data.get("trace_id", trace_id)),
+    )
 
 
 def _enforce_access(
@@ -171,6 +312,56 @@ def _firestore_client() -> firestore.Client:
     return firestore.Client()
 
 
+def _queue_wait_ms(bucket: str, name: str) -> float | None:
+    try:
+        client = _storage_client()
+        blob = client.bucket(bucket).blob(name)
+        blob.reload()
+    except Exception as exc:
+        logger.warning(
+            "Queue wait lookup failed",
+            extra={"bucket": bucket, "name": name, "error_message": str(exc)},
+        )
+        return None
+    created_at = blob.time_created
+    if created_at is None:
+        return None
+    now = datetime.now(timezone.utc)
+    created_at = created_at.astimezone(timezone.utc)
+    return round((now - created_at).total_seconds() * 1000.0, 2)
+
+
+def _hydrate_storage_event(event: StorageEvent) -> StorageEvent:
+    if (
+        event.content_type
+        and event.size is not None
+        and (event.md5_hash or event.crc32c)
+    ):
+        return event
+    try:
+        blob = _storage_client().bucket(event.bucket).blob(event.name)
+        blob.reload()
+    except Exception as exc:
+        logger.warning(
+            "Failed to refresh storage metadata",
+            extra={
+                "bucket": event.bucket,
+                "name": event.name,
+                "error_message": str(exc),
+            },
+        )
+        return event
+    return StorageEvent(
+        bucket=event.bucket,
+        name=event.name,
+        generation=event.generation,
+        content_type=event.content_type or blob.content_type,
+        size=event.size if event.size is not None else blob.size,
+        md5_hash=event.md5_hash or blob.md5_hash,
+        crc32c=event.crc32c or blob.crc32c,
+    )
+
+
 def _warmup_enabled() -> bool:
     env = os.getenv("ENV", "dev").lower()
     default = "0" if env in {"dev", "local", "test"} else "1"
@@ -183,6 +374,23 @@ def _warmup_audio_enabled() -> bool:
 
 def _warmup_text_enabled() -> bool:
     return os.getenv("INGEST_WARMUP_TEXT", "1") == "1"
+
+
+def _consume_cold_start() -> bool:
+    global _cold_start
+    with _cold_start_lock:
+        was_cold = _cold_start
+        _cold_start = False
+    return was_cold
+
+
+def _instance_id() -> str:
+    return (
+        os.getenv("K_REVISION")
+        or os.getenv("HOSTNAME")
+        or os.getenv("CLOUD_RUN_EXECUTION")
+        or "unknown"
+    )
 
 
 def _silent_wav_bytes(
@@ -203,7 +411,17 @@ def _warm_ingest_models() -> None:
     if not _warmup_enabled():
         return
     warmup_start = time.monotonic()
-    if _warmup_audio_enabled():
+    allowed = _allowed_modalities()
+    audio_transcribe_enabled = os.getenv("AUDIO_TRANSCRIBE", "1") == "1"
+    warm_audio = _warmup_audio_enabled() and (
+        allowed is None or "audio" in allowed or "video" in allowed
+    )
+    docs_enabled = allowed is None or "document" in allowed
+    audio_video_enabled = allowed is None or "audio" in allowed or "video" in allowed
+    warm_text = _warmup_text_enabled() and (
+        docs_enabled or (audio_video_enabled and audio_transcribe_enabled)
+    )
+    if warm_audio:
         try:
             audio_bytes = _silent_wav_bytes()
             run_inference(
@@ -213,7 +431,7 @@ def _warm_ingest_models() -> None:
             logger.info("Audio embedder warmed")
         except Exception as exc:
             logger.warning("Audio warmup failed", extra={"error_message": str(exc)})
-    if _warmup_text_enabled():
+    if warm_text:
         try:
             run_inference(
                 "text_warmup",
@@ -230,6 +448,24 @@ def _warm_ingest_models() -> None:
     )
 
 
+def _start_queue_monitor() -> None:
+    global _queue_monitor
+    if _queue_monitor is not None:
+        return
+    monitor = load_queue_monitor()
+    if monitor is None:
+        return
+    monitor.start()
+    _queue_monitor = monitor
+
+
+def _queue_depth_snapshot() -> dict[str, Any] | None:
+    monitor = _queue_monitor
+    if monitor is None:
+        return None
+    return monitor.snapshot()
+
+
 def _apply_checksum_dedupe(
     *,
     client: firestore.Client,
@@ -241,6 +477,7 @@ def _apply_checksum_dedupe(
     checksum: str | None,
     size_bytes: int | None,
     content_type: str | None,
+    duration_ms: int | None = None,
 ) -> bool:
     if not checksum:
         return False
@@ -252,6 +489,7 @@ def _apply_checksum_dedupe(
             scope_key=scope_key,
             size_bytes=size_bytes,
             content_type=content_type,
+            duration_ms=duration_ms,
         )
     except Exception as exc:
         logger.warning(
@@ -271,7 +509,20 @@ def _apply_checksum_dedupe(
         "updated_at": datetime.now(timezone.utc),
         "dedupe_checksum": checksum,
         "dedupe_source_doc_id": match.get("doc_id"),
+        "cache_hit": True,
+        "cache_source": "both",
     }
+    if size_bytes is not None:
+        payload["object_size_bytes"] = size_bytes
+    if content_type:
+        payload["object_content_type"] = content_type
+    resolved_duration = duration_ms
+    if resolved_duration is None:
+        match_duration = match.get("object_duration_ms")
+        if match_duration is not None:
+            resolved_duration = int(match_duration)
+    if resolved_duration is not None:
+        payload["object_duration_ms"] = resolved_duration
     for key in ("manifest_uri", "media_asset_id", "counts"):
         if key in match:
             payload[key] = match[key]
@@ -374,6 +625,7 @@ async def ingest(
     x_request_id: str | None = Header(default=None),
 ) -> IngestResponse:
     start_time = time.monotonic()
+    usage_start = resource.getrusage(resource.RUSAGE_SELF)
     try:
         config = get_config()
     except ValueError as exc:
@@ -420,9 +672,51 @@ async def ingest(
         gcs_event = parse_cloudevent(cloudevent_payload)
     except ValidationError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
+    gcs_event = _hydrate_storage_event(gcs_event)
+    queue_wait_ms = _queue_wait_ms(gcs_event.bucket, gcs_event.name)
     modality = _modality_from_name(gcs_event.name)
     if modality is None:
         raise HTTPException(status_code=400, detail="Unsupported modality")
+    delegate_url = _media_delegate_url()
+    delegate_topic = _media_delegate_topic()
+    delegate_modalities = _media_delegate_modalities()
+    if modality in delegate_modalities:
+        if delegate_topic:
+            logger.info(
+                "Queueing ingest to media topic",
+                extra={
+                    "request_id": trace_id,
+                    "correlation_id": request.state.correlation_id,
+                    "modality": modality,
+                    "topic": delegate_topic,
+                },
+            )
+            return _publish_media_ingest(
+                topic=delegate_topic,
+                payload=cloudevent_payload,
+                trace_id=trace_id,
+                correlation_id=request.state.correlation_id,
+                modality=modality,
+            )
+        if delegate_url:
+            logger.info(
+                "Delegating ingest to media service",
+                extra={
+                    "request_id": trace_id,
+                    "correlation_id": request.state.correlation_id,
+                    "modality": modality,
+                },
+            )
+            return _delegate_media_ingest(
+                url=delegate_url,
+                payload=cloudevent_payload,
+                trace_id=trace_id,
+                correlation_id=request.state.correlation_id,
+            )
+    allowed = _allowed_modalities()
+    if allowed is not None and modality not in allowed:
+        raise HTTPException(status_code=400, detail="Modality not allowed")
+    cold_start = _consume_cold_start()
     scope = auth_context.scope if auth_context else _default_scope(config)
     scope_key = _scope_key(scope)
 
@@ -536,20 +830,51 @@ async def ingest(
             raise HTTPException(status_code=429, detail=str(exc)) from exc
         except RateLimitBackendError as exc:
             raise HTTPException(status_code=503, detail=str(exc)) from exc
-        outcome = process_event(
-            event=gcs_event,
-            config=config,
-            rate_limit_scope=scope,
-            skip_rate_limit=True,
-        )
+        inflight_snapshot = _ingest_load.increment(modality)
+        try:
+            outcome = process_event(
+                event=gcs_event,
+                config=config,
+                rate_limit_scope=scope,
+                skip_rate_limit=True,
+            )
+        finally:
+            _ingest_load.decrement(modality)
+        usage_end = resource.getrusage(resource.RUSAGE_SELF)
+        system_metrics = {
+            "cpu_user_s": round(usage_end.ru_utime - usage_start.ru_utime, 4),
+            "cpu_sys_s": round(usage_end.ru_stime - usage_start.ru_stime, 4),
+            "memory_peak_kb": int(usage_end.ru_maxrss),
+            "cold_start": cold_start,
+            "instance_id": _instance_id(),
+        }
         idempotency.mark_completed(decision.doc_id)
         update_payload = {
             "manifest_uri": outcome.manifest_uri,
             "media_asset_id": outcome.media_asset_id,
             "counts": outcome.counts,
+            "cache_hit": False,
+            "cache_source": "none",
         }
         if outcome.duration_ms is not None:
             update_payload["object_duration_ms"] = outcome.duration_ms
+        metrics_payload: dict[str, object] = {}
+        if outcome.metrics:
+            metrics_payload["pipeline"] = outcome.metrics
+        if queue_wait_ms is not None:
+            metrics_payload["queue_wait_ms"] = queue_wait_ms
+        queue_depth_payload: dict[str, Any] = {}
+        if inflight_snapshot:
+            queue_depth_payload["inflight"] = inflight_snapshot
+        monitor_snapshot = _queue_depth_snapshot()
+        if monitor_snapshot:
+            queue_depth_payload["subscriptions"] = monitor_snapshot.get("subscriptions")
+            queue_depth_payload["updated_at"] = monitor_snapshot.get("updated_at")
+        if queue_depth_payload:
+            metrics_payload["queue_depth"] = queue_depth_payload
+        metrics_payload["system"] = system_metrics
+        if metrics_payload:
+            update_payload["metrics"] = metrics_payload
         firestore_client.collection(config.firestore_collection).document(
             decision.doc_id
         ).update(update_payload)
@@ -565,6 +890,10 @@ async def ingest(
                 "duration_ms": duration_ms,
                 "media_asset_id": outcome.media_asset_id,
                 "attempt_count": attempt_count,
+                "queue_wait_ms": queue_wait_ms,
+                "cpu_user_s": system_metrics["cpu_user_s"],
+                "cpu_sys_s": system_metrics["cpu_sys_s"],
+                "memory_peak_kb": system_metrics["memory_peak_kb"],
             },
         )
         if _metering_enabled():
@@ -706,6 +1035,9 @@ def _coerce_cloudevent(request: Request, body: Any) -> dict[str, Any]:
             data = body
     else:
         data = _decode_json_payload(body)
+
+    if isinstance(data, dict) and "specversion" in data and "data" in data:
+        return data
 
     return {
         "id": header("ce-id"),

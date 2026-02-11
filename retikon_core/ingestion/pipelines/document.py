@@ -18,9 +18,19 @@ from retikon_core.embeddings import get_text_embedder
 from retikon_core.embeddings.timeout import run_inference
 from retikon_core.errors import PermanentError
 from retikon_core.ingestion.ocr import ocr_text_from_pdf
+from retikon_core.ingestion.pipelines.metrics import (
+    CallTracker,
+    StageTimer,
+    build_stage_timings,
+    timed_call,
+)
 from retikon_core.ingestion.pipelines.types import PipelineResult
 from retikon_core.ingestion.types import IngestSource
-from retikon_core.storage.manifest import build_manifest, write_manifest
+from retikon_core.storage.manifest import (
+    build_manifest,
+    manifest_metrics_subset,
+    write_manifest,
+)
 from retikon_core.storage.paths import (
     edge_part_uri,
     manifest_uri,
@@ -195,7 +205,10 @@ def _doc_embed_batch_size() -> int:
     return max(1, value)
 
 
-def _embed_chunks(chunks: list[Chunk]) -> list[list[float]]:
+def _embed_chunks(
+    chunks: list[Chunk],
+    tracker: CallTracker | None = None,
+) -> list[list[float]]:
     if not chunks:
         return []
     embedder = get_text_embedder(768)
@@ -203,10 +216,20 @@ def _embed_chunks(chunks: list[Chunk]) -> list[list[float]]:
     embeddings: list[list[float]] = []
     for start in range(0, len(chunks), batch_size):
         batch = [chunk.text for chunk in chunks[start : start + batch_size]]
-        batch_vectors = run_inference(
-            "text",
-            lambda batch=batch: embedder.encode(batch),
-        )
+        if tracker is None:
+            batch_vectors = run_inference(
+                "text",
+                lambda batch=batch: embedder.encode(batch),
+            )
+        else:
+            batch_vectors = timed_call(
+                tracker,
+                "text_embed",
+                lambda batch=batch: run_inference(
+                    "text",
+                    lambda batch=batch: embedder.encode(batch),
+                ),
+            )
         if not batch_vectors:
             raise PermanentError("No embeddings produced")
         embeddings.extend(batch_vectors)
@@ -225,25 +248,31 @@ def ingest_document(
 ) -> PipelineResult:
     started_at = datetime.now(timezone.utc)
     extension = source.extension
-    text = _extract_text(source.local_path, extension)
+    timer = StageTimer()
+    calls = CallTracker()
+    with timer.track("extract_text"):
+        text = _extract_text(source.local_path, extension)
     if not text.strip() and config.enable_ocr and extension == ".pdf":
-        text = ocr_text_from_pdf(
-            source.local_path,
-            config.ocr_max_pages,
-            base_uri=config.graph_root_uri(),
-        )
+        with timer.track("ocr"):
+            text = ocr_text_from_pdf(
+                source.local_path,
+                config.ocr_max_pages,
+                base_uri=config.graph_root_uri(),
+            )
     if not text.strip():
         raise PermanentError("No extractable text")
 
-    chunks = _chunk_text(
-        text,
-        config.chunk_target_tokens,
-        config.chunk_overlap_tokens,
-    )
+    with timer.track("chunk"):
+        chunks = _chunk_text(
+            text,
+            config.chunk_target_tokens,
+            config.chunk_overlap_tokens,
+        )
     if not chunks:
         raise PermanentError("No chunks produced")
 
-    embeddings = _embed_chunks(chunks)
+    with timer.track("embed"):
+        embeddings = _embed_chunks(chunks, calls)
 
     output_root = output_uri or config.graph_root_uri()
     media_asset_id = str(uuid.uuid4())
@@ -313,58 +342,142 @@ def ingest_document(
         )
 
     files: list[WriteResult] = []
-    files.append(
-        write_parquet(
-            [media_row],
-            schema_for("MediaAsset", "core"),
-            vertex_part_uri(output_root, "MediaAsset", "core", str(uuid.uuid4())),
+    with timer.track("write_parquet"):
+        files.append(
+            write_parquet(
+                [media_row],
+                schema_for("MediaAsset", "core"),
+                vertex_part_uri(output_root, "MediaAsset", "core", str(uuid.uuid4())),
+            )
         )
-    )
-    files.append(
-        write_parquet(
-            chunk_core_rows,
-            schema_for("DocChunk", "core"),
-            vertex_part_uri(output_root, "DocChunk", "core", str(uuid.uuid4())),
+        files.append(
+            write_parquet(
+                chunk_core_rows,
+                schema_for("DocChunk", "core"),
+                vertex_part_uri(output_root, "DocChunk", "core", str(uuid.uuid4())),
+            )
         )
-    )
-    files.append(
-        write_parquet(
-            chunk_text_rows,
-            schema_for("DocChunk", "text"),
-            vertex_part_uri(output_root, "DocChunk", "text", str(uuid.uuid4())),
+        files.append(
+            write_parquet(
+                chunk_text_rows,
+                schema_for("DocChunk", "text"),
+                vertex_part_uri(output_root, "DocChunk", "text", str(uuid.uuid4())),
+            )
         )
-    )
-    files.append(
-        write_parquet(
-            chunk_vector_rows,
-            schema_for("DocChunk", "vector"),
-            vertex_part_uri(output_root, "DocChunk", "vector", str(uuid.uuid4())),
+        files.append(
+            write_parquet(
+                chunk_vector_rows,
+                schema_for("DocChunk", "vector"),
+                vertex_part_uri(output_root, "DocChunk", "vector", str(uuid.uuid4())),
+            )
         )
-    )
-    files.append(
-        write_parquet(
-            edge_rows,
-            schema_for("DerivedFrom", "adj_list"),
-            edge_part_uri(output_root, "DerivedFrom", str(uuid.uuid4())),
+        files.append(
+            write_parquet(
+                edge_rows,
+                schema_for("DerivedFrom", "adj_list"),
+                edge_part_uri(output_root, "DerivedFrom", str(uuid.uuid4())),
+            )
         )
-    )
 
+    parquet_bytes = sum(item.bytes_written for item in files)
+    bytes_raw = source.size_bytes or 0
+    token_total = sum(chunk.token_count for chunk in chunks)
+    word_count = len(text.split())
+    raw_timings_preview = timer.summary()
+    stage_timings_preview = build_stage_timings(
+        raw_timings_preview,
+        {
+            "extract_text": "decode_ms",
+            "ocr": "decode_ms",
+            "chunk": "finalize_ms",
+            "embed": "embed_text_ms",
+            "write_parquet": "write_parquet_ms",
+            "write_manifest": "write_manifest_ms",
+        },
+    )
+    manifest_metrics = manifest_metrics_subset(
+        {
+            "io": {
+                "bytes_raw": bytes_raw,
+                "bytes_parquet": parquet_bytes,
+                "bytes_derived": parquet_bytes,
+            },
+            "quality": {
+                "word_count": word_count,
+                "token_count": token_total,
+                "chunk_count": len(chunks),
+            },
+            "embeddings": {
+                "text": {
+                    "count": len(chunks),
+                    "dims": 768,
+                }
+            },
+            "evidence": {
+                "frames": 0,
+                "snippets": len(chunks),
+                "segments": 0,
+            },
+            "stage_timings_ms": stage_timings_preview,
+        }
+    )
     completed_at = datetime.now(timezone.utc)
     run_id = str(uuid.uuid4())
-    manifest = build_manifest(
-        pipeline_version=pipeline_version,
-        schema_version=schema_version,
-        counts={
-            "MediaAsset": 1,
-            "DocChunk": len(chunk_core_rows),
-            "DerivedFrom": len(edge_rows),
+    with timer.track("write_manifest"):
+        manifest = build_manifest(
+            pipeline_version=pipeline_version,
+            schema_version=schema_version,
+            counts={
+                "MediaAsset": 1,
+                "DocChunk": len(chunk_core_rows),
+                "DerivedFrom": len(edge_rows),
+            },
+            files=files,
+            started_at=started_at,
+            completed_at=completed_at,
+            metrics=manifest_metrics,
+        )
+        manifest_path = manifest_uri(output_root, run_id)
+        write_manifest(manifest, manifest_path)
+    raw_timings = timer.summary()
+    stage_timings_ms = build_stage_timings(
+        raw_timings,
+        {
+            "extract_text": "decode_ms",
+            "ocr": "decode_ms",
+            "chunk": "finalize_ms",
+            "embed": "embed_text_ms",
+            "write_parquet": "write_parquet_ms",
+            "write_manifest": "write_manifest_ms",
         },
-        files=files,
-        started_at=started_at,
-        completed_at=completed_at,
     )
-    manifest_path = manifest_uri(output_root, run_id)
-    write_manifest(manifest, manifest_path)
+    metrics = {
+        "timings_ms": raw_timings,
+        "stage_timings_ms": stage_timings_ms,
+        "pipe_ms": round(sum(stage_timings_ms.values()), 2),
+        "model_calls": calls.summary(),
+        "io": {
+            "bytes_raw": bytes_raw,
+            "bytes_parquet": parquet_bytes,
+            "bytes_derived": parquet_bytes,
+        },
+        "quality": {
+            "word_count": word_count,
+            "token_count": token_total,
+            "chunk_count": len(chunks),
+        },
+        "embeddings": {
+            "text": {
+                "count": len(chunks),
+                "dims": 768,
+            }
+        },
+        "evidence": {
+            "frames": 0,
+            "snippets": len(chunks),
+            "segments": 0,
+        },
+    }
 
     return PipelineResult(
         counts={
@@ -374,4 +487,5 @@ def ingest_document(
         },
         manifest_uri=manifest_path,
         media_asset_id=media_asset_id,
+        metrics=metrics,
     )

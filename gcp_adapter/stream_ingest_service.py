@@ -123,6 +123,7 @@ def _apply_checksum_dedupe(
     checksum: str | None,
     size_bytes: int | None,
     content_type: str | None,
+    duration_ms: int | None = None,
 ) -> bool:
     if not checksum:
         return False
@@ -134,6 +135,7 @@ def _apply_checksum_dedupe(
             scope_key=scope_key,
             size_bytes=size_bytes,
             content_type=content_type,
+            duration_ms=duration_ms,
         )
     except Exception as exc:
         logger.warning(
@@ -153,7 +155,20 @@ def _apply_checksum_dedupe(
         "updated_at": datetime.now(timezone.utc),
         "dedupe_checksum": checksum,
         "dedupe_source_doc_id": match.get("doc_id"),
+        "cache_hit": True,
+        "cache_source": "both",
     }
+    if size_bytes is not None:
+        payload["object_size_bytes"] = size_bytes
+    if content_type:
+        payload["object_content_type"] = content_type
+    resolved_duration = duration_ms
+    if resolved_duration is None:
+        match_duration = match.get("object_duration_ms")
+        if match_duration is not None:
+            resolved_duration = int(match_duration)
+    if resolved_duration is not None:
+        payload["object_duration_ms"] = resolved_duration
     for key in ("manifest_uri", "media_asset_id", "counts"):
         if key in match:
             payload[key] = match[key]

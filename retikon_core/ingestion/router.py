@@ -23,6 +23,7 @@ class PipelineOutcome:
     modality: str | None = None
     media_asset_id: str | None = None
     duration_ms: int | None = None
+    metrics: dict[str, object] | None = None
 
 
 def pipeline_version() -> str:
@@ -201,6 +202,7 @@ def _run_pipeline(
             modality=modality,
             media_asset_id=result.media_asset_id,
             duration_ms=result.duration_ms,
+            metrics=result.metrics,
         )
     if modality == "image":
         if source is None:
@@ -219,6 +221,7 @@ def _run_pipeline(
             modality=modality,
             media_asset_id=result.media_asset_id,
             duration_ms=result.duration_ms,
+            metrics=result.metrics,
         )
     if modality == "audio":
         if source is None:
@@ -237,6 +240,7 @@ def _run_pipeline(
             modality=modality,
             media_asset_id=result.media_asset_id,
             duration_ms=result.duration_ms,
+            metrics=result.metrics,
         )
     if modality == "video":
         if source is None:
@@ -255,6 +259,7 @@ def _run_pipeline(
             modality=modality,
             media_asset_id=result.media_asset_id,
             duration_ms=result.duration_ms,
+            metrics=result.metrics,
         )
     raise PermanentError(f"Unsupported modality: {modality}")
 

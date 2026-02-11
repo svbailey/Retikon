@@ -44,6 +44,11 @@ variable "ingestion_service_name" {
   default = "retikon-ingestion"
 }
 
+variable "ingestion_media_service_name" {
+  type    = string
+  default = "retikon-ingestion-media"
+}
+
 variable "query_service_name" {
   type    = string
   default = "retikon-query"
@@ -229,9 +234,64 @@ variable "ingestion_concurrency" {
   default = 1
 }
 
+variable "ingestion_min_scale" {
+  type    = number
+  default = 0
+}
+
 variable "ingestion_max_scale" {
   type    = number
   default = 10
+}
+
+variable "ingestion_media_memory" {
+  type    = string
+  default = "4Gi"
+}
+
+variable "ingestion_media_cpu" {
+  type    = string
+  default = "1000m"
+}
+
+variable "ingestion_media_concurrency" {
+  type    = number
+  default = 1
+}
+
+variable "ingestion_media_min_scale" {
+  type    = number
+  default = 0
+}
+
+variable "ingestion_media_keep_warm_enabled" {
+  type    = bool
+  default = false
+}
+
+variable "ingestion_media_autoscale_enabled" {
+  type    = bool
+  default = true
+}
+
+variable "ingestion_media_max_scale" {
+  type    = number
+  default = 10
+}
+
+variable "transcribe_tier" {
+  type    = string
+  default = "accurate"
+}
+
+variable "transcribe_enabled" {
+  type    = bool
+  default = true
+}
+
+variable "transcribe_max_ms" {
+  type    = number
+  default = 0
 }
 
 variable "query_memory" {
@@ -874,6 +934,16 @@ variable "index_builder_incremental_max_new_manifests" {
   default = 0
 }
 
+variable "index_builder_min_new_manifests" {
+  type    = number
+  default = 0
+}
+
+variable "index_builder_reload_snapshot" {
+  type    = bool
+  default = false
+}
+
 variable "index_schedule" {
   type    = string
   default = "0 * * * *"
@@ -1438,6 +1508,21 @@ variable "ingest_warmup_text" {
   default = true
 }
 
+variable "ingest_media_warmup" {
+  type    = bool
+  default = true
+}
+
+variable "ingest_media_warmup_audio" {
+  type    = bool
+  default = true
+}
+
+variable "ingest_media_warmup_text" {
+  type    = bool
+  default = true
+}
+
 variable "snapshot_reload_allow_internal_sa" {
   type    = bool
   default = false
@@ -1578,6 +1663,21 @@ variable "monitoring_dashboard_name" {
   default = "Retikon Ops"
 }
 
+variable "queue_monitor_enabled" {
+  type    = bool
+  default = false
+}
+
+variable "queue_monitor_interval_seconds" {
+  type    = number
+  default = 30
+}
+
+variable "queue_monitor_subscriptions" {
+  type    = string
+  default = ""
+}
+
 variable "billing_account_id" {
   type    = string
   default = ""
@@ -1621,6 +1721,21 @@ variable "ingest_dlq_topic_name" {
 variable "ingest_dlq_subscription_name" {
   type    = string
   default = "retikon-ingest-dlq-sub"
+}
+
+variable "ingest_media_topic_name" {
+  type    = string
+  default = "retikon-ingest-media"
+}
+
+variable "ingest_media_subscription_name" {
+  type    = string
+  default = "retikon-ingest-media-sub"
+}
+
+variable "ingest_media_max_delivery_attempts" {
+  type    = number
+  default = 5
 }
 
 variable "workflow_queue_topic_name" {

@@ -1,11 +1,13 @@
 from __future__ import annotations
 
+import audioop
 import json
 import math
 import re
 import shutil
 import subprocess
 import tempfile
+import wave
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -29,6 +31,14 @@ class MediaProbe:
 class FrameInfo:
     path: str
     timestamp_ms: int
+
+
+@dataclass(frozen=True)
+class AudioAnalysis:
+    duration_ms: int
+    speech_ms: int
+    silence_ms: int
+    has_speech: bool
 
 
 def _ensure_tool(name: str) -> None:
@@ -190,6 +200,52 @@ def extract_audio(input_path: str, sample_rate: int = 48000) -> str:
             exc.stderr or exc.stdout or str(exc),
         )
     return tmp_path
+
+
+def analyze_audio(
+    path: str,
+    *,
+    frame_ms: int = 30,
+    silence_db: float = -45.0,
+    min_speech_ms: int = 300,
+) -> AudioAnalysis:
+    with wave.open(path, "rb") as handle:
+        sample_rate = handle.getframerate()
+        channels = handle.getnchannels()
+        sample_width = handle.getsampwidth()
+        total_frames = handle.getnframes()
+        duration_ms = int((total_frames / float(sample_rate)) * 1000.0)
+        frames_per_chunk = max(1, int(sample_rate * frame_ms / 1000))
+        bytes_per_frame = channels * sample_width
+        max_possible = float(1 << (8 * sample_width - 1))
+        speech_ms = 0
+        silence_ms = 0
+        while True:
+            chunk = handle.readframes(frames_per_chunk)
+            if not chunk:
+                break
+            frame_count = len(chunk) // bytes_per_frame
+            if frame_count <= 0:
+                continue
+            chunk_ms = int((frame_count / float(sample_rate)) * 1000.0)
+            rms = audioop.rms(chunk, sample_width) if chunk else 0
+            if rms <= 0:
+                db = -float("inf")
+            else:
+                db = 20.0 * math.log10(rms / max_possible)
+            if db >= silence_db:
+                speech_ms += chunk_ms
+            else:
+                silence_ms += chunk_ms
+        remainder = max(0, duration_ms - speech_ms - silence_ms)
+        silence_ms += remainder
+        has_speech = speech_ms >= max(1, min_speech_ms)
+        return AudioAnalysis(
+            duration_ms=duration_ms,
+            speech_ms=speech_ms,
+            silence_ms=silence_ms,
+            has_speech=has_speech,
+        )
 
 
 def extract_frames(input_path: str, fps: float, output_dir: str) -> list[str]:

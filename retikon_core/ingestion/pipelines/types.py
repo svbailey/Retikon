@@ -9,3 +9,4 @@ class PipelineResult:
     manifest_uri: str
     media_asset_id: str
     duration_ms: int | None = None
+    metrics: dict[str, object] | None = None

@@ -1,7 +1,5 @@
 FROM python:3.10-slim
 
-ARG APP_MODULE=gcp_adapter.query_service:app
-ENV APP_MODULE=${APP_MODULE}
 ARG PRELOAD_MODELS=1
 ARG MODEL_DIR=/app/models
 ARG INSTALL_OCR=0
@@ -43,5 +41,8 @@ RUN if [ "${PRELOAD_MODELS}" = "1" ]; then \
         EXPORT_ONNX="${EXPORT_ONNX}" QUANTIZE_ONNX="${QUANTIZE_ONNX}" \
         python /app/scripts/download_models.py ; \
     fi
+
+ARG APP_MODULE=gcp_adapter.query_service:app
+ENV APP_MODULE=${APP_MODULE}
 
 CMD ["sh", "-c", "uvicorn ${APP_MODULE} --host 0.0.0.0 --port 8080"]

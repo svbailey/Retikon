@@ -1,0 +1,68 @@
+[
+  {
+    "message_id": "18292079972482201",
+    "publish_time": "2026-02-09T13:13:02.895Z",
+    "error_code": null,
+    "error_message": null,
+    "attempt_count": null,
+    "modality": null,
+    "gcs_event": {
+      "bucket": null,
+      "name": null,
+      "generation": null,
+      "content_type": null,
+      "size": null
+    },
+    "cloudevent": {
+      "id": null,
+      "type": null,
+      "time": null,
+      "subject": null
+    },
+    "received_at": null
+  },
+  {
+    "message_id": "18292007116261552",
+    "publish_time": "2026-02-09T13:13:45.542Z",
+    "error_code": "PERMANENT",
+    "error_message": "Unsupported object prefix: raw_clean/docs/retikon-clean-test-2.txt",
+    "attempt_count": 1,
+    "modality": "document",
+    "gcs_event": {
+      "bucket": "retikon-raw-simitor-staging",
+      "name": "raw_clean/docs/retikon-clean-test-2.txt",
+      "generation": "1770642423140206",
+      "content_type": "text/plain",
+      "size": 96
+    },
+    "cloudevent": {
+      "id": "18292287991814636",
+      "type": "google.cloud.storage.object.v1.finalized",
+      "time": "2026-02-09T13:07:03.146271Z",
+      "subject": "objects/raw_clean/docs/retikon-clean-test-2.txt"
+    },
+    "received_at": "2026-02-09T13:13:45.491633+00:00"
+  },
+  {
+    "message_id": "18291960969320938",
+    "publish_time": "2026-02-09T13:15:18.302Z",
+    "error_code": null,
+    "error_message": null,
+    "attempt_count": null,
+    "modality": null,
+    "gcs_event": {
+      "bucket": null,
+      "name": null,
+      "generation": null,
+      "content_type": null,
+      "size": null
+    },
+    "cloudevent": {
+      "id": null,
+      "type": null,
+      "time": null,
+      "subject": null
+    },
+    "received_at": null
+  }
+]

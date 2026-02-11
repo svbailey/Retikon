@@ -1,0 +1,362 @@
+[
+  {
+    "message_id": "18258092353430530",
+    "publish_time": "2026-02-04T13:22:30.937Z",
+    "error_code": "PERMANENT",
+    "error_message": "Unsupported document extension: .mov",
+    "attempt_count": 1,
+    "modality": "document",
+    "gcs_event": {
+      "bucket": "retikon-raw-simitor-staging",
+      "name": "raw/docs/20260204-132218-b3ac73/IMG_1330.MOV",
+      "generation": "1770211339108271",
+      "content_type": "video/quicktime",
+      "size": 13221580
+    },
+    "cloudevent": {
+      "id": "18258286055796117",
+      "type": "google.cloud.storage.object.v1.finalized",
+      "time": "2026-02-04T13:22:19.113871Z",
+      "subject": "objects/raw/docs/20260204-132218-b3ac73/IMG_1330.MOV"
+    },
+    "received_at": "2026-02-04T13:22:30.850126+00:00",
+    "decoded_text": null,
+    "decode_error": null
+  },
+  {
+    "message_id": "18255517003564197",
+    "publish_time": "2026-02-04T13:33:15.951Z",
+    "error_code": null,
+    "error_message": null,
+    "attempt_count": null,
+    "modality": null,
+    "gcs_event": {
+      "bucket": null,
+      "name": null,
+      "generation": null,
+      "content_type": null,
+      "size": null
+    },
+    "cloudevent": {
+      "id": null,
+      "type": null,
+      "time": null,
+      "subject": null
+    },
+    "received_at": null,
+    "decoded_text": "{\"error_code\": \"PERMANENT\", \"error_message\": \"ffmpeg extract keyframes failed: ffmpeg version 7.1.3-0+deb13u1 Copyright (c) 2000-2025 the FFmpeg developers\\n  built with gcc 14 (Debian 14.2.0-19)\\n  configuration: --prefix=/usr --extra-version=0+deb13u1 --toolchain=hardened --libdir=/usr/lib/x86_64-linux-gnu --incdir=/usr/include/x86_64-linux-gnu --arch=amd64 --enable-gpl --disable-stripping --disable-libmfx --disable-omx --enable-gnutls --enable-libaom --enable-libass --enable-libbs2b --enable-libcdio --enable-libcodec2 --enable-libdav1d --enable-libflite --enable-libfontconfig --enable-libfreetype --enable-libfribidi --enable-libglslang --enable-libgme --enable-libgsm --enable-libharfbuzz --enable-libmp3lame --enable-libmysofa --enable-libopenjpeg --enable-libopenmpt --enable-libopus --enable-librubberband --enable-libshine --enable-libsnappy --enable-libsoxr --enable-libspeex --enable-libtheora --enable-libtwolame --enable-libvidstab --enable-libvorbis --enable-libvpx --enable-libwebp --enable-libx265 --enable-libxml2 --enable-libxvid --enable-libzimg --enable-openal --enable-opencl --enable-opengl --disable-sndio --enable-libvpl --enable-libdc1394 --enable-libdrm --enable-libiec61883 --enable-chromaprint --enable-frei0r --enable-ladspa --enable-libbluray --enable-libcaca --enable-libdvdnav --enable-libdvdread --enable-libjack --enable-libpulse --enable-librabbitmq --enable-librist --enable-libsrt --enable-libssh --enable-libsvtav1 --enable-libx264 --enable-libzmq --enable-libzvbi --enable-lv2 --enable-sdl2 --enable-libplacebo --enable-librav1e --enable-pocketsphinx --enable-librsvg --enable-libjxl --enable-shared\\n  libavutil      59. 39.100 / 59. 39.100\\n  libavcodec     61. 19.101 / 61. 19.101\\n  libavformat    61.  7.100 / 61.  7.100\\n  libavdevice    61.  3.100 / 61.  3.100\\n  libavfilter    10.  4.100 / 10.  4.100\\n  libswscale      8.  3.100 /  8.  3.100\\n  libswresample   5.  3.100 /  5.  3.100\\n  libpostproc    58.  3.100 / 58.  3.100\\n-vsync is deprecated. Use -fps_mode\\nInput #0, mov,mp4,m4a,3gp,3g2,mj2, from '/tmp/tmpei81868d':\\n  Metadata:\\n    major_brand     : qt  \\n    minor_version   : 0\\n    compatible_brands: qt  \\n    creation_time   : 2026-02-04T13:20:22.000000Z\\n    com.apple.quicktime.location.accuracy.horizontal: 3.533009\\n    com.apple.quicktime.full-frame-rate-playback-intent: 0\\n    com.apple.quicktime.location.ISO6709: +51.3594-000.5460+043.737/\\n    com.apple.quicktime.make: Apple\\n    com.apple.quicktime.model: iPhone 14 Pro Max\\n    com.apple.quicktime.software: 26.2.1\\n    com.apple.quicktime.creationdate: 2026-02-04T13:20:22+0000\\n  Duration: 00:00:12.10, start: 0.000000, bitrate: 8741 kb/s\\n  Stream #0:0[0x1](und): Video: hevc (Main 10) (hvc1 / 0x31637668), yuv420p10le(tv, bt2020nc/bt2020/arib-std-b67), 1920x1080, 8506 kb/s, 30 fps, 30 tbr, 600 tbn (default)\\n      Metadata:\\n        creation_time   : 2026-02-04T13:20:22.000000Z\\n        handler_name    : Core Media Video\\n        vendor_id       : [0][0][0][0]\\n        encoder         : HEVC\\n      Side data:\\n        DOVI configuration record: version: 1.0, profile: 8, level: 4, rpu flag: 1, el flag: 0, bl flag: 1, compatibility id: 4, compression: 0\\n        displaymatrix: rotation of -90.00 degrees\\n        Ambient Viewing Environment, ambient_illuminance=314.000000, ambient_light_x=0.312700, ambient_light_y=0.329000\\n  Stream #0:1[0x2](und): Audio: aac (LC) (mp4a / 0x6134706D), 48000 Hz, stereo, fltp, 171 kb/s (default)\\n      Metadata:\\n        creation_time   : 2026-02-04T13:20:22.000000Z\\n        handler_name    : Core Media Audio\\n        vendor_id       : [0][0][0][0]\\n  Stream #0:2[0x3](und): Data: none (mebx / 0x7862656D), 0 kb/s (default)\\n      Metadata:\\n        creation_time   : 2026-02-04T13:20:22.000000Z\\n        handler_name    : Core Media Metadata\\n  Stream #0:3[0x4](und): Data: none (mebx / 0x7862656D), 0 kb/s (default)\\n      Metadata:\\n        creation_time   : 2026-02-04T13:20:22.000000Z\\n        handler_name    : Core Media Metadata\\n  Stream #0:4[0x5](und): Data: none (mebx / 0x7862656D), 34 kb/s (default)\\n      Metadata:\\n        creation_time   : 2026-02-04T13:20:22.000000Z\\n        handler_name    : Core Media Metadata\\n  Stream #0:5[0x6](und): Data: none (mebx / 0x7862656D), 2 kb/s (default)\\n      Metadata:\\n        creation_time   : 2026-02-04T13:20:22.000000Z\\n        handler_name    : Core Media Metadata\\n  Stream #0:6[0x7](und): Data: none (mebx / 0x7862656D), 0 kb/s (default)\\n      Metadata:\\n        creation_time   : 2026-02-04T13:20:22.000000Z\\n        handler_name    : Core Media Metadata\\nStream mapping:\\n  Stream #0:0 -> #0:0 (hevc (native) -\b\u001bZ\ufffd\u0019Y\ufffd\n\u001b\ufffd]\u001a]\ufffdJJW\u001b\ufffd\u001c\ufffd\\\ufffd\ufffd\u0016\ufffdWH\u001d\u001b\ufffd\u001c\ufffd\u001b\ufffd\u000b\b\u0016\ufffd\ufffd\u0006f\ufffd\"\u0006\ufffdV\ufffd\u0005\ufffd\ufffd\u0006\u0017'6VE\ufffd6\ufffd\ufffdv\ufffd\ufffdf\ufffd\ufffd\u0012\u0004\u0002\u0003\u0007\ufffdvcC#\ufffd3\u0003\u0003\u0016f3\u0005\ufffd\u00066\ufffd\ufffdf\ufffdr\u0006\ufffd\ufffd\u0007F\ufffd\ufffdU\ufffd&\u00176S\ufffd\u0003\u0012\ufffdc\u0003\u0002\ufffd\u0006g&\u0016\ufffdU\ufffd&\u0017FS\ufffd\u00033\u0002\ufffd\u0015\ufffd\ufffd\u0006\u0017'6VE\ufffd6\ufffd\ufffdv\ufffd\ufffdf\ufffd\ufffd\u0012\u0004\u0002\u0003\u0007\ufffdvcC#\ufffd3\u0003\u0003\u0016f3\u0005\ufffd\u00066\ufffd\ufffdf\ufffdr\u0006\ufffdWB\u0007F\ufffd\ufffdU\ufffd&\u00176S\ufffd\u0003\u0002\ufffd\u0002\ufffd\u0006g&\u0016\ufffdU\ufffd&\u0017FS\ufffd\u0003\u0002\ufffd\u0005\ufffd\ufffdfb3\u0003\ufffd\u0002\u0004\u0002\u0003\u0007\ufffdSc3\u0006&\u0013\u0013\ufffd&\u0013\ufffd\u0005\ufffd\u0004\ufffd\ufffd\u0006f\ufffd\ufffdFW&VB\u0006g&\u0016\ufffdW2\u0006f\ufffd\"\u0006\ufffdWG\u0007WB\u00077G&V\u0016\ufffd\ufffd\u0007G'\ufffd\ufffd\ufffdr\u0007F\ufffd\u0006\ufffd\ufffdF\ufffd\u0016\u0197\ufffdR\u0006\u0016\ufffdv\u0017\ufffd\ufffd\ufffd\ufffd\u05a7\u0006Vr\u0004\u0002\u0003\u0007\ufffdSc3\u0006&\u0013\u001363F3\u0005\ufffd\u0004\ufffd\ufffd\ufffd\u0006gV\ufffd\ufffd\ufffd&\u0016\ufffdvR\u0005\ufffdUb\u0006\ufffd2\u0006\ufffd\ufffd\ufffd\ufffd7F\u0016\ufffdF\u0017&B\ufffd\u00076WB\u00077G&\ufffd7E\ufffd7FE\ufffd6\ufffd\ufffd\u0006\u0196\u0016\ufffd6R\u0007F\ufffd\u0006\u0017B\u0006\ufffd\ufffd7B\u0007V\ufffd\ufffdff\ufffd6\ufffd\u0016\ufffd\u0007F\ufffd\u0007W6R\u0006\ufffdB\ufffd\ufffd\ufffdf\ufffd7B3\u0003\ufffd\u0002\ufffd\u05a7\u0006Vr\u0004\u0002\u0003\u0007\ufffdSc3\u0006&\u0013\u0013\ufffdcc\u0003\u0005\ufffd\u0004W'&\ufffd\"\u0007v\ufffd\ufffd\ufffdR\u0006\ufffd\u0006V\ufffd\ufffdr\u0006V\ufffd6\ufffdFW\"\u0002\ufffd\u0006\ufffd\u0017\ufffd&R\u0006\ufffd\ufffd6\ufffd'&V7B\u0007\u0006\u0017&\u0016\ufffdWFW'2\u00077V6\ufffd\u0006\u00172\u0006&\ufffdE\ufffd&\u0017FR\ufffd\u0007&\u0017FR\ufffd\u0007v\ufffdGF\ufffd\u0006\ufffd\"\u0006\ufffdV\ufffdv\ufffdB\ufffd\ufffd\ufffdfb3\u0003\ufffd\u0002\u0004\u0002\u0003\u0007\ufffdSc3\u0006&\u0013\u0013S3f3\u0005\ufffd\u0005F\u00176\ufffd\u0006f\ufffd\ufffd6\ufffdVB\u0007v\ufffdF\ufffd\u0006W'&\ufffd\"\u00066\ufffdFS\ufffd\u0002\ufffd#\"\u0002\ufffd\ufffd\ufffdf\u0016\u0196B\u0006\u0017&wV\ufffdV\ufffdB\ufffd\ufffd\ufffdfb3\u0003\ufffd\u0002\u0004\u0002\u0003\u0007\ufffdSc3\u0006&\u0013\u0013S3f3\u0005\ufffd\u0005FW&\u0596\ufffd\u0017F\ufffd\ufffdr\u0007F\ufffd&V\u0016B\u0007v\ufffdF\ufffd\u0007&WGW&\ufffd\u00066\ufffdFR\u0002\ufffd#\"\u0002\ufffd\ufffd\ufffdf\u0016\u0196B\u0006\u0017&wV\ufffdV\ufffdB\ufffd\ufffd\ufffdf\ufffd7B3\u0003\ufffd\u0002\ufffd\u05a7\u0006Vr\u0004\u0002\u0003\u0007\ufffdSc3\u0006&\u0013\u0013\ufffdcc\u0003\u0005\ufffd\u00046\ufffdV\ufffdB\u0006\ufffd\ufffdB\u0006\ufffd\u0006V\ufffd\u0006V\ufffd6\ufffdFW\"\u0006&Vf\ufffd&R\u0004T\ufffde\ufffd\ufffdf\ufffd7B3\u0003\ufffd\u0002\ufffd\u05a7\u0006Vr\u0004\u0002\u0003\u0007\ufffdSc3\u0006&\u0013\u0013\ufffdcc\u0003\u0005\ufffd\u0005F\u00176\ufffd\u0006f\ufffd\ufffd6\ufffdVB\u0007v\ufffdF\ufffd\u0006W'&\ufffd\"\u00066\ufffdFS\ufffd\u0002\ufffd#\"\u0002\ufffd\ufffd\ufffdf\u0016\u0196B\u0006\u0017&wV\ufffdV\ufffdB\ufffd\ufffd\ufffdf\ufffd7B3\u0003\ufffd\u0002\ufffd\u05a7\u0006Vr\u0004\u0002\u0003\u0007\ufffdSc3\u0006&\u0013\u0013\ufffdcc\u0003\u0005\ufffd\u0005FW&\u0596\ufffd\u0017F\ufffd\ufffdr\u0007F\ufffd&V\u0016B\u0007v\ufffdF\ufffd\u0007&WGW&\ufffd\u00066\ufffdFR\u0002\ufffd#\"\u0002\ufffd\ufffd\ufffdf\u0016\u0196B\u0006\u0017&wV\ufffdV\ufffdB\ufffd\ufffd\ufffd\ufffdWB3\u0002\ufffd\ufffd\ufffd\u0016vS\"\u0004\u0002\u0003\u0007\ufffdSc3\u0006&\u0013\u00136CS\u0003\u0005\ufffd\u0004\ufffd\ufffdF\ufffd\ufffd\ufffdr\u0007v\u00172\u0007w&\ufffdGFV\ufffd\u0006\ufffd\ufffdF\ufffd\u0006\ufffdWG\u0007WB\u0006f\ufffd\ufffdR\ufffd\u0006&V6\u0017W6R\u0006\u0017B\u0006\ufffdV\u00177B\u0006\ufffd\ufffdR\u0006\ufffdb\u0006\ufffdG2\u00077G&V\u0016\ufffd2\u0007&V6V\ufffdfVB\u0006\ufffd\ufffd\u0007\u0006\u00166\ufffdWG2\ufffd\ufffd\ufffdg&\u0016\ufffdS\ufffd\u0002\u0002\u0002\u0003\u0002\u0006g\u00073\ufffd\u0002\ufffd\u0002\u0007\u0013\ufffd\u0002\ufffd\u0002\u0004\ufffd6\ufffd\ufffdS\ufffd\u0002\u0002\u0002\u0002\u0002\u0002\u0003\u0004\ufffd\ufffd\"\u0007F\ufffd\ufffdS\ufffd\ufffd\ufffd\u0012\u0006&\ufffdG&\u0017FS\ufffd\ufffd\ufffd\u0012\u00077\u0006VVC\ufffd\ufffd\ufffd\u0012\u0002\u0002\u0002\u0005\ufffd\ufffd6\ufffd\ufffdfW'6\ufffd\ufffd\ufffd\u0006f\u0016\ufffd\ufffdVB\u0012\"\ufffd\u0002&\u0017GFV\ufffd\u0007E\ufffd6\ufffdV\ufffdB#\ufffd\u0003\u0012\ufffd\u0002&\ufffd\ufffdF\u0016\u0197G\ufffd#\ufffd\u0002'f\ufffdFV\ufffd\"\ufffd\u0002&v75\ufffdWfV\ufffdB#\ufffd\u0007\ufffd&'V6\ufffdWB#\ufffd\u0002'&WF\ufffd\ufffd\ufffd\ufffd\ufffd&\u0017r\ufffd6\ufffd\u0597F\ufffd\"\ufffd7F\u0016v\ufffd\ufffdr\"\ufffd\u0002&\ufffd\u0016\ufffdR#\ufffd\u0002'&\u0017r\ufffdf\ufffdFV\ufffd2\ufffd#\u0003#c\u0003#\u0003B\ufffd\u001333#Sr\u04d336VC\"\ufffd\ufffd\ufffdu\ufffd\u001333\u0002\ufffd\ufffd\ufffdb\"\ufffd\u0002&vV\ufffdW&\u0017F\ufffd\ufffd\ufffd#\ufffd\u0002#\u0013ss\u0003#\u0013\u0013\ufffdssS\ufffdCsC\"\"\ufffd\u0002&6\ufffd\ufffdFV\ufffdE\ufffdG\ufffd\u0006R#\ufffd\u0002'f\ufffdFV\ufffd\ufffd\u0017V\ufffd6\ufffdF\ufffd\ufffdR\"\ufffd\u0002'6\ufffd\ufffdR#\ufffd\u0003\u00133##\u0013S\ufffd\u0007\ufffd\ufffd\u0002&6\ufffd\ufffdVFWfV\ufffdB#\ufffd\u0007\ufffd&\ufffdB#\ufffd\u0002#\u0013\ufffd#c\u0003C\u0003s\u0013\u0003C\u0003c#Sc\ufffd\"\ufffd\u0002'G\ufffd\u0006R#\ufffd\u0002&v\ufffd\ufffdv\ufffdR\ufffd6\ufffd\ufffdVB\ufffd7F\ufffd&\u0016vR\ufffd\ufffd&\ufffdV7B\ufffdc\u0012\ufffdf\ufffd\ufffd\u0016\u0197\ufffdVB\"\ufffd\u0002'6\ufffdW&6R#\ufffd\u0002\"\ufffd\ufffd7F\ufffd&\u0016vR\ufffdv\ufffd\ufffdv\ufffdV\u0017\u0006\ufffd2\ufffd6\ufffd\ufffd\ufffd\u0007&\ufffd\ufffdV7G2\ufffd\ufffd\ufffd'V6\ufffdWG2\ufffd&WF\ufffd\ufffd\ufffd\ufffd\ufffd&\u0017r\ufffd6\ufffd\u0597F\ufffd\"\ufffd7F\u0016v\ufffd\ufffdr\"\ufffd\u0002'7\u0006V7fW'6\ufffd\ufffd\ufffd#\ufffd\u0002#\u0012\ufffd\u0002\"\ufffd\u0002'F\ufffd\ufffdR#\ufffd\u0002##\u0003#b\ufffd\u0003\"\ufffd\u0003EC\u00133\ufffd3#\ufffdSr\ufffdS\ufffd\ufffdS\ufffd\ufffd\ufffd\"\ufffd\u0002'7V&\ufffdV7B#\ufffd\u0002&\ufffd&\ufffdV7G2\ufffd&\u0017r\ufffdf\ufffdFV\ufffd2\ufffd#\u0003#c\u0003#\u0003B\ufffd\u001333#Sr\u04d336VC\"\ufffd\ufffd\ufffdu\ufffd\u001333\u0002\ufffd\ufffd\ufffdb\"\ufffd\u0002&F\u0017F\u0012#\ufffd\u0007\ufffd&\ufffd\ufffd\ufffdB#\ufffd\u0002'7F\ufffd&\u0016vR6\ufffd&\ufffdV7B\"\ufffd\u0002&\ufffdB#\ufffd\u0002'&WF\ufffd\ufffd\ufffd\ufffd\ufffd&\u0017r\ufffd6\ufffd\u0597F\ufffd\"\ufffd7F\u0016v\ufffd\ufffdr\ufffd&\u0017r\ufffdf\ufffdFV\ufffd2\ufffd#\u0003#c\u0003#\u0003B\ufffd\u001333#Sr\u04d336VC\"\ufffd\ufffd\ufffdu\ufffd\u001333\u0002\ufffd\ufffd\ufffdb\ufffd\u0013ss\u0003#\u0013\u0013\ufffdssS\ufffdCsC\"\"\ufffd\u0002'6V\ufffdd\u0196\ufffd#\ufffd\u0002&\ufffdGG\u00073\ufffd\ufffd\ufffdwwr\ufffdv\ufffd\ufffdv\ufffdV\u0017\u0006\ufffd2\ufffd6\ufffd\ufffd\ufffd7F\ufffd&\u0016vR\ufffdc\u0012\ufffd\"\ufffd&WF\ufffd\ufffd\ufffd\ufffd\ufffd&\u0017r\ufffd6\ufffd\u0597F\ufffd\"\ufffd7F\u0016v\ufffd\ufffdr\ufffd\ufffd\ufffd&\u0017rS$gf\ufffdFV\ufffd2S$c#\u0003#c\u0003#\u0003B\ufffd\u001333#Sr\u04d336VC\"S$d\ufffd\ufffdu\ufffd\u001333\u0002\ufffd\ufffd\ufffdb\"\ufffd\u0002&\ufffd\u0016\ufffdR#\ufffd\u0002'&\u0017r\ufffdf\ufffdFV\ufffd2\ufffd#\u0003#c\u0003#\u0003B\ufffd\u001333#Sr\u04d336VC\"\ufffd\ufffd\ufffdu\ufffd\u001333\u0002\ufffd\ufffd\ufffdb\"\ufffd\u0002&'V6\ufffdWB#\ufffd\u0002'&WF\ufffd\ufffd\ufffd\ufffd\ufffd&\u0017r\ufffd6\ufffd\u0597F\ufffd\"\ufffd7F\u0016v\ufffd\ufffdr\"\ufffd\u0002&vV\ufffdW&\u0017F\ufffd\ufffd\ufffd#\ufffd\u0002#\u0013ss\u0003#\u0013\u0013\ufffdssS\ufffdCsC\"\"\ufffd\u0002&\ufffdWF\u0016vV\ufffdW&\u0017F\ufffd\ufffd\ufffd#\ufffd\u0002#\u0012\"\ufffd\u0002&6\ufffd\ufffdFV\ufffdEG\ufffd\u0006R#\ufffd\u0002'f\ufffdFV\ufffd\ufffd\u0017V\ufffd6\ufffdF\ufffd\ufffdR\"\ufffd\u0002'F\ufffd\ufffdT7&V\u0017FVB#\ufffd\u0002##\u0003#b\ufffd\u0003\"\ufffd\u0003EC\u00133\ufffd3#\ufffdSr\ufffdS\ufffd\ufffd\ufffd\"\ufffd\u0002'W\u0006F\u0017FVB#\ufffd\u0002##\u0003#b\ufffd\u0003\"\ufffd\u0003EC\u00133\ufffd3#\ufffdSr\ufffdS\ufffd\ufffd\ufffd\"\ufffd\u0002'7F\ufffd&\u0016vT6\ufffd\u001772#\ufffd\u0002%5D\u0014\ufffdD\u0015$B\"\ufffd\u0002'F\ufffd\ufffdU7F\ufffd&\u0016vT6\ufffd\u001775W\u0006F\u0017FVB#\ufffd\u0002##\u0003#b\ufffd\u0003\"\ufffd\u0003EC\u00133\ufffd3#\ufffdSr\ufffdS\ufffd\ufffd\ufffd\"\ufffd\u0002'6\ufffd\ufffdR#\ufffd\u0002#\u00133##\u0013S\ufffd\u0002\"\ufffd\u0002&\ufffdCT\ufffd\u00176\ufffd#\ufffd\u0002%&4G\ufffd\ufffdwf\ufffdU#\ufffd\ufffd\ufffd\ufffd\ufffdE\ufffd\u6152\ufffd\u0013\ufffd\ufffd\"\ufffd\u0002&\ufffdVF\ufffd\u0014\u0196\ufffd#\ufffd\u0002&\ufffdGG\u00073\ufffd\ufffd\ufffd7F\ufffd&\u0016vR\ufffdv\ufffd\ufffdv\ufffdV\u0017\u0006\ufffd2\ufffd6\ufffd\ufffd\ufffdF\ufffdv\ufffd\ufffd\ufffd\u0016B\ufffd7F\ufffd&\u0016vR\ufffdc\u0012\ufffd\"\ufffd&WF\ufffd\ufffd\ufffd\ufffd\ufffd&\u0017r\ufffd6\ufffd\u0597F\ufffd\"\ufffd7F\u0016v\ufffd\ufffdr\ufffd\ufffd\ufffd&\u0017rS$gf\ufffdFV\ufffd2S$c#\u0003#c\u0003#\u0003B\ufffd\u001333#Sr\u04d336VC\"S$d\ufffd\ufffdu\ufffd\u001333\u0002\ufffd\ufffd\ufffdc\ufffdvV\ufffdW&\u0017F\ufffd\ufffd\ufffd\ufffd\u0013ss\u0003#\u0013\u0013\ufffdssS\ufffdCsC\"f\u0016\ufffdC\ufffd\ufffdVF\ufffd\u0012\"\ufffd\u0002&7&33&2#\ufffd\u0002'\ufffd\u0016d\ufffd\ufffd\u0013\ufffd\ufffd\"\ufffd\u0002&WF\u0016r#\ufffd\u0002$4\ufffd$\u0013S\ufffdCWcT\ufffdDT\u0014S\ufffd'\ufffd\ufffd\ufffd\u0002'&V6V\ufffdfVE\ufffd\u0017B#\ufffd\u0002##\u0003#b\ufffd\u0003\"\ufffd\u0003EC\u00133\ufffd33\ufffd\u0013R\ufffd\u0013\u00133\u0013\ufffd\ufffd\u0003\u0003\ufffd\u0003\u0002'",
+    "decode_error": "json:Invalid control character at: line 1 column 4659 (char 4658)"
+  },
+  {
+    "message_id": "18256413108335094",
+    "publish_time": "2026-02-04T13:34:40.531Z",
+    "error_code": null,
+    "error_message": null,
+    "attempt_count": null,
+    "modality": null,
+    "gcs_event": {
+      "bucket": null,
+      "name": null,
+      "generation": null,
+      "content_type": null,
+      "size": null
+    },
+    "cloudevent": {
+      "id": null,
+      "type": null,
+      "time": null,
+      "subject": null
+    },
+    "received_at": null,
+    "decoded_text": "{\"error_code\": \"PERMANENT\", \"error_message\": \"ffmpeg extract keyframes failed: ffmpeg version 7.1.3-0+deb13u1 Copyright (c) 2000-2025 the FFmpeg developers\\n  built with gcc 14 (Debian 14.2.0-19)\\n  configuration: --prefix=/usr --extra-version=0+deb13u1 --toolchain=hardened --libdir=/usr/lib/x86_64-linux-gnu --incdir=/usr/include/x86_64-linux-gnu --arch=amd64 --enable-gpl --disable-stripping --disable-libmfx --disable-omx --enable-gnutls --enable-libaom --enable-libass --enable-libbs2b --enable-libcdio --enable-libcodec2 --enable-libdav1d --enable-libflite --enable-libfontconfig --enable-libfreetype --enable-libfribidi --enable-libglslang --enable-libgme --enable-libgsm --enable-libharfbuzz --enable-libmp3lame --enable-libmysofa --enable-libopenjpeg --enable-libopenmpt --enable-libopus --enable-librubberband --enable-libshine --enable-libsnappy --enable-libsoxr --enable-libspeex --enable-libtheora --enable-libtwolame --enable-libvidstab --enable-libvorbis --enable-libvpx --enable-libwebp --enable-libx265 --enable-libxml2 --enable-libxvid --enable-libzimg --enable-openal --enable-opencl --enable-opengl --disable-sndio --enable-libvpl --enable-libdc1394 --enable-libdrm --enable-libiec61883 --enable-chromaprint --enable-frei0r --enable-ladspa --enable-libbluray --enable-libcaca --enable-libdvdnav --enable-libdvdread --enable-libjack --enable-libpulse --enable-librabbitmq --enable-librist --enable-libsrt --enable-libssh --enable-libsvtav1 --enable-libx264 --enable-libzmq --enable-libzvbi --enable-lv2 --enable-sdl2 --enable-libplacebo --enable-librav1e --enable-pocketsphinx --enable-librsvg --enable-libjxl --enable-shared\\n  libavutil      59. 39.100 / 59. 39.100\\n  libavcodec     61. 19.101 / 61. 19.101\\n  libavformat    61.  7.100 / 61.  7.100\\n  libavdevice    61.  3.100 / 61.  3.100\\n  libavfilter    10.  4.100 / 10.  4.100\\n  libswscale      8.  3.100 /  8.  3.100\\n  libswresample   5.  3.100 /  5.  3.100\\n  libpostproc    58.  3.100 / 58.  3.100\\n-vsync is deprecated. Use -fps_mode\\nInput #0, mov,mp4,m4a,3gp,3g2,mj2, from '/tmp/tmp28s8zj11':\\n  Metadata:\\n    major_brand     : qt  \\n    minor_version   : 0\\n    compatible_brands: qt  \\n    creation_time   : 2026-02-04T13:20:22.000000Z\\n    com.apple.quicktime.location.accuracy.horizontal: 3.533009\\n    com.apple.quicktime.full-frame-rate-playback-intent: 0\\n    com.apple.quicktime.location.ISO6709: +51.3594-000.5460+043.737/\\n    com.apple.quicktime.make: Apple\\n    com.apple.quicktime.model: iPhone 14 Pro Max\\n    com.apple.quicktime.software: 26.2.1\\n    com.apple.quicktime.creationdate: 2026-02-04T13:20:22+0000\\n  Duration: 00:00:12.10, start: 0.000000, bitrate: 8741 kb/s\\n  Stream #0:0[0x1](und): Video: hevc (Main 10) (hvc1 / 0x31637668), yuv420p10le(tv, bt2020nc/bt2020/arib-std-b67), 1920x1080, 8506 kb/s, 30 fps, 30 tbr, 600 tbn (default)\\n      Metadata:\\n        creation_time   : 2026-02-04T13:20:22.000000Z\\n        handler_name    : Core Media Video\\n        vendor_id       : [0][0][0][0]\\n        encoder         : HEVC\\n      Side data:\\n        DOVI configuration record: version: 1.0, profile: 8, level: 4, rpu flag: 1, el flag: 0, bl flag: 1, compatibility id: 4, compression: 0\\n        displaymatrix: rotation of -90.00 degrees\\n        Ambient Viewing Environment, ambient_illuminance=314.000000, ambient_light_x=0.312700, ambient_light_y=0.329000\\n  Stream #0:1[0x2](und): Audio: aac (LC) (mp4a / 0x6134706D), 48000 Hz, stereo, fltp, 171 kb/s (default)\\n      Metadata:\\n        creation_time   : 2026-02-04T13:20:22.000000Z\\n        handler_name    : Core Media Audio\\n        vendor_id       : [0][0][0][0]\\n  Stream #0:2[0x3](und): Data: none (mebx / 0x7862656D), 0 kb/s (default)\\n      Metadata:\\n        creation_time   : 2026-02-04T13:20:22.000000Z\\n        handler_name    : Core Media Metadata\\n  Stream #0:3[0x4](und): Data: none (mebx / 0x7862656D), 0 kb/s (default)\\n      Metadata:\\n        creation_time   : 2026-02-04T13:20:22.000000Z\\n        handler_name    : Core Media Metadata\\n  Stream #0:4[0x5](und): Data: none (mebx / 0x7862656D), 34 kb/s (default)\\n      Metadata:\\n        creation_time   : 2026-02-04T13:20:22.000000Z\\n        handler_name    : Core Media Metadata\\n  Stream #0:5[0x6](und): Data: none (mebx / 0x7862656D), 2 kb/s (default)\\n      Metadata:\\n        creation_time   : 2026-02-04T13:20:22.000000Z\\n        handler_name    : Core Media Metadata\\n  Stream #0:6[0x7](und): Data: none (mebx / 0x7862656D), 0 kb/s (default)\\n      Metadata:\\n        creation_time   : 2026-02-04T13:20:22.000000Z\\n        handler_name    : Core Media Metadata\\nStream mapping:\\n  Stream #0:0 -> #0:0 (hevc (native) -\b\u001bZ\ufffd\u0019Y\ufffd\n\u001b\ufffd]\u001a]\ufffdJJW\u001b\ufffd\u001c\ufffd\\\ufffd\ufffd\u0016\ufffdWH\u001d\u001b\ufffd\u001c\ufffd\u001b\ufffd\u000b\b\u0016\ufffd\ufffd\u0006f\ufffd\"\u0006\ufffdV\ufffd\u0005\ufffd\ufffd\u0006\u0017'6VE\ufffd6\ufffd\ufffdv\ufffd\ufffdf\ufffd\ufffd\u0012\u0004\u0002\u0003\u0007\ufffdvcS63\u0003\u0003\u0003\u0016f3\u0005\ufffd\u00066\ufffd\ufffdf\ufffdr\u0006\ufffd\ufffd\u0007F\ufffd\ufffdU\ufffd&\u00176S\ufffd\u0003\u0012\ufffdc\u0003\u0002\ufffd\u0006g&\u0016\ufffdU\ufffd&\u0017FS\ufffd\u00033\u0002\ufffd\u0015\ufffd\ufffd\u0006\u0017'6VE\ufffd6\ufffd\ufffdv\ufffd\ufffdf\ufffd\ufffd\u0012\u0004\u0002\u0003\u0007\ufffdvcS63\u0003\u0003\u0003\u0016f3\u0005\ufffd\u00066\ufffd\ufffdf\ufffdr\u0006\ufffdWB\u0007F\ufffd\ufffdU\ufffd&\u00176S\ufffd\u0003\u0002\ufffd\u0002\ufffd\u0006g&\u0016\ufffdU\ufffd&\u0017FS\ufffd\u0003\u0002\ufffd\u0005\ufffd\ufffdfb3\u0003\ufffd\u0002\u0004\u0002\u0003\u0007\ufffdSVSFC\ufffd\u0016VF\u0013\ufffd\u0005\ufffd\u0004\ufffd\ufffd\u0006f\ufffd\ufffdFW&VB\u0006g&\u0016\ufffdW2\u0006f\ufffd\"\u0006\ufffdWG\u0007WB\u00077G&V\u0016\ufffd\ufffd\u0007G'\ufffd\ufffd\ufffdr\u0007F\ufffd\u0006\ufffd\ufffdF\ufffd\u0016\u0197\ufffdR\u0006\u0016\ufffdv\u0017\ufffd\ufffd\ufffd\ufffd\u05a7\u0006Vr\u0004\u0002\u0003\u0007\ufffdSVSFC\ufffd\u0013\ufffdSF3\u0005\ufffd\u0004\ufffd\ufffd\ufffd\u0006gV\ufffd\ufffd\ufffd&\u0016\ufffdvR\u0005\ufffdUb\u0006\ufffd2\u0006\ufffd\ufffd\ufffd\ufffd7F\u0016\ufffdF\u0017&B\ufffd\u00076WB\u00077G&\ufffd7E\ufffd7FE\ufffd6\ufffd\ufffd\u0006\u0196\u0016\ufffd6R\u0007F\ufffd\u0006\u0017B\u0006\ufffd\ufffd7B\u0007V\ufffd\ufffdff\ufffd6\ufffd\u0016\ufffd\u0007F\ufffd\u0007W6R\u0006\ufffdB\ufffd\ufffd\ufffdf\ufffd7B3\u0003\ufffd\u0002\ufffd\u05a7\u0006Vr\u0004\u0002\u0003\u0007\ufffdSVSFC\ufffd\u0016S\ufffdc\u0003\u0005\ufffd\u0004W'&\ufffd\"\u0007v\ufffd\ufffd\ufffdR\u0006\ufffd\u0006V\ufffd\ufffdr\u0006V\ufffd6\ufffdFW\"\u0002\ufffd\u0006\ufffd\u0017\ufffd&R\u0006\ufffd\ufffd6\ufffd'&V7B\u0007\u0006\u0017&\u0016\ufffdWFW'2\u00077V6\ufffd\u0006\u00172\u0006&\ufffdE\ufffd&\u0017FR\ufffd\u0007&\u0017FR\ufffd\u0007v\ufffdGF\ufffd\u0006\ufffd\"\u0006\ufffdV\ufffdv\ufffdB\ufffd\ufffd\ufffdfb3\u0003\ufffd\u0002\u0004\u0002\u0003\u0007\ufffdSVSFC\ufffd\u0016#Sf3\u0005\ufffd\u0005F\u00176\ufffd\u0006f\ufffd\ufffd6\ufffdVB\u0007v\ufffdF\ufffd\u0006W'&\ufffd\"\u00066\ufffdFS\ufffd\u0002\ufffd#\"\u0002\ufffd\ufffd\ufffdf\u0016\u0196B\u0006\u0017&wV\ufffdV\ufffdB\ufffd\ufffd\ufffdfb3\u0003\ufffd\u0002\u0004\u0002\u0003\u0007\ufffdSVSFC\ufffd\u0016#Sf3\u0005\ufffd\u0005FW&\u0596\ufffd\u0017F\ufffd\ufffdr\u0007F\ufffd&V\u0016B\u0007v\ufffdF\ufffd\u0007&WGW&\ufffd\u00066\ufffdFR\u0002\ufffd#\"\u0002\ufffd\ufffd\ufffdf\u0016\u0196B\u0006\u0017&wV\ufffdV\ufffdB\ufffd\ufffd\ufffdf\ufffd7B3\u0003\ufffd\u0002\ufffd\u05a7\u0006Vr\u0004\u0002\u0003\u0007\ufffdSVSFC\ufffd\u0016S\ufffdc\u0003\u0005\ufffd\u00046\ufffdV\ufffdB\u0006\ufffd\ufffdB\u0006\ufffd\u0006V\ufffd\u0006V\ufffd6\ufffdFW\"\u0006&Vf\ufffd&R\u0004T\ufffde\ufffd\ufffdf\ufffd7B3\u0003\ufffd\u0002\ufffd\u05a7\u0006Vr\u0004\u0002\u0003\u0007\ufffdSVSFC\ufffd\u0016S\ufffdc\u0003\u0005\ufffd\u0005F\u00176\ufffd\u0006f\ufffd\ufffd6\ufffdVB\u0007v\ufffdF\ufffd\u0006W'&\ufffd\"\u00066\ufffdFS\ufffd\u0002\ufffd#\"\u0002\ufffd\ufffd\ufffdf\u0016\u0196B\u0006\u0017&wV\ufffdV\ufffdB\ufffd\ufffd\ufffdf\ufffd7B3\u0003\ufffd\u0002\ufffd\u05a7\u0006Vr\u0004\u0002\u0003\u0007\ufffdSVSFC\ufffd\u0016S\ufffdc\u0003\u0005\ufffd\u0005FW&\u0596\ufffd\u0017F\ufffd\ufffdr\u0007F\ufffd&V\u0016B\u0007v\ufffdF\ufffd\u0007&WGW&\ufffd\u00066\ufffdFR\u0002\ufffd#\"\u0002\ufffd\ufffd\ufffdf\u0016\u0196B\u0006\u0017&wV\ufffdV\ufffdB\ufffd\ufffd\ufffd\ufffdWB3\u0002\ufffd\ufffd\ufffd\u0016vS\"\u0004\u0002\u0003\u0007\ufffdSVSFC\ufffd\u0013\ufffdcS\u0003\u0005\ufffd\u0004\ufffd\ufffdF\ufffd\ufffd\ufffdr\u0007v\u00172\u0007w&\ufffdGFV\ufffd\u0006\ufffd\ufffdF\ufffd\u0006\ufffdWG\u0007WB\u0006f\ufffd\ufffdR\ufffd\u0006&V6\u0017W6R\u0006\u0017B\u0006\ufffdV\u00177B\u0006\ufffd\ufffdR\u0006\ufffdb\u0006\ufffdG2\u00077G&V\u0016\ufffd2\u0007&V6V\ufffdfVB\u0006\ufffd\ufffd\u0007\u0006\u00166\ufffdWG2\ufffd\ufffd\ufffdg&\u0016\ufffdS\ufffd\u0002\u0002\u0002\u0003\u0002\u0006g\u00073\ufffd\u0002\ufffd\u0002\u0007\u0013\ufffd\u0002\ufffd\u0002\u0004\ufffd6\ufffd\ufffdS\ufffd\u0002\u0002\u0002\u0002\u0002\u0002\u0003\u0004\ufffd\ufffd\"\u0007F\ufffd\ufffdS\ufffd\ufffd\ufffd\u0012\u0006&\ufffdG&\u0017FS\ufffd\ufffd\ufffd\u0012\u00077\u0006VVC\ufffd\ufffd\ufffd\u0012\u0002\u0002\u0002\u0005\ufffd\ufffd6\ufffd\ufffdfW'6\ufffd\ufffd\ufffd\u0006f\u0016\ufffd\ufffdVB\u0012\"\ufffd\u0002&\u0017GFV\ufffd\u0007E\ufffd6\ufffdV\ufffdB#\ufffd\u0003\u0012\ufffd\u0002&\ufffd\ufffdF\u0016\u0197G\ufffd#\ufffd\u0002'f\ufffdFV\ufffd\"\ufffd\u0002&v75\ufffdWfV\ufffdB#\ufffd\u0007\ufffd&'V6\ufffdWB#\ufffd\u0002'&WF\ufffd\ufffd\ufffd\ufffd\ufffd&\u0017r\ufffd6\ufffd\u0597F\ufffd\"\ufffd7F\u0016v\ufffd\ufffdr\"\ufffd\u0002&\ufffd\u0016\ufffdR#\ufffd\u0002'&\u0017r\ufffdf\ufffdFV\ufffd2\ufffd#\u0003#c\u0003#\u0003B\ufffd\u001333C#\"\ufffd#\u0013S\ufffdf2\ufffd\ufffd\ufffdu\ufffd\u001333\u0002\ufffd\ufffd\ufffdb\"\ufffd\u0002&vV\ufffdW&\u0017F\ufffd\ufffd\ufffd#\ufffd\u0002#\u0013ss\u0003#\u0013#\u0003c3#S\u0003\ufffd\u0013\"\"\ufffd\u0002&6\ufffd\ufffdFV\ufffdE\ufffdG\ufffd\u0006R#\ufffd\u0002'f\ufffdFV\ufffd\ufffd\u0017V\ufffd6\ufffdF\ufffd\ufffdR\"\ufffd\u0002'6\ufffd\ufffdR#\ufffd\u0003\u00133##\u0013S\ufffd\u0007\ufffd\ufffd\u0002&6\ufffd\ufffdVFWfV\ufffdB#\ufffd\u0007\ufffd&\ufffdB#\ufffd\u0002#\u0013\ufffd#S\ufffd\ufffd\u0003\u00033\ufffd\u0013s\u0013\u00033\ufffdR\"\ufffd\u0002'G\ufffd\u0006R#\ufffd\u0002&v\ufffd\ufffdv\ufffdR\ufffd6\ufffd\ufffdVB\ufffd7F\ufffd&\u0016vR\ufffd\ufffd&\ufffdV7B\ufffdc\u0012\ufffdf\ufffd\ufffd\u0016\u0197\ufffdVB\"\ufffd\u0002'6\ufffdW&6R#\ufffd\u0002\"\ufffd\ufffd7F\ufffd&\u0016vR\ufffdv\ufffd\ufffdv\ufffdV\u0017\u0006\ufffd2\ufffd6\ufffd\ufffd\ufffd\u0007&\ufffd\ufffdV7G2\ufffd\ufffd\ufffd'V6\ufffdWG2\ufffd&WF\ufffd\ufffd\ufffd\ufffd\ufffd&\u0017r\ufffd6\ufffd\u0597F\ufffd\"\ufffd7F\u0016v\ufffd\ufffdr\"\ufffd\u0002'7\u0006V7fW'6\ufffd\ufffd\ufffd#\ufffd\u0002#\u0012\ufffd\u0002\"\ufffd\u0002'F\ufffd\ufffdR#\ufffd\u0002##\u0003#b\ufffd\u0003\"\ufffd\u0003EC\u00133\ufffd3C\ufffd#2\ufffd#SSC\ufffdu\ufffd\"\ufffd\u0002'7V&\ufffdV7B#\ufffd\u0002&\ufffd&\ufffdV7G2\ufffd&\u0017r\ufffdf\ufffdFV\ufffd2\ufffd#\u0003#c\u0003#\u0003B\ufffd\u001333C#\"\ufffd#\u0013S\ufffdf2\ufffd\ufffd\ufffdu\ufffd\u001333\u0002\ufffd\ufffd\ufffdb\"\ufffd\u0002&F\u0017F\u0012#\ufffd\u0007\ufffd&\ufffd\ufffd\ufffdB#\ufffd\u0002'7F\ufffd&\u0016vR6\ufffd&\ufffdV7B\"\ufffd\u0002&\ufffdB#\ufffd\u0002'&WF\ufffd\ufffd\ufffd\ufffd\ufffd&\u0017r\ufffd6\ufffd\u0597F\ufffd\"\ufffd7F\u0016v\ufffd\ufffdr\ufffd&\u0017r\ufffdf\ufffdFV\ufffd2\ufffd#\u0003#c\u0003#\u0003B\ufffd\u001333C#\"\ufffd#\u0013S\ufffdf2\ufffd\ufffd\ufffdu\ufffd\u001333\u0002\ufffd\ufffd\ufffdb\ufffd\u0013ss\u0003#\u0013#\u0003c3#S\u0003\ufffd\u0013\"\"\ufffd\u0002'6V\ufffdd\u0196\ufffd#\ufffd\u0002&\ufffdGG\u00073\ufffd\ufffd\ufffdwwr\ufffdv\ufffd\ufffdv\ufffdV\u0017\u0006\ufffd2\ufffd6\ufffd\ufffd\ufffd7F\ufffd&\u0016vR\ufffdc\u0012\ufffd\"\ufffd&WF\ufffd\ufffd\ufffd\ufffd\ufffd&\u0017r\ufffd6\ufffd\u0597F\ufffd\"\ufffd7F\u0016v\ufffd\ufffdr\ufffd\ufffd\ufffd&\u0017rS$gf\ufffdFV\ufffd2S$c#\u0003#c\u0003#\u0003B\ufffd\u001333C#\"\ufffd#\u0013S\ufffdf2S$d\ufffd\ufffdu\ufffd\u001333\u0002\ufffd\ufffd\ufffdb\"\ufffd\u0002&\ufffd\u0016\ufffdR#\ufffd\u0002'&\u0017r\ufffdf\ufffdFV\ufffd2\ufffd#\u0003#c\u0003#\u0003B\ufffd\u001333C#\"\ufffd#\u0013S\ufffdf2\ufffd\ufffd\ufffdu\ufffd\u001333\u0002\ufffd\ufffd\ufffdb\"\ufffd\u0002&'V6\ufffdWB#\ufffd\u0002'&WF\ufffd\ufffd\ufffd\ufffd\ufffd&\u0017r\ufffd6\ufffd\u0597F\ufffd\"\ufffd7F\u0016v\ufffd\ufffdr\"\ufffd\u0002&vV\ufffdW&\u0017F\ufffd\ufffd\ufffd#\ufffd\u0002#\u0013ss\u0003#\u0013#\u0003c3#S\u0003\ufffd\u0013\"\"\ufffd\u0002&\ufffdWF\u0016vV\ufffdW&\u0017F\ufffd\ufffd\ufffd#\ufffd\u0002#\u0012\"\ufffd\u0002&6\ufffd\ufffdFV\ufffdEG\ufffd\u0006R#\ufffd\u0002'f\ufffdFV\ufffd\ufffd\u0017V\ufffd6\ufffdF\ufffd\ufffdR\"\ufffd\u0002'F\ufffd\ufffdT7&V\u0017FVB#\ufffd\u0002##\u0003#b\ufffd\u0003\"\ufffd\u0003EC\u00133\ufffd3C\ufffd#2\ufffd#SU\ufffd\"\ufffd\u0002'W\u0006F\u0017FVB#\ufffd\u0002##\u0003#b\ufffd\u0003\"\ufffd\u0003EC\u00133\ufffd3C\ufffd#2\ufffd#SU\ufffd\"\ufffd\u0002'7F\ufffd&\u0016vT6\ufffd\u001772#\ufffd\u0002%5D\u0014\ufffdD\u0015$B\"\ufffd\u0002'F\ufffd\ufffdU7F\ufffd&\u0016vT6\ufffd\u001775W\u0006F\u0017FVB#\ufffd\u0002##\u0003#b\ufffd\u0003\"\ufffd\u0003EC\u00133\ufffd3C\ufffd#2\ufffd#SU\ufffd\"\ufffd\u0002'6\ufffd\ufffdR#\ufffd\u0002#\u00133##\u0013S\ufffd\u0002\"\ufffd\u0002&\ufffdCT\ufffd\u00176\ufffd#\ufffd\u0002%&4G\ufffd\ufffdwf\ufffdU#\ufffd\ufffd\ufffd\ufffd\ufffdE\ufffd\u6152\ufffd\u0013\ufffd\ufffd\"\ufffd\u0002&\ufffdVF\ufffd\u0014\u0196\ufffd#\ufffd\u0002&\ufffdGG\u00073\ufffd\ufffd\ufffd7F\ufffd&\u0016vR\ufffdv\ufffd\ufffdv\ufffdV\u0017\u0006\ufffd2\ufffd6\ufffd\ufffd\ufffdF\ufffdv\ufffd\ufffd\ufffd\u0016B\ufffd7F\ufffd&\u0016vR\ufffdc\u0012\ufffd\"\ufffd&WF\ufffd\ufffd\ufffd\ufffd\ufffd&\u0017r\ufffd6\ufffd\u0597F\ufffd\"\ufffd7F\u0016v\ufffd\ufffdr\ufffd\ufffd\ufffd&\u0017rS$gf\ufffdFV\ufffd2S$c#\u0003#c\u0003#\u0003B\ufffd\u001333C#\"\ufffd#\u0013S\ufffdf2S$d\ufffd\ufffdu\ufffd\u001333\u0002\ufffd\ufffd\ufffdc\ufffdvV\ufffdW&\u0017F\ufffd\ufffd\ufffd\ufffd\u0013ss\u0003#\u0013#\u0003c3#S\u0003\ufffd\u0013\"f\u0016\ufffdC\ufffd\ufffdVF\ufffd\u0012\"\ufffd\u0002&7&33&2#\ufffd\u0002'\ufffd\u0016d\ufffd\ufffd\u0013\ufffd\ufffd\"\ufffd\u0002&WF\u0016r#\ufffd\u0002$5\u0007\ufffd3\u0014\ufffd\ufffdWcT\ufffdDT\u0014S\ufffd'\ufffd\ufffd\ufffd\u0002'&V6V\ufffdfVE\ufffd\u0017B#\ufffd\u0002##\u0003#b\ufffd\u0003\"\ufffd\u0003EC\u00133\ufffd3C\ufffdC\u0002\ufffdC\ufffd\ufffd3\ufffdb\ufffd\u0003\u0003\ufffd\u0003\u0002'",
+    "decode_error": "json:Invalid control character at: line 1 column 4659 (char 4658)"
+  },
+  {
+    "message_id": "18258796582318828",
+    "publish_time": "2026-02-04T13:31:04.052Z",
+    "error_code": null,
+    "error_message": null,
+    "attempt_count": null,
+    "modality": null,
+    "gcs_event": {
+      "bucket": null,
+      "name": null,
+      "generation": null,
+      "content_type": null,
+      "size": null
+    },
+    "cloudevent": {
+      "id": null,
+      "type": null,
+      "time": null,
+      "subject": null
+    },
+    "received_at": null,
+    "decoded_text": "{\"error_code\": \"PERMANENT\", \"error_message\": \"ffmpeg extract keyframes failed: ffmpeg version 7.1.3-0+deb13u1 Copyright (c) 2000-2025 the FFmpeg developers\\n  built with gcc 14 (Debian 14.2.0-19)\\n  configuration: --prefix=/usr --extra-version=0+deb13u1 --toolchain=hardened --libdir=/usr/lib/x86_64-linux-gnu --incdir=/usr/include/x86_64-linux-gnu --arch=amd64 --enable-gpl --disable-stripping --disable-libmfx --disable-omx --enable-gnutls --enable-libaom --enable-libass --enable-libbs2b --enable-libcdio --enable-libcodec2 --enable-libdav1d --enable-libflite --enable-libfontconfig --enable-libfreetype --enable-libfribidi --enable-libglslang --enable-libgme --enable-libgsm --enable-libharfbuzz --enable-libmp3lame --enable-libmysofa --enable-libopenjpeg --enable-libopenmpt --enable-libopus --enable-librubberband --enable-libshine --enable-libsnappy --enable-libsoxr --enable-libspeex --enable-libtheora --enable-libtwolame --enable-libvidstab --enable-libvorbis --enable-libvpx --enable-libwebp --enable-libx265 --enable-libxml2 --enable-libxvid --enable-libzimg --enable-openal --enable-opencl --enable-opengl --disable-sndio --enable-libvpl --enable-libdc1394 --enable-libdrm --enable-libiec61883 --enable-chromaprint --enable-frei0r --enable-ladspa --enable-libbluray --enable-libcaca --enable-libdvdnav --enable-libdvdread --enable-libjack --enable-libpulse --enable-librabbitmq --enable-librist --enable-libsrt --enable-libssh --enable-libsvtav1 --enable-libx264 --enable-libzmq --enable-libzvbi --enable-lv2 --enable-sdl2 --enable-libplacebo --enable-librav1e --enable-pocketsphinx --enable-librsvg --enable-libjxl --enable-shared\\n  libavutil      59. 39.100 / 59. 39.100\\n  libavcodec     61. 19.101 / 61. 19.101\\n  libavformat    61.  7.100 / 61.  7.100\\n  libavdevice    61.  3.100 / 61.  3.100\\n  libavfilter    10.  4.100 / 10.  4.100\\n  libswscale      8.  3.100 /  8.  3.100\\n  libswresample   5.  3.100 /  5.  3.100\\n  libpostproc    58.  3.100 / 58.  3.100\\n-vsync is deprecated. Use -fps_mode\\nInput #0, mov,mp4,m4a,3gp,3g2,mj2, from '/tmp/tmpuolt621y':\\n  Metadata:\\n    major_brand     : qt  \\n    minor_version   : 0\\n    compatible_brands: qt  \\n    creation_time   : 2026-02-04T13:20:22.000000Z\\n    com.apple.quicktime.location.accuracy.horizontal: 3.533009\\n    com.apple.quicktime.full-frame-rate-playback-intent: 0\\n    com.apple.quicktime.location.ISO6709: +51.3594-000.5460+043.737/\\n    com.apple.quicktime.make: Apple\\n    com.apple.quicktime.model: iPhone 14 Pro Max\\n    com.apple.quicktime.software: 26.2.1\\n    com.apple.quicktime.creationdate: 2026-02-04T13:20:22+0000\\n  Duration: 00:00:12.10, start: 0.000000, bitrate: 8741 kb/s\\n  Stream #0:0[0x1](und): Video: hevc (Main 10) (hvc1 / 0x31637668), yuv420p10le(tv, bt2020nc/bt2020/arib-std-b67), 1920x1080, 8506 kb/s, 30 fps, 30 tbr, 600 tbn (default)\\n      Metadata:\\n        creation_time   : 2026-02-04T13:20:22.000000Z\\n        handler_name    : Core Media Video\\n        vendor_id       : [0][0][0][0]\\n        encoder         : HEVC\\n      Side data:\\n        DOVI configuration record: version: 1.0, profile: 8, level: 4, rpu flag: 1, el flag: 0, bl flag: 1, compatibility id: 4, compression: 0\\n        displaymatrix: rotation of -90.00 degrees\\n        Ambient Viewing Environment, ambient_illuminance=314.000000, ambient_light_x=0.312700, ambient_light_y=0.329000\\n  Stream #0:1[0x2](und): Audio: aac (LC) (mp4a / 0x6134706D), 48000 Hz, stereo, fltp, 171 kb/s (default)\\n      Metadata:\\n        creation_time   : 2026-02-04T13:20:22.000000Z\\n        handler_name    : Core Media Audio\\n        vendor_id       : [0][0][0][0]\\n  Stream #0:2[0x3](und): Data: none (mebx / 0x7862656D), 0 kb/s (default)\\n      Metadata:\\n        creation_time   : 2026-02-04T13:20:22.000000Z\\n        handler_name    : Core Media Metadata\\n  Stream #0:3[0x4](und): Data: none (mebx / 0x7862656D), 0 kb/s (default)\\n      Metadata:\\n        creation_time   : 2026-02-04T13:20:22.000000Z\\n        handler_name    : Core Media Metadata\\n  Stream #0:4[0x5](und): Data: none (mebx / 0x7862656D), 34 kb/s (default)\\n      Metadata:\\n        creation_time   : 2026-02-04T13:20:22.000000Z\\n        handler_name    : Core Media Metadata\\n  Stream #0:5[0x6](und): Data: none (mebx / 0x7862656D), 2 kb/s (default)\\n      Metadata:\\n        creation_time   : 2026-02-04T13:20:22.000000Z\\n        handler_name    : Core Media Metadata\\n  Stream #0:6[0x7](und): Data: none (mebx / 0x7862656D), 0 kb/s (default)\\n      Metadata:\\n        creation_time   : 2026-02-04T13:20:22.000000Z\\n        handler_name    : Core Media Metadata\\nStream mapping:\\n  Stream #0:0 -> #0:0 (hevc (native) -\b\u001bZ\ufffd\u0019Y\ufffd\n\u001b\ufffd]\u001a]\ufffdJJW\u001b\ufffd\u001c\ufffd\\\ufffd\ufffd\u0016\ufffdWH\u001d\u001b\ufffd\u001c\ufffd\u001b\ufffd\u000b\b\u0016\ufffd\ufffd\u0006f\ufffd\"\u0006\ufffdV\ufffd\u0005\ufffd\ufffd\u0006\u0017'6VE\ufffd6\ufffd\ufffdv\ufffd\ufffdf\ufffd\ufffd\u0012\u0004\u0002\u0003\u0007\ufffdvc3vC\u0003\u0003\u0003\u0016f3\u0005\ufffd\u00066\ufffd\ufffdf\ufffdr\u0006\ufffd\ufffd\u0007F\ufffd\ufffdU\ufffd&\u00176S\ufffd\u0003\u0012\ufffdc\u0003\u0002\ufffd\u0006g&\u0016\ufffdU\ufffd&\u0017FS\ufffd\u00033\u0002\ufffd\u0015\ufffd\ufffd\u0006\u0017'6VE\ufffd6\ufffd\ufffdv\ufffd\ufffdf\ufffd\ufffd\u0012\u0004\u0002\u0003\u0007\ufffdvc3vC\u0003\u0003\u0003\u0016f3\u0005\ufffd\u00066\ufffd\ufffdf\ufffdr\u0006\ufffdWB\u0007F\ufffd\ufffdU\ufffd&\u00176S\ufffd\u0003\u0002\ufffd\u0002\ufffd\u0006g&\u0016\ufffdU\ufffd&\u0017FS\ufffd\u0003\u0002\ufffd\u0005\ufffd\ufffdfb3\u0003\ufffd\u0002\u0004\u0002\u0003\u0007\ufffdSVc3VSf#f\u0013\ufffd\u0005\ufffd\u0004\ufffd\ufffd\u0006f\ufffd\ufffdFW&VB\u0006g&\u0016\ufffdW2\u0006f\ufffd\"\u0006\ufffdWG\u0007WB\u00077G&V\u0016\ufffd\ufffd\u0007G'\ufffd\ufffd\ufffdr\u0007F\ufffd\u0006\ufffd\ufffdF\ufffd\u0016\u0197\ufffdR\u0006\u0016\ufffdv\u0017\ufffd\ufffd\ufffd\ufffd\u05a7\u0006Vr\u0004\u0002\u0003\u0007\ufffdSVc3VSccsF3\u0005\ufffd\u0004\ufffd\ufffd\ufffd\u0006gV\ufffd\ufffd\ufffd&\u0016\ufffdvR\u0005\ufffdUb\u0006\ufffd2\u0006\ufffd\ufffd\ufffd\ufffd7F\u0016\ufffdF\u0017&B\ufffd\u00076WB\u00077G&\ufffd7E\ufffd7FE\ufffd6\ufffd\ufffd\u0006\u0196\u0016\ufffd6R\u0007F\ufffd\u0006\u0017B\u0006\ufffd\ufffd7B\u0007V\ufffd\ufffdff\ufffd6\ufffd\u0016\ufffd\u0007F\ufffd\u0007W6R\u0006\ufffdB\ufffd\ufffd\ufffdf\ufffd7B3\u0003\ufffd\u0002\ufffd\u05a7\u0006Vr\u0004\u0002\u0003\u0007\ufffdSVc3VSf#\u0013c\u0003\u0005\ufffd\u0004W'&\ufffd\"\u0007v\ufffd\ufffd\ufffdR\u0006\ufffd\u0006V\ufffd\ufffdr\u0006V\ufffd6\ufffdFW\"\u0002\ufffd\u0006\ufffd\u0017\ufffd&R\u0006\ufffd\ufffd6\ufffd'&V7B\u0007\u0006\u0017&\u0016\ufffdWFW'2\u00077V6\ufffd\u0006\u00172\u0006&\ufffdE\ufffd&\u0017FR\ufffd\u0007&\u0017FR\ufffd\u0007v\ufffdGF\ufffd\u0006\ufffd\"\u0006\ufffdV\ufffdv\ufffdB\ufffd\ufffd\ufffdfb3\u0003\ufffd\u0002\u0004\u0002\u0003\u0007\ufffdSVc3VScvSf3\u0005\ufffd\u0005F\u00176\ufffd\u0006f\ufffd\ufffd6\ufffdVB\u0007v\ufffdF\ufffd\u0006W'&\ufffd\"\u00066\ufffdFS\ufffd\u0002\ufffd#\"\u0002\ufffd\ufffd\ufffdf\u0016\u0196B\u0006\u0017&wV\ufffdV\ufffdB\ufffd\ufffd\ufffdfb3\u0003\ufffd\u0002\u0004\u0002\u0003\u0007\ufffdSVc3VScvSf3\u0005\ufffd\u0005FW&\u0596\ufffd\u0017F\ufffd\ufffdr\u0007F\ufffd&V\u0016B\u0007v\ufffdF\ufffd\u0007&WGW&\ufffd\u00066\ufffdFR\u0002\ufffd#\"\u0002\ufffd\ufffd\ufffdf\u0016\u0196B\u0006\u0017&wV\ufffdV\ufffdB\ufffd\ufffd\ufffdf\ufffd7B3\u0003\ufffd\u0002\ufffd\u05a7\u0006Vr\u0004\u0002\u0003\u0007\ufffdSVc3VSf#\u0013c\u0003\u0005\ufffd\u00046\ufffdV\ufffdB\u0006\ufffd\ufffdB\u0006\ufffd\u0006V\ufffd\u0006V\ufffd6\ufffdFW\"\u0006&Vf\ufffd&R\u0004T\ufffde\ufffd\ufffdf\ufffd7B3\u0003\ufffd\u0002\ufffd\u05a7\u0006Vr\u0004\u0002\u0003\u0007\ufffdSVc3VSf#\u0013c\u0003\u0005\ufffd\u0005F\u00176\ufffd\u0006f\ufffd\ufffd6\ufffdVB\u0007v\ufffdF\ufffd\u0006W'&\ufffd\"\u00066\ufffdFS\ufffd\u0002\ufffd#\"\u0002\ufffd\ufffd\ufffdf\u0016\u0196B\u0006\u0017&wV\ufffdV\ufffdB\ufffd\ufffd\ufffdf\ufffd7B3\u0003\ufffd\u0002\ufffd\u05a7\u0006Vr\u0004\u0002\u0003\u0007\ufffdSVc3VSf#\u0013c\u0003\u0005\ufffd\u0005FW&\u0596\ufffd\u0017F\ufffd\ufffdr\u0007F\ufffd&V\u0016B\u0007v\ufffdF\ufffd\u0007&WGW&\ufffd\u00066\ufffdFR\u0002\ufffd#\"\u0002\ufffd\ufffd\ufffdf\u0016\u0196B\u0006\u0017&wV\ufffdV\ufffdB\ufffd\ufffd\ufffd\ufffdWB3\u0002\ufffd\ufffd\ufffd\u0016vS\"\u0004\u0002\u0003\u0007\ufffdSVc3VScc\ufffdS\u0003\u0005\ufffd\u0004\ufffd\ufffdF\ufffd\ufffd\ufffdr\u0007v\u00172\u0007w&\ufffdGFV\ufffd\u0006\ufffd\ufffdF\ufffd\u0006\ufffdWG\u0007WB\u0006f\ufffd\ufffdR\ufffd\u0006&V6\u0017W6R\u0006\u0017B\u0006\ufffdV\u00177B\u0006\ufffd\ufffdR\u0006\ufffdb\u0006\ufffdG2\u00077G&V\u0016\ufffd2\u0007&V6V\ufffdfVB\u0006\ufffd\ufffd\u0007\u0006\u00166\ufffdWG2\ufffd\ufffd\ufffdg&\u0016\ufffdS\ufffd\u0002\u0002\u0002\u0003\u0002\u0006g\u00073\ufffd\u0002\ufffd\u0002\u0007\u0013\ufffd\u0002\ufffd\u0002\u0004\ufffd6\ufffd\ufffdS\ufffd\u0002\u0002\u0002\u0002\u0002\u0002\u0003\u0004\ufffd\ufffd\"\u0007F\ufffd\ufffdS\ufffd\ufffd\ufffd\u0012\u0006&\ufffdG&\u0017FS\ufffd\ufffd\ufffd\u0012\u00077\u0006VVC\ufffd\ufffd\ufffd\u0012\u0002\u0002\u0002\u0005\ufffd\ufffd6\ufffd\ufffdfW'6\ufffd\ufffd\ufffd\u0006f\u0016\ufffd\ufffdVB\u0012\"\ufffd\u0002&\u0017GFV\ufffd\u0007E\ufffd6\ufffdV\ufffdB#\ufffd\u0003\u0012\ufffd\u0002&\ufffd\ufffdF\u0016\u0197G\ufffd#\ufffd\u0002'f\ufffdFV\ufffd\"\ufffd\u0002&v75\ufffdWfV\ufffdB#\ufffd\u0007\ufffd&'V6\ufffdWB#\ufffd\u0002'&WF\ufffd\ufffd\ufffd\ufffd\ufffd&\u0017r\ufffd6\ufffd\u0597F\ufffd\"\ufffd7F\u0016v\ufffd\ufffdr\"\ufffd\u0002&\ufffd\u0016\ufffdR#\ufffd\u0002'&\u0017r\ufffdf\ufffdFV\ufffd2\ufffd#\u0003#c\u0003#\u0003B\ufffd\u00133#cSb\ufffd#3s\ufffdC\ufffd\ufffd\ufffd\ufffdu\ufffd\u001333\u0002\ufffd\ufffd\ufffdb\"\ufffd\u0002&vV\ufffdW&\u0017F\ufffd\ufffd\ufffd#\ufffd\u0002#\u0013ss\u0003#\u0013\u0013\ufffdCS#3C\ufffd\ufffdR\"\ufffd\u0002&6\ufffd\ufffdFV\ufffdE\ufffdG\ufffd\u0006R#\ufffd\u0002'f\ufffdFV\ufffd\ufffd\u0017V\ufffd6\ufffdF\ufffd\ufffdR\"\ufffd\u0002'6\ufffd\ufffdR#\ufffd\u0003\u00133##\u0013S\ufffd\u0007\ufffd\ufffd\u0002&6\ufffd\ufffdVFWfV\ufffdB#\ufffd\u0007\ufffd&\ufffdB#\ufffd\u0002#\u0013\ufffd#S\ufffd#\u00133s#C3S\u0003\u0003c\ufffd\"\ufffd\u0002'G\ufffd\u0006R#\ufffd\u0002&v\ufffd\ufffdv\ufffdR\ufffd6\ufffd\ufffdVB\ufffd7F\ufffd&\u0016vR\ufffd\ufffd&\ufffdV7B\ufffdc\u0012\ufffdf\ufffd\ufffd\u0016\u0197\ufffdVB\"\ufffd\u0002'6\ufffdW&6R#\ufffd\u0002\"\ufffd\ufffd7F\ufffd&\u0016vR\ufffdv\ufffd\ufffdv\ufffdV\u0017\u0006\ufffd2\ufffd6\ufffd\ufffd\ufffd\u0007&\ufffd\ufffdV7G2\ufffd\ufffd\ufffd'V6\ufffdWG2\ufffd&WF\ufffd\ufffd\ufffd\ufffd\ufffd&\u0017r\ufffd6\ufffd\u0597F\ufffd\"\ufffd7F\u0016v\ufffd\ufffdr\"\ufffd\u0002'7\u0006V7fW'6\ufffd\ufffd\ufffd#\ufffd\u0002#\u0012\ufffd\u0002\"\ufffd\u0002'F\ufffd\ufffdR#\ufffd\u0002##\u0003#b\ufffd\u0003\"\ufffd\u0003EC\u00133\ufffd3\u0003\ufffdCR\ufffd#3\ufffd#\ufffdU\ufffd\"\ufffd\u0002'7V&\ufffdV7B#\ufffd\u0002&\ufffd&\ufffdV7G2\ufffd&\u0017r\ufffdf\ufffdFV\ufffd2\ufffd#\u0003#c\u0003#\u0003B\ufffd\u00133#cSb\ufffd#3s\ufffdC\ufffd\ufffd\ufffd\ufffdu\ufffd\u001333\u0002\ufffd\ufffd\ufffdb\"\ufffd\u0002&F\u0017F\u0012#\ufffd\u0007\ufffd&\ufffd\ufffd\ufffdB#\ufffd\u0002'7F\ufffd&\u0016vR6\ufffd&\ufffdV7B\"\ufffd\u0002&\ufffdB#\ufffd\u0002'&WF\ufffd\ufffd\ufffd\ufffd\ufffd&\u0017r\ufffd6\ufffd\u0597F\ufffd\"\ufffd7F\u0016v\ufffd\ufffdr\ufffd&\u0017r\ufffdf\ufffdFV\ufffd2\ufffd#\u0003#c\u0003#\u0003B\ufffd\u00133#cSb\ufffd#3s\ufffdC\ufffd\ufffd\ufffd\ufffdu\ufffd\u001333\u0002\ufffd\ufffd\ufffdb\ufffd\u0013ss\u0003#\u0013\u0013\ufffdCS#3C\ufffd\ufffdR\"\ufffd\u0002'6V\ufffdd\u0196\ufffd#\ufffd\u0002&\ufffdGG\u00073\ufffd\ufffd\ufffdwwr\ufffdv\ufffd\ufffdv\ufffdV\u0017\u0006\ufffd2\ufffd6\ufffd\ufffd\ufffd7F\ufffd&\u0016vR\ufffdc\u0012\ufffd\"\ufffd&WF\ufffd\ufffd\ufffd\ufffd\ufffd&\u0017r\ufffd6\ufffd\u0597F\ufffd\"\ufffd7F\u0016v\ufffd\ufffdr\ufffd\ufffd\ufffd&\u0017rS$gf\ufffdFV\ufffd2S$c#\u0003#c\u0003#\u0003B\ufffd\u00133#cSb\ufffd#3s\ufffdC\ufffdS$d\ufffd\ufffdu\ufffd\u001333\u0002\ufffd\ufffd\ufffdb\"\ufffd\u0002&\ufffd\u0016\ufffdR#\ufffd\u0002'&\u0017r\ufffdf\ufffdFV\ufffd2\ufffd#\u0003#c\u0003#\u0003B\ufffd\u00133#cSb\ufffd#3s\ufffdC\ufffd\ufffd\ufffd\ufffdu\ufffd\u001333\u0002\ufffd\ufffd\ufffdb\"\ufffd\u0002&'V6\ufffdWB#\ufffd\u0002'&WF\ufffd\ufffd\ufffd\ufffd\ufffd&\u0017r\ufffd6\ufffd\u0597F\ufffd\"\ufffd7F\u0016v\ufffd\ufffdr\"\ufffd\u0002&vV\ufffdW&\u0017F\ufffd\ufffd\ufffd#\ufffd\u0002#\u0013ss\u0003#\u0013\u0013\ufffdCS#3C\ufffd\ufffdR\"\ufffd\u0002&\ufffdWF\u0016vV\ufffdW&\u0017F\ufffd\ufffd\ufffd#\ufffd\u0002#\u0012\"\ufffd\u0002&6\ufffd\ufffdFV\ufffdEG\ufffd\u0006R#\ufffd\u0002'f\ufffdFV\ufffd\ufffd\u0017V\ufffd6\ufffdF\ufffd\ufffdR\"\ufffd\u0002'F\ufffd\ufffdT7&V\u0017FVB#\ufffd\u0002##\u0003#b\ufffd\u0003\"\ufffd\u0003EC\u00133\ufffd3\u0003\ufffdCR\ufffd#3\ufffd\ufffd\"\ufffd\u0002'W\u0006F\u0017FVB#\ufffd\u0002##\u0003#b\ufffd\u0003\"\ufffd\u0003EC\u00133\ufffd3\u0003\ufffdCR\ufffd#3\ufffd\ufffd\"\ufffd\u0002'7F\ufffd&\u0016vT6\ufffd\u001772#\ufffd\u0002%5D\u0014\ufffdD\u0015$B\"\ufffd\u0002'F\ufffd\ufffdU7F\ufffd&\u0016vT6\ufffd\u001775W\u0006F\u0017FVB#\ufffd\u0002##\u0003#b\ufffd\u0003\"\ufffd\u0003EC\u00133\ufffd3\u0003\ufffdCR\ufffd#3\ufffd\ufffd\"\ufffd\u0002'6\ufffd\ufffdR#\ufffd\u0002#\u00133##\u0013S\ufffd\u0002\"\ufffd\u0002&\ufffdCT\ufffd\u00176\ufffd#\ufffd\u0002%&4G\ufffd\ufffdwf\ufffdU#\ufffd\ufffd\ufffd\ufffd\ufffdE\ufffd\u6152\ufffd\u0013\ufffd\ufffd\"\ufffd\u0002&\ufffdVF\ufffd\u0014\u0196\ufffd#\ufffd\u0002&\ufffdGG\u00073\ufffd\ufffd\ufffd7F\ufffd&\u0016vR\ufffdv\ufffd\ufffdv\ufffdV\u0017\u0006\ufffd2\ufffd6\ufffd\ufffd\ufffdF\ufffdv\ufffd\ufffd\ufffd\u0016B\ufffd7F\ufffd&\u0016vR\ufffdc\u0012\ufffd\"\ufffd&WF\ufffd\ufffd\ufffd\ufffd\ufffd&\u0017r\ufffd6\ufffd\u0597F\ufffd\"\ufffd7F\u0016v\ufffd\ufffdr\ufffd\ufffd\ufffd&\u0017rS$gf\ufffdFV\ufffd2S$c#\u0003#c\u0003#\u0003B\ufffd\u00133#cSb\ufffd#3s\ufffdC\ufffdS$d\ufffd\ufffdu\ufffd\u001333\u0002\ufffd\ufffd\ufffdc\ufffdvV\ufffdW&\u0017F\ufffd\ufffd\ufffd\ufffd\u0013ss\u0003#\u0013\u0013\ufffdCS#3C\ufffd\ufffdRf\u0016\ufffdC\ufffd\ufffdVF\ufffd\u0012\"\ufffd\u0002&7&33&2#\ufffd\u0002'\ufffd\u0016d\ufffd\ufffd\u0013\ufffd\ufffd\"\ufffd\u0002&WF\u0016r#\ufffd\u0002$4\ufffd\ufffd3%\ufffd\ufffdWcT\ufffdDT\u0014S\ufffd'\ufffd\ufffd\ufffd\u0002'&V6V\ufffdfVE\ufffd\u0017B#\ufffd\u0002##\u0003#b\ufffd\u0003\"\ufffd\u0003EC\u00133\ufffd3\u0013\ufffd\u00032\u34c3c\ufffdSB\ufffd\u0003\u0003\ufffd\u0003\u0002'",
+    "decode_error": "json:Invalid control character at: line 1 column 4659 (char 4658)"
+  },
+  {
+    "message_id": "18252747922298759",
+    "publish_time": "2026-02-04T18:19:26.003Z",
+    "error_code": "PERMANENT",
+    "error_message": "Unsupported document extension: .mov",
+    "attempt_count": 1,
+    "modality": "document",
+    "gcs_event": {
+      "bucket": "retikon-raw-simitor-staging",
+      "name": "raw/docs/20260204-181923-bd359c/IMG_1330.MOV",
+      "generation": "1770229163800104",
+      "content_type": "video/quicktime",
+      "size": 13221580
+    },
+    "cloudevent": {
+      "id": "18264427770850496",
+      "type": "google.cloud.storage.object.v1.finalized",
+      "time": "2026-02-04T18:19:23.806783Z",
+      "subject": "objects/raw/docs/20260204-181923-bd359c/IMG_1330.MOV"
+    },
+    "received_at": "2026-02-04T18:19:25.905053+00:00",
+    "decoded_text": null,
+    "decode_error": null
+  },
+  {
+    "message_id": "18262361426494700",
+    "publish_time": "2026-02-04T18:11:59.040Z",
+    "error_code": "PERMANENT",
+    "error_message": "Unsupported document extension: .mov",
+    "attempt_count": 1,
+    "modality": "document",
+    "gcs_event": {
+      "bucket": "retikon-raw-simitor-staging",
+      "name": "raw/docs/20260204-181156-a7780c/IMG_1330.MOV",
+      "generation": "1770228716806185",
+      "content_type": "video/quicktime",
+      "size": 13221580
+    },
+    "cloudevent": {
+      "id": "18259086709731801",
+      "type": "google.cloud.storage.object.v1.finalized",
+      "time": "2026-02-04T18:11:56.813615Z",
+      "subject": "objects/raw/docs/20260204-181156-a7780c/IMG_1330.MOV"
+    },
+    "received_at": "2026-02-04T18:11:58.954895+00:00",
+    "decoded_text": null,
+    "decode_error": null
+  },
+  {
+    "message_id": "18266323910317118",
+    "publish_time": "2026-02-05T09:09:45.147Z",
+    "error_code": "PERMANENT",
+    "error_message": "Content type does not match extension: application/octet-stream",
+    "attempt_count": 1,
+    "modality": "video",
+    "gcs_event": {
+      "bucket": "retikon-raw-simitor-staging",
+      "name": "raw/videos/site/unknown/stream/45650397_IMG_1330.MOV",
+      "generation": "1770282583834389",
+      "content_type": "application/octet-stream",
+      "size": 13221580
+    },
+    "cloudevent": {
+      "id": "18268841973550185",
+      "type": "google.cloud.storage.object.v1.finalized",
+      "time": "2026-02-05T09:09:43.841455Z",
+      "subject": "objects/raw/videos/site/unknown/stream/45650397_IMG_1330.MOV"
+    },
+    "received_at": "2026-02-05T09:09:45.055396+00:00",
+    "decoded_text": null,
+    "decode_error": null
+  },
+  {
+    "message_id": "18268777931507863",
+    "publish_time": "2026-02-05T13:44:47.743Z",
+    "error_code": "PERMANENT",
+    "error_message": "Video exceeds max frames",
+    "attempt_count": 1,
+    "modality": "video",
+    "gcs_event": {
+      "bucket": "retikon-raw-simitor-staging",
+      "name": "raw/videos/site/unknown/stream/46bf999b_IMG_1330_retry.MOV",
+      "generation": "1770299084527806",
+      "content_type": "video/quicktime",
+      "size": 13221580
+    },
+    "cloudevent": {
+      "id": "18265402225294917",
+      "type": "google.cloud.storage.object.v1.finalized",
+      "time": "2026-02-05T13:44:44.532863Z",
+      "subject": "objects/raw/videos/site/unknown/stream/46bf999b_IMG_1330_retry.MOV"
+    },
+    "received_at": "2026-02-05T13:44:47.639718+00:00",
+    "decoded_text": null,
+    "decode_error": null
+  },
+  {
+    "message_id": "18282904239648641",
+    "publish_time": "2026-02-06T16:10:37.643Z",
+    "error_code": "MAX_ATTEMPTS",
+    "error_message": "Max ingest attempts exceeded",
+    "attempt_count": 5,
+    "modality": "video",
+    "gcs_event": {
+      "bucket": "retikon-raw-simitor-staging",
+      "name": "raw/videos/20260206-160909-6363a9/retikon_demo_video.mp4",
+      "generation": "1770394149620043",
+      "content_type": "video/mp4",
+      "size": 5457394
+    },
+    "cloudevent": {
+      "id": "18281358197638290",
+      "type": "google.cloud.storage.object.v1.finalized",
+      "time": "2026-02-06T16:09:09.625807Z",
+      "subject": "objects/raw/videos/20260206-160909-6363a9/retikon_demo_video.mp4"
+    },
+    "received_at": "2026-02-06T16:10:37.403259+00:00",
+    "decoded_text": null,
+    "decode_error": null
+  },
+  {
+    "message_id": "18065891649544728",
+    "publish_time": "2026-02-06T16:11:16.581Z",
+    "error_code": "MAX_ATTEMPTS",
+    "error_message": "Max ingest attempts exceeded",
+    "attempt_count": 5,
+    "modality": "video",
+    "gcs_event": {
+      "bucket": "retikon-raw-simitor-staging",
+      "name": "raw/videos/20260206-160929-034aa9/retikon_demo_video.mp4",
+      "generation": "1770394169649270",
+      "content_type": "video/mp4",
+      "size": 5457394
+    },
+    "cloudevent": {
+      "id": "18068115091575366",
+      "type": "google.cloud.storage.object.v1.finalized",
+      "time": "2026-02-06T16:09:29.653711Z",
+      "subject": "objects/raw/videos/20260206-160929-034aa9/retikon_demo_video.mp4"
+    },
+    "received_at": "2026-02-06T16:11:16.534165+00:00",
+    "decoded_text": null,
+    "decode_error": null
+  },
+  {
+    "message_id": "18281409367425079",
+    "publish_time": "2026-02-06T16:13:35.546Z",
+    "error_code": "MAX_ATTEMPTS",
+    "error_message": "Max ingest attempts exceeded",
+    "attempt_count": 5,
+    "modality": "video",
+    "gcs_event": {
+      "bucket": "retikon-raw-simitor-staging",
+      "name": "raw/videos/20260206-161146-1fea2b/retikon_demo_video.mp4",
+      "generation": "1770394307280782",
+      "content_type": "video/mp4",
+      "size": 5457394
+    },
+    "cloudevent": {
+      "id": "18065723545319826",
+      "type": "google.cloud.storage.object.v1.finalized",
+      "time": "2026-02-06T16:11:47.285151Z",
+      "subject": "objects/raw/videos/20260206-161146-1fea2b/retikon_demo_video.mp4"
+    },
+    "received_at": "2026-02-06T16:13:35.506851+00:00",
+    "decoded_text": null,
+    "decode_error": null
+  },
+  {
+    "message_id": "18065829414094930",
+    "publish_time": "2026-02-06T16:15:29.699Z",
+    "error_code": "MAX_ATTEMPTS",
+    "error_message": "Max ingest attempts exceeded",
+    "attempt_count": 5,
+    "modality": "video",
+    "gcs_event": {
+      "bucket": "retikon-raw-simitor-staging",
+      "name": "raw/videos/20260206-161344-2e0c0b/retikon_demo_video.mp4",
+      "generation": "1770394424846292",
+      "content_type": "video/mp4",
+      "size": 5457394
+    },
+    "cloudevent": {
+      "id": "18066105619118175",
+      "type": "google.cloud.storage.object.v1.finalized",
+      "time": "2026-02-06T16:13:44.852431Z",
+      "subject": "objects/raw/videos/20260206-161344-2e0c0b/retikon_demo_video.mp4"
+    },
+    "received_at": "2026-02-06T16:15:29.665856+00:00",
+    "decoded_text": null,
+    "decode_error": null
+  },
+  {
+    "message_id": "18292079972482201",
+    "publish_time": "2026-02-09T13:13:02.895Z",
+    "error_code": null,
+    "error_message": null,
+    "attempt_count": null,
+    "modality": null,
+    "gcs_event": {
+      "bucket": null,
+      "name": null,
+      "generation": null,
+      "content_type": null,
+      "size": null
+    },
+    "cloudevent": {
+      "id": null,
+      "type": null,
+      "time": null,
+      "subject": null
+    },
+    "received_at": null,
+    "decoded_text": "{\"error_code\": \"PERMANENT\", \"error_message\": \"Unsupported object prefix: raw_clean/docs/retikon-clean-test.txt\", \"attempt_count\": 1, \"modality\": \"document\", \"gcs_event\": {\"bucket\": \"retikon-raw-simitor-staging\", \"name\": \"raw_clean/docs/retikon-clean-test.txt\", \"generation\": \"1770642780055194\", \"content_type\": \"text/plain\", \"size\": 40}, \"cloudevent\": {\"id\": \"18292978857338333\", \"type\": \"google.cloud.storage.object.v1.finalized\", \"source\": \"//storage.googleapis.com/projects/_/buckets/retikon-raw-simitor-staging\", \"specversion\": \"1.0\", \"time\": \"2026-02-09T13:13:00.069933Z\", \"subject\": \"objects/raw_clean/docs/retikon-clean-test.txt\", \"data\": {\"kind\": \"storage#object\", \"id\": \"retikon-raw-simitor-staging/raw_clean/docs/retikon-clean-test.txt/1770642780055194\", \"selfLink\": \"https://www.googleapis.com/storage/v1/b/retikon-raw-simitor-staging/o/raw_clean%2Fdocs%2Fretikon-clean-test.txt\", \"name\": \"raw_clean/docs/retikon-clean-test.txt\", \"bucket\": \"retikon-raw-simitor-staging\", \"generation\": \"1770642780055194\", \"metageneration\": \"1\", \"contentType\": \"text/plain\", \"timeCreated\": \"2026-02-09T13:13:00.069Z\", \"updated\": \"2026-02-09T13:13:00.069Z\", \"storageClass\": \"STANDARD\", \"timeStorageClassUpdated\": \"2026-02-09T13:13:00.069Z\", \"size\": \"40\", \"md5Hash\": \"l2WAzpPsmq3p4NZzmVhXIw==\", \"mediaLink\": \"https://storage.googleapis.com/download/storage/v1/b/retikon-raw-simitor-staging/o/raw_clean%2Fdocs%2Fretikon-clean-test.txt\u0019\ufffd[\ufffd\\\ufffd]\u001a[\u06cfLM\ufffd\ufffd\r\ufffd\f\ufffd\ufffd\f\f\rMLNM\t\ufffd[\u001d\u000f[YY\u001aXH\ufffd\b\b\ufffd\ufffd\u06dd\u0019[\ufffd\u0013\u0018[\ufffd\ufffdXY\ufffdH\ufffd\ufffd\b\ufffd[\ufffd\ufffd\b\b\ufffd\u0718\ufffd\u0318\u020e\ufffd\b\ufffd\ufffdVP\ufffd\ufffd\ufffdOH\ufffd\b\b\ufffd]\u0018Y\u020e\ufffd\b\ufffd\u049c\ufffd\ufffd\r\ufffd\ufffd\u0792\ufffdQ\u0011PQOH\ufffd_K\b\b\ufffd\ufffdX\ufffdZ]\ufffdY\u0017\ufffd]\b\ufffd\ufffd\b\ufffd\ufffd\f\ufffd\ufffdL\f\ufffdL\u000eU\fL\u038cL\u038c\f\ufffd\ufffd\f\rLM\u030a\ufffd\f\u000e\ufffd\f\b\ufffd",
+    "decode_error": "json:Invalid control character at: line 1 column 1425 (char 1424)"
+  },
+  {
+    "message_id": "18292007116261552",
+    "publish_time": "2026-02-09T13:13:45.542Z",
+    "error_code": "PERMANENT",
+    "error_message": "Unsupported object prefix: raw_clean/docs/retikon-clean-test-2.txt",
+    "attempt_count": 1,
+    "modality": "document",
+    "gcs_event": {
+      "bucket": "retikon-raw-simitor-staging",
+      "name": "raw_clean/docs/retikon-clean-test-2.txt",
+      "generation": "1770642423140206",
+      "content_type": "text/plain",
+      "size": 96
+    },
+    "cloudevent": {
+      "id": "18292287991814636",
+      "type": "google.cloud.storage.object.v1.finalized",
+      "time": "2026-02-09T13:07:03.146271Z",
+      "subject": "objects/raw_clean/docs/retikon-clean-test-2.txt"
+    },
+    "received_at": "2026-02-09T13:13:45.491633+00:00",
+    "decoded_text": null,
+    "decode_error": null
+  },
+  {
+    "message_id": "18291960969320938",
+    "publish_time": "2026-02-09T13:15:18.302Z",
+    "error_code": null,
+    "error_message": null,
+    "attempt_count": null,
+    "modality": null,
+    "gcs_event": {
+      "bucket": null,
+      "name": null,
+      "generation": null,
+      "content_type": null,
+      "size": null
+    },
+    "cloudevent": {
+      "id": null,
+      "type": null,
+      "time": null,
+      "subject": null
+    },
+    "received_at": null,
+    "decoded_text": "{\"error_code\": \"PERMANENT\", \"error_message\": \"Unsupported object prefix: raw_clean/docs/retikon-clean-test.txt\", \"attempt_count\": 1, \"modality\": \"document\", \"gcs_event\": {\"bucket\": \"retikon-raw-simitor-staging\", \"name\": \"raw_clean/docs/retikon-clean-test.txt\", \"generation\": \"1770641390255084\", \"content_type\": \"text/plain\", \"size\": 96}, \"cloudevent\": {\"id\": \"18293860128058305\", \"type\": \"google.cloud.storage.object.v1.finalized\", \"source\": \"//storage.googleapis.com/projects/_/buckets/retikon-raw-simitor-staging\", \"specversion\": \"1.0\", \"time\": \"2026-02-09T12:49:50.261407Z\", \"subject\": \"objects/raw_clean/docs/retikon-clean-test.txt\", \"data\": {\"kind\": \"storage#object\", \"id\": \"retikon-raw-simitor-staging/raw_clean/docs/retikon-clean-test.txt/1770641390255084\", \"selfLink\": \"https://www.googleapis.com/storage/v1/b/retikon-raw-simitor-staging/o/raw_clean%2Fdocs%2Fretikon-clean-test.txt\", \"name\": \"raw_clean/docs/retikon-clean-test.txt\", \"bucket\": \"retikon-raw-simitor-staging\", \"generation\": \"1770641390255084\", \"metageneration\": \"1\", \"contentType\": \"text/plain\", \"timeCreated\": \"2026-02-09T12:49:50.261Z\", \"updated\": \"2026-02-09T12:49:50.261Z\", \"storageClass\": \"STANDARD\", \"timeStorageClassUpdated\": \"2026-02-09T12:49:50.261Z\", \"size\": \"96\", \"md5Hash\": \"HIhf3H7AfhEu4hYLAcEhGw==\", \"mediaLink\": \"https://storage.googleapis.com/download/storage/v1/b/retikon-raw-simitor-staging/o/raw_clean%2Fdocs%2Fretikon-clean-test.txt\u0019\ufffd[\ufffd\\\ufffd]\u001a[\u06cfLM\ufffd\ufffd\r\ufffd\fL\ufffdL\f\ufffdML\u000e\r\t\ufffd[\u001d\u000f[YY\u001aXH\ufffd\b\b\ufffd\ufffd\u06dd\u0019[\ufffd\u0013\u0018[\ufffd\ufffdXY\ufffdH\ufffd\ufffd\b\ufffd[\ufffd\ufffd\b\b\ufffd\u0718\ufffd\u0318\u020e\ufffd\b\ufffd\ufffdK\ufffdXTOOH\ufffd\b\b\ufffd]\u0018Y\u020e\ufffd\b\ufffd\ufffd\u078c\ufffd\u049aM^\ufffd\ufffdQ\u0011PQOH\ufffd_K\b\b\ufffd\ufffdX\ufffdZ]\ufffdY\u0017\ufffd]\b\ufffd\ufffd\b\ufffd\ufffd\f\ufffd\ufffdL\f\ufffdL\u000eU\fL\u038cMN\ufffdN\u000b\ufffd\ufffd\ufffd\ufffdL\r\ufffd\ufffd\f\u000e\ufffd\f\b\ufffd",
+    "decode_error": "json:Invalid control character at: line 1 column 1425 (char 1424)"
+  }
+]

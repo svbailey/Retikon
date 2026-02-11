@@ -36,6 +36,12 @@ class Config:
     audio_profile: bool
     audio_skip_normalize_if_wav: bool
     audio_max_segments: int
+    audio_vad_enabled: bool
+    audio_vad_frame_ms: int
+    audio_vad_silence_db: float
+    audio_vad_min_speech_ms: int
+    transcribe_tier: str
+    transcribe_max_ms: int
     firestore_collection: str
     idempotency_ttl_seconds: int
     idempotency_completed_ttl_seconds: int
@@ -159,6 +165,23 @@ class Config:
             False,
         )
         audio_max_segments = int(os.getenv("AUDIO_MAX_SEGMENTS", "0"))
+        audio_vad_enabled = _parse_bool(os.getenv("AUDIO_VAD_ENABLED"), True)
+        audio_vad_frame_ms = int(os.getenv("AUDIO_VAD_FRAME_MS", "30"))
+        audio_vad_silence_db = float(os.getenv("AUDIO_VAD_SILENCE_DB", "-45.0"))
+        audio_vad_min_speech_ms = int(os.getenv("AUDIO_VAD_MIN_SPEECH_MS", "300"))
+        transcribe_enabled = _parse_bool(
+            os.getenv("TRANSCRIBE_ENABLED"),
+            True,
+        )
+        transcribe_tier = os.getenv("TRANSCRIBE_TIER", "accurate").strip().lower()
+        if not transcribe_enabled:
+            audio_transcribe = False
+            transcribe_tier = "off"
+        elif transcribe_tier not in {"fast", "accurate", "off"}:
+            raise ValueError(
+                "TRANSCRIBE_TIER must be one of: fast, accurate, off"
+            )
+        transcribe_max_ms = int(os.getenv("TRANSCRIBE_MAX_MS", "0"))
         firestore_collection = os.getenv("FIRESTORE_COLLECTION", "ingestion_events")
         idempotency_ttl_seconds = int(os.getenv("IDEMPOTENCY_TTL_SECONDS", "600"))
         idempotency_completed_ttl_seconds = int(
@@ -272,6 +295,12 @@ class Config:
             audio_profile=audio_profile,
             audio_skip_normalize_if_wav=audio_skip_normalize_if_wav,
             audio_max_segments=audio_max_segments,
+            audio_vad_enabled=audio_vad_enabled,
+            audio_vad_frame_ms=audio_vad_frame_ms,
+            audio_vad_silence_db=audio_vad_silence_db,
+            audio_vad_min_speech_ms=audio_vad_min_speech_ms,
+            transcribe_tier=transcribe_tier,
+            transcribe_max_ms=transcribe_max_ms,
             firestore_collection=firestore_collection,
             idempotency_ttl_seconds=idempotency_ttl_seconds,
             idempotency_completed_ttl_seconds=idempotency_completed_ttl_seconds,

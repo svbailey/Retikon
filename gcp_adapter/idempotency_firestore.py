@@ -185,6 +185,7 @@ def update_object_metadata(
     checksum: str | None,
     content_type: str | None = None,
     size_bytes: int | None = None,
+    duration_ms: int | None = None,
     scope_key: str | None = None,
     scope_org_id: str | None = None,
     scope_site_id: str | None = None,
@@ -208,6 +209,8 @@ def update_object_metadata(
         payload["object_content_type"] = content_type
     if size_bytes is not None:
         payload["object_size_bytes"] = size_bytes
+    if duration_ms is not None:
+        payload["object_duration_ms"] = duration_ms
     if checksum:
         payload["object_checksum"] = checksum
         checksum_scope = resolve_checksum_scope(checksum, scope_key)

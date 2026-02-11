@@ -110,6 +110,10 @@ resource "google_pubsub_topic" "ingest_dlq" {
   name = var.ingest_dlq_topic_name
 }
 
+resource "google_pubsub_topic" "ingest_media" {
+  name = var.ingest_media_topic_name
+}
+
 resource "google_pubsub_topic" "stream_ingest" {
   name = var.stream_ingest_topic_name
 }
@@ -128,6 +132,27 @@ resource "google_pubsub_subscription" "ingest_dlq" {
 
   ack_deadline_seconds       = 60
   message_retention_duration = "604800s"
+}
+
+resource "google_pubsub_subscription" "ingest_media" {
+  name  = var.ingest_media_subscription_name
+  topic = google_pubsub_topic.ingest_media.name
+
+  ack_deadline_seconds       = 600
+  message_retention_duration = "604800s"
+
+  dead_letter_policy {
+    dead_letter_topic     = google_pubsub_topic.ingest_dlq.id
+    max_delivery_attempts = var.ingest_media_max_delivery_attempts
+  }
+
+  push_config {
+    push_endpoint = "${google_cloud_run_service.ingestion_media.status[0].url}/ingest"
+    oidc_token {
+      service_account_email = google_service_account.ingestion.email
+      audience              = google_cloud_run_service.ingestion_media.status[0].url
+    }
+  }
 }
 
 resource "google_pubsub_subscription" "stream_ingest" {
@@ -300,6 +325,12 @@ resource "google_project_iam_member" "ingest_firestore_user" {
   member  = "serviceAccount:${google_service_account.ingestion.email}"
 }
 
+resource "google_project_iam_member" "ingest_monitoring_viewer" {
+  project = var.project_id
+  role    = "roles/monitoring.viewer"
+  member  = "serviceAccount:${google_service_account.ingestion.email}"
+}
+
 resource "google_project_iam_member" "dev_console_firestore_user" {
   project = var.project_id
   role    = "roles/datastore.user"
@@ -366,6 +397,12 @@ resource "google_pubsub_topic_iam_member" "ingest_dlq_publisher" {
   member = "serviceAccount:${google_service_account.ingestion.email}"
 }
 
+resource "google_pubsub_topic_iam_member" "ingest_media_publisher" {
+  topic  = google_pubsub_topic.ingest_media.name
+  role   = "roles/pubsub.publisher"
+  member = "serviceAccount:${google_service_account.ingestion.email}"
+}
+
 resource "google_pubsub_topic_iam_member" "stream_ingest_dlq_publisher" {
   topic  = google_pubsub_topic.ingest_dlq.name
   role   = "roles/pubsub.publisher"
@@ -392,6 +429,12 @@ resource "google_pubsub_topic_iam_member" "workflow_dlq_publisher" {
 
 resource "google_service_account_iam_member" "pubsub_stream_ingest_token_creator" {
   service_account_id = google_service_account.stream_ingest.name
+  role               = "roles/iam.serviceAccountTokenCreator"
+  member             = "serviceAccount:service-${data.google_project.project.number}@gcp-sa-pubsub.iam.gserviceaccount.com"
+}
+
+resource "google_service_account_iam_member" "pubsub_ingest_token_creator" {
+  service_account_id = google_service_account.ingestion.name
   role               = "roles/iam.serviceAccountTokenCreator"
   member             = "serviceAccount:service-${data.google_project.project.number}@gcp-sa-pubsub.iam.gserviceaccount.com"
 }
@@ -547,6 +590,7 @@ resource "google_cloud_run_service" "ingestion" {
   template {
     metadata {
       annotations = {
+        "autoscaling.knative.dev/minScale"        = tostring(var.ingestion_min_scale)
         "autoscaling.knative.dev/maxScale"        = tostring(var.ingestion_max_scale)
         "run.googleapis.com/vpc-access-connector" = google_vpc_access_connector.serverless.id
         "run.googleapis.com/vpc-access-egress"    = "private-ranges-only"
@@ -578,6 +622,18 @@ resource "google_cloud_run_service" "ingestion" {
         env {
           name  = "LOG_LEVEL"
           value = var.log_level
+        }
+        env {
+          name  = "QUEUE_MONITOR_ENABLED"
+          value = var.queue_monitor_enabled ? "1" : "0"
+        }
+        env {
+          name  = "QUEUE_MONITOR_INTERVAL_SECONDS"
+          value = tostring(var.queue_monitor_interval_seconds)
+        }
+        env {
+          name  = "QUEUE_MONITOR_SUBSCRIPTIONS"
+          value = var.queue_monitor_subscriptions
         }
         env {
           name  = "CORS_ALLOW_ORIGINS"
@@ -772,6 +828,22 @@ resource "google_cloud_run_service" "ingestion" {
           value = var.raw_prefix
         }
         env {
+          name  = "INGEST_ALLOWED_MODALITIES"
+          value = "document,image"
+        }
+        env {
+          name  = "INGEST_MEDIA_URL"
+          value = google_cloud_run_service.ingestion_media.status[0].url
+        }
+        env {
+          name  = "INGEST_MEDIA_TOPIC"
+          value = "projects/${var.project_id}/topics/${var.ingest_media_topic_name}"
+        }
+        env {
+          name  = "INGEST_MEDIA_MODALITIES"
+          value = "audio,video"
+        }
+        env {
           name  = "GRAPH_BUCKET"
           value = google_storage_bucket.graph.name
         }
@@ -820,6 +892,10 @@ resource "google_cloud_run_service" "ingestion" {
           value = var.audio_transcribe ? "1" : "0"
         }
         env {
+          name  = "TRANSCRIBE_ENABLED"
+          value = var.transcribe_enabled ? "1" : "0"
+        }
+        env {
           name  = "AUDIO_PROFILE"
           value = var.audio_profile ? "1" : "0"
         }
@@ -830,6 +906,14 @@ resource "google_cloud_run_service" "ingestion" {
         env {
           name  = "AUDIO_MAX_SEGMENTS"
           value = tostring(var.audio_max_segments)
+        }
+        env {
+          name  = "TRANSCRIBE_TIER"
+          value = var.transcribe_tier
+        }
+        env {
+          name  = "TRANSCRIBE_MAX_MS"
+          value = tostring(var.transcribe_max_ms)
         }
         env {
           name  = "MAX_FRAMES_PER_VIDEO"
@@ -987,6 +1071,13 @@ resource "google_cloud_run_service_iam_member" "ingestion_invoker" {
   member   = "serviceAccount:${google_service_account.ingestion.email}"
 }
 
+resource "google_cloud_run_service_iam_member" "ingestion_media_invoker" {
+  location = google_cloud_run_service.ingestion_media.location
+  service  = google_cloud_run_service.ingestion_media.name
+  role     = "roles/run.invoker"
+  member   = "serviceAccount:${google_service_account.ingestion.email}"
+}
+
 resource "google_cloud_run_service_iam_member" "ingestion_smoke_invoker" {
   location = google_cloud_run_service.ingestion.location
   service  = google_cloud_run_service.ingestion.name
@@ -1029,6 +1120,10 @@ resource "google_cloud_run_service" "query" {
           }
         }
 
+        env {
+          name  = "APP_MODULE"
+          value = "gcp_adapter.query_service:app"
+        }
         env {
           name  = "ENV"
           value = var.env
@@ -1349,7 +1444,7 @@ resource "google_cloud_run_service" "query" {
         }
         env {
           name  = "INTERNAL_AUTH_ALLOWED_SAS"
-          value = var.snapshot_reload_allow_internal_sa ? google_service_account.dev_console.email : ""
+          value = var.snapshot_reload_allow_internal_sa ? "${google_service_account.dev_console.email},${google_service_account.index_builder.email}" : ""
         }
         env {
           name  = "DUCKDB_THREADS"
@@ -1425,6 +1520,10 @@ resource "google_cloud_run_service" "query_gpu" {
           }
         }
 
+        env {
+          name  = "APP_MODULE"
+          value = "gcp_adapter.query_service_gpu:app"
+        }
         env {
           name  = "ENV"
           value = var.env
@@ -1737,7 +1836,7 @@ resource "google_cloud_run_service" "query_gpu" {
         }
         env {
           name  = "INTERNAL_AUTH_ALLOWED_SAS"
-          value = var.snapshot_reload_allow_internal_sa ? google_service_account.dev_console.email : ""
+          value = var.snapshot_reload_allow_internal_sa ? "${google_service_account.dev_console.email},${google_service_account.index_builder.email}" : ""
         }
         env {
           name  = "DUCKDB_THREADS"
@@ -3886,6 +3985,473 @@ resource "google_api_gateway_api_config" "retikon" {
   }
 }
 
+resource "google_cloud_run_service" "ingestion_media" {
+  name     = "${var.ingestion_media_service_name}-${var.env}"
+  location = var.region
+
+  metadata {
+    annotations = {
+      "run.googleapis.com/ingress" = "all"
+    }
+  }
+
+  template {
+    metadata {
+      annotations = {
+        "autoscaling.knative.dev/minScale"        = tostring(var.ingestion_media_keep_warm_enabled ? var.ingestion_media_min_scale : 0)
+        "autoscaling.knative.dev/maxScale"        = tostring(var.ingestion_media_autoscale_enabled ? var.ingestion_media_max_scale : 1)
+        "run.googleapis.com/vpc-access-connector" = google_vpc_access_connector.serverless.id
+        "run.googleapis.com/vpc-access-egress"    = "private-ranges-only"
+      }
+    }
+
+    spec {
+      service_account_name  = google_service_account.ingestion.email
+      container_concurrency = var.ingestion_media_autoscale_enabled ? var.ingestion_media_concurrency : 1
+
+      containers {
+        image = var.ingestion_image
+
+        resources {
+          limits = {
+            cpu    = var.ingestion_media_cpu
+            memory = var.ingestion_media_memory
+          }
+        }
+
+        env {
+          name  = "APP_MODULE"
+          value = "gcp_adapter.ingestion_service:app"
+        }
+        env {
+          name  = "ENV"
+          value = var.env
+        }
+        env {
+          name  = "LOG_LEVEL"
+          value = var.log_level
+        }
+        env {
+          name  = "QUEUE_MONITOR_ENABLED"
+          value = var.queue_monitor_enabled ? "1" : "0"
+        }
+        env {
+          name  = "QUEUE_MONITOR_INTERVAL_SECONDS"
+          value = tostring(var.queue_monitor_interval_seconds)
+        }
+        env {
+          name  = "QUEUE_MONITOR_SUBSCRIPTIONS"
+          value = var.queue_monitor_subscriptions
+        }
+        env {
+          name  = "CORS_ALLOW_ORIGINS"
+          value = local.dev_console_cors_allow_origins
+        }
+        env {
+          name  = "AUTH_ISSUER"
+          value = var.auth_issuer
+        }
+        env {
+          name  = "AUTH_AUDIENCE"
+          value = var.auth_audience
+        }
+        env {
+          name  = "AUTH_JWKS_URI"
+          value = var.auth_jwks_uri
+        }
+        env {
+          name  = "AUTH_GATEWAY_USERINFO"
+          value = var.auth_gateway_userinfo ? "1" : "0"
+        }
+        env {
+          name  = "AUTH_JWT_ALGORITHMS"
+          value = var.auth_jwt_algorithms
+        }
+        env {
+          name  = "AUTH_REQUIRED_CLAIMS"
+          value = var.auth_required_claims
+        }
+        env {
+          name  = "AUTH_CLAIM_SUB"
+          value = var.auth_claim_sub
+        }
+        env {
+          name  = "AUTH_CLAIM_EMAIL"
+          value = var.auth_claim_email
+        }
+        env {
+          name  = "AUTH_CLAIM_ROLES"
+          value = var.auth_claim_roles
+        }
+        env {
+          name  = "AUTH_CLAIM_GROUPS"
+          value = var.auth_claim_groups
+        }
+        env {
+          name  = "AUTH_CLAIM_ORG_ID"
+          value = var.auth_claim_org_id
+        }
+        env {
+          name  = "AUTH_CLAIM_SITE_ID"
+          value = var.auth_claim_site_id
+        }
+        env {
+          name  = "AUTH_CLAIM_STREAM_ID"
+          value = var.auth_claim_stream_id
+        }
+        env {
+          name  = "DEFAULT_ORG_ID"
+          value = var.default_org_id
+        }
+        env {
+          name  = "DEFAULT_SITE_ID"
+          value = var.default_site_id
+        }
+        env {
+          name  = "DEFAULT_STREAM_ID"
+          value = var.default_stream_id
+        }
+        env {
+          name  = "AUTH_ADMIN_ROLES"
+          value = var.auth_admin_roles
+        }
+        env {
+          name  = "AUTH_ADMIN_GROUPS"
+          value = var.auth_admin_groups
+        }
+        env {
+          name  = "AUTH_JWT_LEEWAY_SECONDS"
+          value = tostring(var.auth_jwt_leeway_seconds)
+        }
+        env {
+          name  = "CONTROL_PLANE_STORE"
+          value = var.control_plane_store
+        }
+        env {
+          name  = "CONTROL_PLANE_COLLECTION_PREFIX"
+          value = var.control_plane_collection_prefix
+        }
+        env {
+          name  = "CONTROL_PLANE_READ_MODE"
+          value = var.control_plane_read_mode
+        }
+        env {
+          name  = "CONTROL_PLANE_WRITE_MODE"
+          value = var.control_plane_write_mode
+        }
+        env {
+          name  = "CONTROL_PLANE_FALLBACK_ON_EMPTY"
+          value = var.control_plane_fallback_on_empty ? "1" : "0"
+        }
+        env {
+          name  = "METERING_ENABLED"
+          value = var.metering_enabled ? "1" : "0"
+        }
+        env {
+          name  = "METERING_FIRESTORE_ENABLED"
+          value = var.metering_firestore_enabled ? "1" : "0"
+        }
+        env {
+          name  = "METERING_FIRESTORE_COLLECTION"
+          value = var.metering_firestore_collection
+        }
+        env {
+          name  = "METERING_COLLECTION_PREFIX"
+          value = var.metering_collection_prefix != "" ? var.metering_collection_prefix : var.control_plane_collection_prefix
+        }
+        env {
+          name  = "STORAGE_BACKEND"
+          value = "gcs"
+        }
+        env {
+          name  = "USE_REAL_MODELS"
+          value = var.use_real_models ? "1" : "0"
+        }
+        env {
+          name  = "MODEL_DIR"
+          value = var.model_dir
+        }
+        env {
+          name  = "TEXT_MODEL_NAME"
+          value = var.text_model_name
+        }
+        env {
+          name  = "IMAGE_MODEL_NAME"
+          value = var.image_model_name
+        }
+        env {
+          name  = "AUDIO_MODEL_NAME"
+          value = var.audio_model_name
+        }
+        env {
+          name  = "INGEST_WARMUP"
+          value = var.ingest_media_warmup ? "1" : "0"
+        }
+        env {
+          name  = "INGEST_WARMUP_AUDIO"
+          value = var.ingest_media_warmup_audio ? "1" : "0"
+        }
+        env {
+          name  = "INGEST_WARMUP_TEXT"
+          value = var.ingest_media_warmup_text ? "1" : "0"
+        }
+        env {
+          name  = "WHISPER_MODEL_NAME"
+          value = var.whisper_model_name
+        }
+        env {
+          name  = "WHISPER_LANGUAGE"
+          value = var.whisper_language
+        }
+        env {
+          name  = "WHISPER_LANGUAGE_DEFAULT"
+          value = var.whisper_language_default
+        }
+        env {
+          name  = "WHISPER_LANGUAGE_AUTO"
+          value = var.whisper_language_auto ? "1" : "0"
+        }
+        env {
+          name  = "WHISPER_MIN_CONFIDENCE"
+          value = tostring(var.whisper_min_confidence)
+        }
+        env {
+          name  = "WHISPER_DETECT_SECONDS"
+          value = tostring(var.whisper_detect_seconds)
+        }
+        env {
+          name  = "WHISPER_TASK"
+          value = var.whisper_task
+        }
+        env {
+          name  = "WHISPER_NON_ENGLISH_TASK"
+          value = var.whisper_non_english_task
+        }
+        env {
+          name  = "RAW_BUCKET"
+          value = google_storage_bucket.raw.name
+        }
+        env {
+          name  = "RAW_PREFIX"
+          value = var.raw_prefix
+        }
+        env {
+          name  = "INGEST_ALLOWED_MODALITIES"
+          value = "audio,video"
+        }
+        env {
+          name  = "INTERNAL_AUTH_ALLOWED_SAS"
+          value = google_service_account.ingestion.email
+        }
+        env {
+          name  = "GRAPH_BUCKET"
+          value = google_storage_bucket.graph.name
+        }
+        env {
+          name  = "GRAPH_PREFIX"
+          value = var.graph_prefix
+        }
+        env {
+          name  = "DEFAULT_ORG_ID"
+          value = var.default_org_id
+        }
+        env {
+          name  = "DEFAULT_SITE_ID"
+          value = var.default_site_id
+        }
+        env {
+          name  = "DEFAULT_STREAM_ID"
+          value = var.default_stream_id
+        }
+        env {
+          name  = "MAX_RAW_BYTES"
+          value = tostring(var.max_raw_bytes)
+        }
+        env {
+          name  = "MAX_VIDEO_SECONDS"
+          value = tostring(var.max_video_seconds)
+        }
+        env {
+          name  = "MAX_AUDIO_SECONDS"
+          value = tostring(var.max_audio_seconds)
+        }
+        env {
+          name  = "MAX_FRAMES_PER_VIDEO"
+          value = tostring(var.max_frames_per_video)
+        }
+        env {
+          name  = "CHUNK_TARGET_TOKENS"
+          value = tostring(var.chunk_target_tokens)
+        }
+        env {
+          name  = "CHUNK_OVERLAP_TOKENS"
+          value = tostring(var.chunk_overlap_tokens)
+        }
+        env {
+          name  = "VIDEO_SCENE_THRESHOLD"
+          value = tostring(var.video_scene_threshold)
+        }
+        env {
+          name  = "VIDEO_SCENE_MIN_FRAMES"
+          value = tostring(var.video_scene_min_frames)
+        }
+        env {
+          name  = "VIDEO_THUMBNAIL_WIDTH"
+          value = tostring(var.video_thumbnail_width)
+        }
+        env {
+          name  = "VIDEO_SAMPLE_FPS"
+          value = tostring(var.video_sample_fps)
+        }
+        env {
+          name  = "VIDEO_SAMPLE_INTERVAL_SECONDS"
+          value = tostring(var.video_sample_interval_seconds)
+        }
+        env {
+          name  = "AUDIO_TRANSCRIBE"
+          value = var.audio_transcribe ? "1" : "0"
+        }
+        env {
+          name  = "TRANSCRIBE_ENABLED"
+          value = var.transcribe_enabled ? "1" : "0"
+        }
+        env {
+          name  = "AUDIO_PROFILE"
+          value = var.audio_profile ? "1" : "0"
+        }
+        env {
+          name  = "AUDIO_SKIP_NORMALIZE_IF_WAV"
+          value = var.audio_skip_normalize_if_wav ? "1" : "0"
+        }
+        env {
+          name  = "AUDIO_MAX_SEGMENTS"
+          value = tostring(var.audio_max_segments)
+        }
+        env {
+          name  = "TRANSCRIBE_TIER"
+          value = var.transcribe_tier
+        }
+        env {
+          name  = "TRANSCRIBE_MAX_MS"
+          value = tostring(var.transcribe_max_ms)
+        }
+        env {
+          name = "HF_TOKEN"
+
+          value_from {
+            secret_key_ref {
+              name = "retikon-hf-token"
+              key  = "latest"
+            }
+          }
+        }
+        env {
+          name = "HUGGINGFACE_HUB_TOKEN"
+
+          value_from {
+            secret_key_ref {
+              name = "retikon-hf-token"
+              key  = "latest"
+            }
+          }
+        }
+        env {
+          name  = "FIRESTORE_COLLECTION"
+          value = "ingestion_events"
+        }
+        env {
+          name  = "IDEMPOTENCY_TTL_SECONDS"
+          value = tostring(var.idempotency_ttl_seconds)
+        }
+        env {
+          name  = "IDEMPOTENCY_COMPLETED_TTL_SECONDS"
+          value = tostring(var.idempotency_completed_ttl_seconds)
+        }
+        env {
+          name  = "MAX_INGEST_ATTEMPTS"
+          value = tostring(var.max_ingest_attempts)
+        }
+        env {
+          name  = "ALLOWED_DOC_EXT"
+          value = ".pdf,.txt,.md,.rtf,.docx,.pptx,.csv,.tsv,.xlsx,.xls"
+        }
+        env {
+          name  = "ALLOWED_IMAGE_EXT"
+          value = ".jpg,.jpeg,.png,.webp,.bmp,.tiff,.gif"
+        }
+        env {
+          name  = "ALLOWED_AUDIO_EXT"
+          value = ".mp3,.wav,.flac,.m4a,.aac,.ogg,.opus"
+        }
+        env {
+          name  = "ALLOWED_VIDEO_EXT"
+          value = ".mp4,.mov,.mkv,.webm,.avi,.mpeg,.mpg"
+        }
+        env {
+          name  = "INGESTION_DRY_RUN"
+          value = "0"
+        }
+        env {
+          name  = "RATE_LIMIT_DOC_PER_MIN"
+          value = tostring(var.rate_limit_doc_per_min)
+        }
+        env {
+          name  = "RATE_LIMIT_IMAGE_PER_MIN"
+          value = tostring(var.rate_limit_image_per_min)
+        }
+        env {
+          name  = "RATE_LIMIT_AUDIO_PER_MIN"
+          value = tostring(var.rate_limit_audio_per_min)
+        }
+        env {
+          name  = "RATE_LIMIT_VIDEO_PER_MIN"
+          value = tostring(var.rate_limit_video_per_min)
+        }
+        env {
+          name  = "RATE_LIMIT_GLOBAL_DOC_PER_MIN"
+          value = tostring(var.rate_limit_global_doc_per_min)
+        }
+        env {
+          name  = "RATE_LIMIT_GLOBAL_IMAGE_PER_MIN"
+          value = tostring(var.rate_limit_global_image_per_min)
+        }
+        env {
+          name  = "RATE_LIMIT_GLOBAL_AUDIO_PER_MIN"
+          value = tostring(var.rate_limit_global_audio_per_min)
+        }
+        env {
+          name  = "RATE_LIMIT_GLOBAL_VIDEO_PER_MIN"
+          value = tostring(var.rate_limit_global_video_per_min)
+        }
+        env {
+          name  = "RATE_LIMIT_BACKEND"
+          value = var.rate_limit_backend
+        }
+        env {
+          name  = "REDIS_HOST"
+          value = var.rate_limit_redis_host != "" ? var.rate_limit_redis_host : google_redis_instance.rate_limit.host
+        }
+        env {
+          name  = "REDIS_PORT"
+          value = tostring(google_redis_instance.rate_limit.port)
+        }
+        env {
+          name  = "REDIS_DB"
+          value = tostring(var.rate_limit_redis_db)
+        }
+        env {
+          name  = "REDIS_SSL"
+          value = var.rate_limit_redis_ssl ? "1" : "0"
+        }
+        env {
+          name  = "DLQ_TOPIC"
+          value = "projects/${var.project_id}/topics/${var.ingest_dlq_topic_name}"
+        }
+      }
+    }
+  }
+}
+
 resource "google_api_gateway_gateway" "retikon" {
   count    = var.enable_api_gateway ? 1 : 0
   provider = google-beta
@@ -4043,7 +4609,7 @@ resource "google_project_iam_member" "gcs_pubsub_publisher" {
 }
 
 resource "google_eventarc_trigger" "gcs_ingest" {
-  name     = "retikon-ingest-trigger-${var.env}"
+  name     = "retikon-ingest-docs-${var.env}"
   location = var.region
 
   matching_criteria {
@@ -4073,6 +4639,7 @@ resource "google_eventarc_trigger" "gcs_ingest" {
     google_cloud_run_service_iam_member.ingestion_invoker,
   ]
 }
+
 
 resource "google_cloud_run_v2_job" "index_builder" {
   provider = google-beta
@@ -4126,6 +4693,10 @@ resource "google_cloud_run_v2_job" "index_builder" {
         env {
           name  = "SNAPSHOT_URI"
           value = var.snapshot_uri
+        }
+        env {
+          name  = "QUERY_SERVICE_URL"
+          value = google_cloud_run_service.query.status[0].url
         }
         env {
           name  = "INDEX_BUILDER_DUCKDB_THREADS"
@@ -4184,8 +4755,16 @@ resource "google_cloud_run_v2_job" "index_builder" {
           value = var.index_builder_incremental ? "1" : "0"
         }
         env {
+          name  = "INDEX_BUILDER_RELOAD_SNAPSHOT"
+          value = var.index_builder_reload_snapshot ? "1" : "0"
+        }
+        env {
           name  = "INDEX_BUILDER_INCREMENTAL_MAX_NEW_MANIFESTS"
           value = tostring(var.index_builder_incremental_max_new_manifests)
+        }
+        env {
+          name  = "INDEX_BUILDER_MIN_NEW_MANIFESTS"
+          value = tostring(var.index_builder_min_new_manifests)
         }
 
         resources {

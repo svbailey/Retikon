@@ -10,12 +10,25 @@ from retikon_core.embeddings import get_audio_embedder, get_text_embedder
 from retikon_core.embeddings.timeout import run_inference
 from retikon_core.errors import PermanentError
 from retikon_core.ingestion.download import cleanup_tmp
-from retikon_core.ingestion.media import normalize_audio, probe_media
+from retikon_core.ingestion.media import analyze_audio, normalize_audio, probe_media
+from retikon_core.ingestion.pipelines.metrics import (
+    CallTracker,
+    StageTimer,
+    build_stage_timings,
+    timed_call,
+)
 from retikon_core.ingestion.pipelines.types import PipelineResult
-from retikon_core.ingestion.transcribe import transcribe_audio
+from retikon_core.ingestion.transcribe import (
+    resolve_transcribe_model_name,
+    transcribe_audio,
+)
 from retikon_core.ingestion.types import IngestSource
 from retikon_core.logging import get_logger
-from retikon_core.storage.manifest import build_manifest, write_manifest
+from retikon_core.storage.manifest import (
+    build_manifest,
+    manifest_metrics_subset,
+    write_manifest,
+)
 from retikon_core.storage.paths import (
     edge_part_uri,
     manifest_uri,
@@ -61,58 +74,109 @@ def ingest_audio(
     pipeline_version: str,
     schema_version: str,
 ) -> PipelineResult:
-    timings: dict[str, float | int | str] = {}
+    timer = StageTimer()
+    calls = CallTracker()
     pipeline_start = time.monotonic()
     started_at = datetime.now(timezone.utc)
-    probe_start = time.monotonic()
-    probe = probe_media(source.local_path)
-    timings["probe_ms"] = round((time.monotonic() - probe_start) * 1000.0, 2)
+    with timer.track("probe"):
+        probe = probe_media(source.local_path)
     if probe.duration_seconds > config.max_audio_seconds:
         raise PermanentError("Audio duration exceeds max")
 
-    normalize_start = time.monotonic()
     if _should_skip_normalize(source, probe, config):
         normalized_path = source.local_path
-        timings["normalize_ms"] = 0.0
-        timings["normalize_skipped"] = True
+        normalize_skipped = True
     else:
-        normalized_path = normalize_audio(source.local_path)
-        timings["normalize_ms"] = round((time.monotonic() - normalize_start) * 1000.0, 2)
+        normalize_skipped = False
+        with timer.track("normalize"):
+            normalized_path = normalize_audio(source.local_path)
     try:
-        read_start = time.monotonic()
-        audio_bytes = open(normalized_path, "rb").read()
-        timings["read_audio_ms"] = round(
-            (time.monotonic() - read_start) * 1000.0, 2
-        )
-        embed_start = time.monotonic()
-        audio_vector = run_inference(
-            "audio",
-            lambda: get_audio_embedder(512).encode([audio_bytes])[0],
-        )
-        timings["audio_embed_ms"] = round(
-            (time.monotonic() - embed_start) * 1000.0, 2
-        )
+        audio_duration_ms = int(probe.duration_seconds * 1000.0)
+        extracted_audio_duration_ms = audio_duration_ms
+        trimmed_silence_ms = 0
+        transcribed_ms = 0
+        transcript_language = None
+        transcript_error_reason = ""
+        transcribe_tier = config.transcribe_tier
+        transcribe_enabled = config.audio_transcribe and transcribe_tier != "off"
+        transcribe_max_ms = config.transcribe_max_ms
+        transcript_model_tier = transcribe_tier if transcribe_enabled else "off"
+        audio_has_speech = True
+        if config.audio_transcribe and config.audio_vad_enabled:
+            with timer.track("vad"):
+                analysis = analyze_audio(
+                    normalized_path,
+                    frame_ms=config.audio_vad_frame_ms,
+                    silence_db=config.audio_vad_silence_db,
+                    min_speech_ms=config.audio_vad_min_speech_ms,
+                )
+            audio_duration_ms = analysis.duration_ms
+            extracted_audio_duration_ms = analysis.duration_ms
+            trimmed_silence_ms = analysis.silence_ms
+            audio_has_speech = analysis.has_speech
+        with timer.track("read_audio"):
+            audio_bytes = open(normalized_path, "rb").read()
+        with timer.track("audio_embed"):
+            audio_vector = timed_call(
+                calls,
+                "audio_embed",
+                lambda: run_inference(
+                    "audio",
+                    lambda: get_audio_embedder(512).encode([audio_bytes])[0],
+                ),
+            )
 
         segments = []
-        transcribe_start = time.monotonic()
-        if config.audio_transcribe:
-            segments = transcribe_audio(normalized_path, probe.duration_seconds)
+        transcript_status = "skipped_by_policy"
+        if transcribe_enabled:
+            if not probe.has_audio:
+                transcript_status = "no_audio_track"
+            elif not audio_has_speech:
+                transcript_status = "no_speech"
+            elif transcribe_max_ms > 0 and extracted_audio_duration_ms > transcribe_max_ms:
+                transcript_status = "skipped_too_long"
+                transcript_error_reason = "transcribe_max_ms_exceeded"
+            else:
+                calls.set_context(
+                    "transcribe",
+                    {
+                        "tier": transcript_model_tier,
+                        "model_id": resolve_transcribe_model_name(transcribe_tier),
+                    },
+                )
+                with timer.track("transcribe"):
+                    segments = timed_call(
+                        calls,
+                        "transcribe",
+                        lambda: transcribe_audio(
+                            normalized_path,
+                            probe.duration_seconds,
+                            tier=transcribe_tier,
+                        ),
+                    )
+                if segments:
+                    transcript_status = "ok"
+                    transcribed_ms = extracted_audio_duration_ms
+                else:
+                    transcript_status = "failed"
+                    transcript_error_reason = "empty_transcript"
+        elif config.audio_transcribe:
+            transcript_error_reason = "transcribe_disabled"
         if config.audio_max_segments > 0 and len(segments) > config.audio_max_segments:
             segments = segments[: config.audio_max_segments]
-        timings["transcribe_ms"] = round(
-            (time.monotonic() - transcribe_start) * 1000.0, 2
-        )
         text_vectors: list[list[float]] = []
         if segments:
-            text_embed_start = time.monotonic()
-            texts = [segment.text for segment in segments]
-            text_vectors = run_inference(
-                "text",
-                lambda: get_text_embedder(768).encode(texts),
-            )
-            timings["text_embed_ms"] = round(
-                (time.monotonic() - text_embed_start) * 1000.0, 2
-            )
+            transcript_language = segments[0].language if segments[0].language else None
+            with timer.track("text_embed"):
+                texts = [segment.text for segment in segments]
+                text_vectors = timed_call(
+                    calls,
+                    "text_embed",
+                    lambda: run_inference(
+                        "text",
+                        lambda: get_text_embedder(768).encode(texts),
+                    ),
+                )
 
         output_root = output_uri or config.graph_root_uri()
         media_asset_id = str(uuid.uuid4())
@@ -215,107 +279,223 @@ def ingest_audio(
                 }
             )
 
-        write_start = time.monotonic()
         files: list[WriteResult] = []
-        files.append(
-            write_parquet(
-                [media_row],
-                schema_for("MediaAsset", "core"),
-                vertex_part_uri(output_root, "MediaAsset", "core", str(uuid.uuid4())),
-            )
-        )
-        if transcript_core_rows:
+        with timer.track("write_parquet"):
             files.append(
                 write_parquet(
-                    transcript_core_rows,
-                    schema_for("Transcript", "core"),
-                    vertex_part_uri(
-                        output_root, "Transcript", "core", str(uuid.uuid4())
-                    ),
+                    [media_row],
+                    schema_for("MediaAsset", "core"),
+                    vertex_part_uri(output_root, "MediaAsset", "core", str(uuid.uuid4())),
                 )
             )
-            files.append(
-                write_parquet(
-                    transcript_text_rows,
-                    schema_for("Transcript", "text"),
-                    vertex_part_uri(
-                        output_root, "Transcript", "text", str(uuid.uuid4())
-                    ),
-                )
-            )
-            files.append(
-                write_parquet(
-                    transcript_vector_rows,
-                    schema_for("Transcript", "vector"),
-                    vertex_part_uri(
-                        output_root, "Transcript", "vector", str(uuid.uuid4())
-                    ),
-                )
-            )
-            if next_edges:
+            if transcript_core_rows:
                 files.append(
                     write_parquet(
-                        next_edges,
-                        schema_for("NextTranscript", "adj_list"),
-                        edge_part_uri(output_root, "NextTranscript", str(uuid.uuid4())),
+                        transcript_core_rows,
+                        schema_for("Transcript", "core"),
+                        vertex_part_uri(
+                            output_root, "Transcript", "core", str(uuid.uuid4())
+                        ),
                     )
                 )
+                files.append(
+                    write_parquet(
+                        transcript_text_rows,
+                        schema_for("Transcript", "text"),
+                        vertex_part_uri(
+                            output_root, "Transcript", "text", str(uuid.uuid4())
+                        ),
+                    )
+                )
+                files.append(
+                    write_parquet(
+                        transcript_vector_rows,
+                        schema_for("Transcript", "vector"),
+                        vertex_part_uri(
+                            output_root, "Transcript", "vector", str(uuid.uuid4())
+                        ),
+                    )
+                )
+                if next_edges:
+                    files.append(
+                        write_parquet(
+                            next_edges,
+                            schema_for("NextTranscript", "adj_list"),
+                            edge_part_uri(output_root, "NextTranscript", str(uuid.uuid4())),
+                        )
+                    )
 
-        files.append(
-            write_parquet(
-                [audio_clip_core],
-                schema_for("AudioClip", "core"),
-                vertex_part_uri(output_root, "AudioClip", "core", str(uuid.uuid4())),
+            files.append(
+                write_parquet(
+                    [audio_clip_core],
+                    schema_for("AudioClip", "core"),
+                    vertex_part_uri(output_root, "AudioClip", "core", str(uuid.uuid4())),
+                )
             )
-        )
-        files.append(
-            write_parquet(
-                [{"clap_embedding": audio_vector}],
-                schema_for("AudioClip", "vector"),
-                vertex_part_uri(output_root, "AudioClip", "vector", str(uuid.uuid4())),
+            files.append(
+                write_parquet(
+                    [{"clap_embedding": audio_vector}],
+                    schema_for("AudioClip", "vector"),
+                    vertex_part_uri(output_root, "AudioClip", "vector", str(uuid.uuid4())),
+                )
             )
-        )
-        files.append(
-            write_parquet(
-                derived_edges,
-                schema_for("DerivedFrom", "adj_list"),
-                edge_part_uri(output_root, "DerivedFrom", str(uuid.uuid4())),
+            files.append(
+                write_parquet(
+                    derived_edges,
+                    schema_for("DerivedFrom", "adj_list"),
+                    edge_part_uri(output_root, "DerivedFrom", str(uuid.uuid4())),
+                )
             )
-        )
-        timings["write_ms"] = round((time.monotonic() - write_start) * 1000.0, 2)
 
+        parquet_bytes_preview = sum(item.bytes_written for item in files)
+        bytes_raw_preview = source.size_bytes or 0
+        transcript_word_count_preview = sum(
+            len(segment.text.split()) for segment in segments if segment.text
+        )
+        raw_timings_preview = timer.summary()
+        stage_timings_preview = build_stage_timings(
+            raw_timings_preview,
+            {
+                "probe": "decode_ms",
+                "normalize": "decode_ms",
+                "read_audio": "decode_ms",
+                "vad": "vad_ms",
+                "audio_embed": "embed_audio_ms",
+                "transcribe": "transcribe_ms",
+                "text_embed": "embed_text_ms",
+                "write_parquet": "write_parquet_ms",
+                "write_manifest": "write_manifest_ms",
+            },
+        )
+        manifest_metrics = manifest_metrics_subset(
+            {
+                "io": {
+                    "bytes_raw": bytes_raw_preview,
+                    "bytes_parquet": parquet_bytes_preview,
+                    "bytes_derived": parquet_bytes_preview,
+                },
+                "quality": {
+                    "transcript_status": transcript_status,
+                    "transcript_model_tier": transcript_model_tier,
+                    "transcript_word_count": transcript_word_count_preview,
+                    "transcript_segment_count": len(transcript_core_rows),
+                    "normalize_skipped": normalize_skipped,
+                    "audio_duration_ms": audio_duration_ms,
+                    "extracted_audio_duration_ms": extracted_audio_duration_ms,
+                    "trimmed_silence_ms": trimmed_silence_ms,
+                    "transcribed_ms": transcribed_ms,
+                    "transcript_language": transcript_language,
+                    "transcript_error_reason": transcript_error_reason,
+                },
+                "embeddings": {
+                    "audio": {
+                        "count": 1,
+                        "dims": 512,
+                    },
+                    "text": {
+                        "count": len(transcript_core_rows),
+                        "dims": 768,
+                    },
+                },
+                "evidence": {
+                    "frames": 0,
+                    "snippets": 0,
+                    "segments": len(transcript_core_rows),
+                },
+                "stage_timings_ms": stage_timings_preview,
+            }
+        )
         completed_at = datetime.now(timezone.utc)
         run_id = str(uuid.uuid4())
-        manifest_start = time.monotonic()
-        manifest = build_manifest(
-            pipeline_version=pipeline_version,
-            schema_version=schema_version,
-            counts={
-                "MediaAsset": 1,
-                "Transcript": len(transcript_core_rows),
-                "AudioClip": 1,
-                "DerivedFrom": len(derived_edges),
-                "NextTranscript": len(next_edges),
+        with timer.track("write_manifest"):
+            manifest = build_manifest(
+                pipeline_version=pipeline_version,
+                schema_version=schema_version,
+                counts={
+                    "MediaAsset": 1,
+                    "Transcript": len(transcript_core_rows),
+                    "AudioClip": 1,
+                    "DerivedFrom": len(derived_edges),
+                    "NextTranscript": len(next_edges),
+                },
+                files=files,
+                started_at=started_at,
+                completed_at=completed_at,
+                metrics=manifest_metrics,
+            )
+            manifest_path = manifest_uri(output_root, run_id)
+            write_manifest(manifest, manifest_path)
+
+        parquet_bytes = sum(item.bytes_written for item in files)
+        bytes_raw = source.size_bytes or 0
+        transcript_word_count = sum(
+            len(segment.text.split()) for segment in segments if segment.text
+        )
+        raw_timings = timer.summary()
+        stage_timings_ms = build_stage_timings(
+            raw_timings,
+            {
+                "probe": "decode_ms",
+                "normalize": "decode_ms",
+                "read_audio": "decode_ms",
+                "vad": "vad_ms",
+                "audio_embed": "embed_audio_ms",
+                "transcribe": "transcribe_ms",
+                "text_embed": "embed_text_ms",
+                "write_parquet": "write_parquet_ms",
+                "write_manifest": "write_manifest_ms",
             },
-            files=files,
-            started_at=started_at,
-            completed_at=completed_at,
         )
-        manifest_path = manifest_uri(output_root, run_id)
-        write_manifest(manifest, manifest_path)
-        timings["manifest_ms"] = round(
-            (time.monotonic() - manifest_start) * 1000.0, 2
-        )
+        metrics = {
+            "timings_ms": raw_timings,
+            "stage_timings_ms": stage_timings_ms,
+            "pipe_ms": round(sum(stage_timings_ms.values()), 2),
+            "model_calls": calls.summary(),
+            "io": {
+                "bytes_raw": bytes_raw,
+                "bytes_parquet": parquet_bytes,
+                "bytes_derived": parquet_bytes,
+            },
+                "quality": {
+                    "transcript_status": transcript_status,
+                    "transcript_model_tier": transcript_model_tier,
+                    "transcript_word_count": transcript_word_count,
+                    "transcript_segment_count": len(transcript_core_rows),
+                    "normalize_skipped": normalize_skipped,
+                    "audio_duration_ms": audio_duration_ms,
+                    "extracted_audio_duration_ms": extracted_audio_duration_ms,
+                "trimmed_silence_ms": trimmed_silence_ms,
+                "transcribed_ms": transcribed_ms,
+                "transcript_language": transcript_language,
+                "transcript_error_reason": transcript_error_reason,
+            },
+            "embeddings": {
+                "audio": {
+                    "count": 1,
+                    "dims": 512,
+                },
+                "text": {
+                    "count": len(transcript_core_rows),
+                    "dims": 768,
+                },
+            },
+            "evidence": {
+                "frames": 0,
+                "snippets": 0,
+                "segments": len(transcript_core_rows),
+            },
+        }
 
         if config.audio_profile:
-            timings["media_asset_id"] = media_asset_id
-            timings["duration_ms"] = duration_ms
-            timings["segments"] = len(segments)
-            timings["total_ms"] = round(
+            profile = timer.summary()
+            profile["media_asset_id"] = media_asset_id
+            profile["duration_ms"] = duration_ms
+            profile["segments"] = len(segments)
+            profile["total_ms"] = round(
                 (time.monotonic() - pipeline_start) * 1000.0,
                 2,
             )
-            logger.info("Audio pipeline profile", extra=timings)
+            logger.info("Audio pipeline profile", extra=profile)
 
         return PipelineResult(
             counts={
@@ -328,6 +508,7 @@ def ingest_audio(
             manifest_uri=manifest_path,
             media_asset_id=media_asset_id,
             duration_ms=duration_ms,
+            metrics=metrics,
         )
     finally:
         if normalized_path != source.local_path:

@@ -5,6 +5,7 @@ import json
 import os
 import shutil
 import time
+import urllib.request
 from dataclasses import dataclass, replace
 from datetime import datetime, timezone
 from pathlib import Path
@@ -47,8 +48,28 @@ class IndexBuildReport:
     manifest_count: int
     duckdb_version: str
     file_size_bytes: int
+    rows_added: int | None = None
+    total_rows: int | None = None
+    percent_changed: float | None = None
+    rows_added_by_table: dict[str, int] | None = None
+    snapshot_download_seconds: float | None = None
+    snapshot_upload_seconds: float | None = None
+    snapshot_report_upload_seconds: float | None = None
+    load_snapshot_seconds: float | None = None
+    apply_deltas_seconds: float | None = None
+    build_vectors_seconds: float | None = None
+    hnsw_build_seconds: float | None = None
+    write_snapshot_seconds: float | None = None
+    upload_seconds: float | None = None
+    compaction_manifest_count: int | None = None
+    latest_compaction_duration_seconds: float | None = None
     manifest_uris: list[str] | None = None
     new_manifest_count: int | None = None
+    index_size_delta_bytes: int | None = None
+    vectors_added: int | None = None
+    total_vectors: int | None = None
+    snapshot_manifest_count: int | None = None
+    index_queue_length: int | None = None
     skipped: bool = False
 
 
@@ -130,6 +151,69 @@ def _manifest_fingerprint(entries: Iterable[ManifestEntry]) -> str | None:
     if not parts:
         return None
     return hashlib.sha256("\n".join(parts).encode("utf-8")).hexdigest()
+
+
+_TABLE_BY_VERTEX: dict[str, str] = {
+    "DocChunk": "doc_chunks",
+    "Transcript": "transcripts",
+    "ImageAsset": "image_assets",
+    "AudioClip": "audio_clips",
+    "MediaAsset": "media_assets",
+}
+
+
+def _rows_added_by_table(manifest_uris: Iterable[str]) -> dict[str, int]:
+    rows_by_table: dict[str, int] = {}
+    for uri in manifest_uris:
+        manifest = _read_manifest(uri)
+        files = manifest.get("files")
+        if not isinstance(files, list):
+            continue
+        for item in files:
+            if not isinstance(item, dict):
+                continue
+            file_uri = item.get("uri")
+            if not file_uri:
+                continue
+            info = _vertex_kind_from_uri(str(file_uri))
+            if not info:
+                continue
+            vertex_type, file_kind = info
+            if file_kind != "core":
+                continue
+            table = _TABLE_BY_VERTEX.get(vertex_type)
+            if not table:
+                continue
+            rows = item.get("rows")
+            if rows is None:
+                continue
+            try:
+                rows_value = int(rows)
+            except (TypeError, ValueError):
+                continue
+            rows_by_table[table] = rows_by_table.get(table, 0) + rows_value
+    return rows_by_table
+
+
+def _compaction_metrics(
+    manifest_uris: Iterable[str],
+) -> tuple[int, float | None]:
+    count = 0
+    latest_completed: datetime | None = None
+    latest_duration: float | None = None
+    for uri in manifest_uris:
+        run_id = _run_id_from_manifest_uri(uri)
+        if not run_id.startswith("compaction-"):
+            continue
+        count += 1
+        manifest = _read_manifest(uri)
+        started_at = _parse_iso(str(manifest.get("started_at") or ""))
+        completed_at = _parse_iso(str(manifest.get("completed_at") or ""))
+        duration = max(0.0, (completed_at - started_at).total_seconds())
+        if latest_completed is None or completed_at > latest_completed:
+            latest_completed = completed_at
+            latest_duration = duration
+    return count, latest_duration
 
 
 def _select_manifest_entries(
@@ -521,6 +605,21 @@ def _read_snapshot_report(snapshot_uri: str) -> dict[str, Any] | None:
     return payload if isinstance(payload, dict) else None
 
 
+def _snapshot_manifest_count_from_report(payload: dict[str, Any]) -> int | None:
+    value = payload.get("snapshot_manifest_count")
+    if value is None:
+        value = payload.get("manifest_count")
+    if value is not None:
+        try:
+            return int(value)
+        except (TypeError, ValueError):
+            pass
+    uris = payload.get("manifest_uris")
+    if isinstance(uris, list):
+        return len(uris)
+    return None
+
+
 def _report_from_existing(
     payload: dict[str, Any],
     *,
@@ -529,6 +628,10 @@ def _report_from_existing(
     manifest_fingerprint: str | None,
     manifest_count: int,
 ) -> IndexBuildReport:
+    snapshot_manifest_count = _snapshot_manifest_count_from_report(payload)
+    index_queue_length = None
+    if snapshot_manifest_count is not None:
+        index_queue_length = max(0, manifest_count - snapshot_manifest_count)
     return IndexBuildReport(
         graph_uri=str(payload.get("graph_uri") or graph_uri),
         snapshot_uri=str(payload.get("snapshot_uri") or snapshot_uri),
@@ -543,8 +646,28 @@ def _report_from_existing(
         manifest_count=manifest_count or int(payload.get("manifest_count") or 0),
         duckdb_version=str(payload.get("duckdb_version") or duckdb.__version__),
         file_size_bytes=int(payload.get("file_size_bytes") or 0),
+        rows_added=payload.get("rows_added"),
+        total_rows=payload.get("total_rows"),
+        percent_changed=payload.get("percent_changed"),
+        rows_added_by_table=payload.get("rows_added_by_table"),
+        snapshot_download_seconds=payload.get("snapshot_download_seconds"),
+        snapshot_upload_seconds=payload.get("snapshot_upload_seconds"),
+        snapshot_report_upload_seconds=payload.get("snapshot_report_upload_seconds"),
+        load_snapshot_seconds=payload.get("load_snapshot_seconds"),
+        apply_deltas_seconds=payload.get("apply_deltas_seconds"),
+        build_vectors_seconds=payload.get("build_vectors_seconds"),
+        hnsw_build_seconds=payload.get("hnsw_build_seconds"),
+        write_snapshot_seconds=payload.get("write_snapshot_seconds"),
+        upload_seconds=payload.get("upload_seconds"),
+        compaction_manifest_count=payload.get("compaction_manifest_count"),
+        latest_compaction_duration_seconds=payload.get("latest_compaction_duration_seconds"),
         manifest_uris=payload.get("manifest_uris"),
         new_manifest_count=payload.get("new_manifest_count"),
+        index_size_delta_bytes=payload.get("index_size_delta_bytes"),
+        vectors_added=payload.get("vectors_added"),
+        total_vectors=payload.get("total_vectors"),
+        snapshot_manifest_count=snapshot_manifest_count,
+        index_queue_length=index_queue_length,
         skipped=True,
     )
 
@@ -691,6 +814,7 @@ def build_snapshot(
     use_latest_compaction: bool = False,
     incremental: bool = False,
     incremental_max_new_manifests: int | None = None,
+    incremental_min_new_manifests: int | None = None,
     skip_missing_files: bool = False,
 ) -> IndexBuildReport:
     start = time.time()
@@ -725,6 +849,12 @@ def build_snapshot(
             use_latest_compaction=use_latest_compaction,
             skip_missing_files=skip_missing_files,
         )
+        snapshot_manifest_count = None
+        index_queue_length = None
+        if prior_report:
+            snapshot_manifest_count = _snapshot_manifest_count_from_report(prior_report)
+            if snapshot_manifest_count is not None:
+                index_queue_length = max(0, manifest_count - snapshot_manifest_count)
         if skip_if_unchanged and manifest_fingerprint and prior_report:
             if prior_report.get("manifest_fingerprint") == manifest_fingerprint:
                 logger.info(
@@ -773,6 +903,34 @@ def build_snapshot(
                     )
                     return (replace(report, manifest_uris=manifest_uris, new_manifest_count=0), "")
                 if (
+                    incremental_min_new_manifests is not None
+                    and incremental_min_new_manifests > 0
+                    and new_manifest_count < incremental_min_new_manifests
+                ):
+                    logger.info(
+                        "Index build deferred; new manifests below minimum.",
+                        extra={
+                            "new_manifest_count": new_manifest_count,
+                            "min_new_manifests": incremental_min_new_manifests,
+                            "manifest_count": manifest_count,
+                        },
+                    )
+                    report = _report_from_existing(
+                        prior_report,
+                        graph_uri=base_uri,
+                        snapshot_uri=snapshot_uri,
+                        manifest_fingerprint=manifest_fingerprint,
+                        manifest_count=manifest_count,
+                    )
+                    return (
+                        replace(
+                            report,
+                            manifest_uris=manifest_uris,
+                            new_manifest_count=new_manifest_count,
+                        ),
+                        "",
+                    )
+                if (
                     incremental_max_new_manifests is not None
                     and incremental_max_new_manifests > 0
                     and new_manifest_count > incremental_max_new_manifests
@@ -788,8 +946,14 @@ def build_snapshot(
                     new_manifest_count = None
 
         base_snapshot_path: str | None = None
+        snapshot_download_seconds: float | None = None
+        load_snapshot_seconds: float | None = None
+        load_snapshot_start: float | None = None
         if new_manifest_uris:
+            load_snapshot_start = time.monotonic()
+            download_start = time.monotonic()
             base_snapshot_path = _download_snapshot(snapshot_uri, work_dir)
+            snapshot_download_seconds = round(time.monotonic() - download_start, 2)
             if not base_snapshot_path:
                 logger.warning("Incremental index build disabled; base snapshot missing.")
                 new_manifest_uris = None
@@ -813,6 +977,8 @@ def build_snapshot(
         conn = duckdb.connect(str(db_path))
         if base_snapshot_path:
             conn.execute(f"ATTACH '{base_snapshot_path}' AS base (READ_ONLY)")
+            if load_snapshot_start is not None:
+                load_snapshot_seconds = round(time.monotonic() - load_snapshot_start, 2)
         incremental_mode = base_snapshot_path is not None
         settings = _apply_duckdb_settings(conn, work_dir)
         if settings:
@@ -826,6 +992,7 @@ def build_snapshot(
         auth_path, fallback_used = provider.configure(conn, context)
         conn.execute("SET hnsw_enable_experimental_persistence=true")
 
+        apply_deltas_start = time.monotonic()
         sources = _table_sources(base_uri)
         if not has_manifests:
             if any(
@@ -1365,6 +1532,7 @@ def build_snapshot(
         tables["audio_clips"] = {"rows": audio_rows}
 
         conn.execute("CHECKPOINT")
+        apply_deltas_seconds = round(time.monotonic() - apply_deltas_start, 2)
 
         index_specs = [
             ("doc_chunks_text_vector", "doc_chunks", "text_vector"),
@@ -1375,22 +1543,57 @@ def build_snapshot(
 
         indexes: dict[str, dict[str, Any]] = {}
         prev_size = _file_size_bytes(str(db_path))
+        build_vectors_start = time.monotonic()
+        hnsw_build_seconds = 0.0
+        index_size_delta_bytes = 0
 
         for index_name, table, column in index_specs:
+            index_start = time.monotonic()
             conn.execute(
                 f"CREATE INDEX {index_name} ON {table} USING HNSW ({column})"
             )
             conn.execute("CHECKPOINT")
+            index_seconds = round(time.monotonic() - index_start, 2)
             new_size = _file_size_bytes(str(db_path))
+            size_delta = max(0, new_size - prev_size)
             indexes[index_name] = {
                 "table": table,
                 "column": column,
-                "size_bytes": max(0, new_size - prev_size),
+                "size_bytes": size_delta,
+                "build_seconds": index_seconds,
             }
+            hnsw_build_seconds += index_seconds
+            index_size_delta_bytes += size_delta
             prev_size = new_size
 
+        build_vectors_seconds = round(time.monotonic() - build_vectors_start, 2)
+
+        write_snapshot_start = time.monotonic()
         conn.execute("CHECKPOINT")
         conn.close()
+        write_snapshot_seconds = round(time.monotonic() - write_snapshot_start, 2)
+
+        rows_added_by_table = _rows_added_by_table(new_manifest_uris or manifest_uris)
+        if not rows_added_by_table:
+            rows_added_by_table = {
+                table: int(info.get("rows") or 0) for table, info in tables.items()
+            }
+        rows_added = sum(rows_added_by_table.values())
+        total_rows = sum(int(info.get("rows") or 0) for info in tables.values())
+        percent_changed = (
+            round((rows_added / total_rows) * 100.0, 2) if total_rows else 0.0
+        )
+        vector_tables = ("doc_chunks", "transcripts", "image_assets", "audio_clips")
+        total_vectors = sum(
+            int(tables.get(table, {}).get("rows") or 0) for table in vector_tables
+        )
+        vectors_added = None
+        if rows_added_by_table:
+            vectors_added = sum(
+                int(rows_added_by_table.get(table, 0) or 0)
+                for table in vector_tables
+            )
+        compaction_count, latest_compaction_duration = _compaction_metrics(manifest_uris)
 
         report = IndexBuildReport(
             graph_uri=base_uri,
@@ -1404,8 +1607,25 @@ def build_snapshot(
             manifest_count=manifest_count,
             duckdb_version=duckdb.__version__,
             file_size_bytes=_file_size_bytes(str(db_path)),
+            rows_added=rows_added,
+            total_rows=total_rows,
+            percent_changed=percent_changed,
+            rows_added_by_table=rows_added_by_table,
+            snapshot_download_seconds=snapshot_download_seconds,
+            load_snapshot_seconds=load_snapshot_seconds,
+            apply_deltas_seconds=apply_deltas_seconds,
+            build_vectors_seconds=build_vectors_seconds,
+            hnsw_build_seconds=round(hnsw_build_seconds, 2),
+            write_snapshot_seconds=write_snapshot_seconds,
+            compaction_manifest_count=compaction_count,
+            latest_compaction_duration_seconds=latest_compaction_duration,
             manifest_uris=manifest_uris,
             new_manifest_count=new_manifest_count,
+            index_size_delta_bytes=index_size_delta_bytes,
+            vectors_added=vectors_added,
+            total_vectors=total_vectors,
+            snapshot_manifest_count=snapshot_manifest_count,
+            index_queue_length=index_queue_length,
         )
         logger.info(
             "DuckDB auth initialized",
@@ -1445,7 +1665,24 @@ def build_snapshot(
         return report
     _write_report(report, report_path)
 
+    snapshot_upload_start = time.monotonic()
     _upload_file(str(db_path), snapshot_uri)
+    snapshot_upload_seconds = round(time.monotonic() - snapshot_upload_start, 2)
+    report = replace(
+        report,
+        snapshot_upload_seconds=snapshot_upload_seconds,
+        upload_seconds=snapshot_upload_seconds,
+    )
+    _write_report(report, report_path)
+
+    report_upload_start = time.monotonic()
+    _upload_file(report_path, f"{snapshot_uri}.json")
+    snapshot_report_upload_seconds = round(time.monotonic() - report_upload_start, 2)
+    report = replace(
+        report,
+        snapshot_report_upload_seconds=snapshot_report_upload_seconds,
+    )
+    _write_report(report, report_path)
     _upload_file(report_path, f"{snapshot_uri}.json")
 
     logger.info(
@@ -1457,6 +1694,8 @@ def build_snapshot(
             "indexes": report.indexes,
             "manifest_count": report.manifest_count,
             "new_manifest_count": report.new_manifest_count,
+            "snapshot_upload_seconds": report.snapshot_upload_seconds,
+            "snapshot_report_upload_seconds": report.snapshot_report_upload_seconds,
         },
     )
 
@@ -1496,6 +1735,10 @@ def _config_from_env() -> dict[str, Any]:
     incremental_max_value: int | None = None
     if incremental_max and incremental_max.isdigit():
         incremental_max_value = int(incremental_max)
+    incremental_min = os.getenv("INDEX_BUILDER_MIN_NEW_MANIFESTS")
+    incremental_min_value: int | None = None
+    if incremental_min and incremental_min.isdigit():
+        incremental_min_value = int(incremental_min)
     return {
         "graph_uri": graph_uri,
         "snapshot_uri": snapshot_uri,
@@ -1508,9 +1751,62 @@ def _config_from_env() -> dict[str, Any]:
         == "1",
         "incremental": os.getenv("INDEX_BUILDER_INCREMENTAL", "0") == "1",
         "incremental_max_new_manifests": incremental_max_value,
+        "incremental_min_new_manifests": incremental_min_value,
         "skip_missing_files": os.getenv("INDEX_BUILDER_SKIP_MISSING_FILES", "0")
         == "1",
     }
+
+
+def _reload_snapshot_if_requested(report: IndexBuildReport) -> None:
+    if os.getenv("INDEX_BUILDER_RELOAD_SNAPSHOT", "0") != "1":
+        return
+    query_url = os.getenv("QUERY_SERVICE_URL", "").strip()
+    if not query_url:
+        logger.warning("Snapshot reload skipped; QUERY_SERVICE_URL not set.")
+        return
+    try:
+        from google.auth.transport import requests as google_requests
+        from google.oauth2 import id_token as google_id_token
+    except Exception as exc:
+        logger.warning(
+            "Snapshot reload skipped; google-auth unavailable.",
+            extra={"error_message": str(exc)},
+        )
+        return
+    try:
+        req = google_requests.Request()
+        token = google_id_token.fetch_id_token(req, query_url)
+    except Exception as exc:
+        logger.warning(
+            "Snapshot reload skipped; failed to fetch ID token.",
+            extra={"error_message": str(exc)},
+        )
+        return
+    if not token:
+        logger.warning("Snapshot reload skipped; empty ID token.")
+        return
+    reload_url = f"{query_url.rstrip('/')}/admin/reload-snapshot"
+    request = urllib.request.Request(
+        reload_url,
+        method="POST",
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    try:
+        with urllib.request.urlopen(request, timeout=30) as resp:
+            resp.read()
+        logger.info(
+            "Snapshot reload requested.",
+            extra={
+                "query_url": query_url,
+                "snapshot_uri": report.snapshot_uri,
+                "manifest_count": report.manifest_count,
+            },
+        )
+    except Exception as exc:
+        logger.warning(
+            "Snapshot reload failed.",
+            extra={"query_url": query_url, "error_message": str(exc)},
+        )
 
 
 def main() -> None:
@@ -1520,7 +1816,8 @@ def main() -> None:
         version=os.getenv("RETIKON_VERSION"),
     )
     config = _config_from_env()
-    build_snapshot(**config)
+    report = build_snapshot(**config)
+    _reload_snapshot_if_requested(report)
 
 
 if __name__ == "__main__":

@@ -22,6 +22,10 @@ def _is_uuid4(value: str) -> bool:
 
 
 def test_audio_pipeline_writes_graphar(tmp_path, monkeypatch):
+    from retikon_core import config as config_module
+
+    monkeypatch.setenv("AUDIO_VAD_ENABLED", "0")
+    config_module.get_config.cache_clear()
     config = get_config()
     fixture = Path("tests/fixtures/sample.wav")
 
@@ -131,7 +135,7 @@ def test_audio_pipeline_empty_transcript_skips_embeddings(tmp_path, monkeypatch)
         "normalize_audio",
         lambda _path, sample_rate=48000: str(fixture),
     )
-    monkeypatch.setattr(audio_pipeline, "transcribe_audio", lambda *_: [])
+    monkeypatch.setattr(audio_pipeline, "transcribe_audio", lambda *_, **__: [])
     monkeypatch.setattr(audio_pipeline, "get_text_embedder", raise_embedder)
 
     source = IngestSource(
@@ -160,6 +164,7 @@ def test_audio_pipeline_empty_transcript_skips_embeddings(tmp_path, monkeypatch)
 def test_audio_pipeline_respects_max_segments(tmp_path, monkeypatch):
     from retikon_core import config as config_module
 
+    monkeypatch.setenv("AUDIO_VAD_ENABLED", "0")
     monkeypatch.setenv("AUDIO_MAX_SEGMENTS", "1")
     config_module.get_config.cache_clear()
     config = config_module.get_config()
@@ -205,7 +210,7 @@ def test_audio_pipeline_respects_max_segments(tmp_path, monkeypatch):
         "normalize_audio",
         lambda _path, sample_rate=48000: str(fixture),
     )
-    monkeypatch.setattr(audio_pipeline, "transcribe_audio", lambda *_: segments)
+    monkeypatch.setattr(audio_pipeline, "transcribe_audio", lambda *_, **__: segments)
 
     source = IngestSource(
         bucket="test-raw",
@@ -355,6 +360,10 @@ def test_audio_corrupt_file(monkeypatch):
 
 
 def test_video_pipeline_writes_graphar(tmp_path, monkeypatch):
+    from retikon_core import config as config_module
+
+    monkeypatch.setenv("AUDIO_VAD_ENABLED", "0")
+    config_module.get_config.cache_clear()
     config = get_config()
     video_fixture = Path("tests/fixtures/sample.mp4")
     frame_fixture = Path("tests/fixtures/sample.jpg")
@@ -492,7 +501,7 @@ def test_video_pipeline_empty_transcript_skips_embeddings(tmp_path, monkeypatch)
         lambda _path, sample_rate=48000: str(audio_fixture),
     )
     monkeypatch.setattr(video_pipeline, "cleanup_tmp", lambda _path: None)
-    monkeypatch.setattr(video_pipeline, "transcribe_audio", lambda *_: [])
+    monkeypatch.setattr(video_pipeline, "transcribe_audio", lambda *_, **__: [])
     monkeypatch.setattr(video_pipeline, "get_text_embedder", raise_embedder)
 
     source = IngestSource(

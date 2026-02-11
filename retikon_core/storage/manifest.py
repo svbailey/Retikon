@@ -27,6 +27,7 @@ def build_manifest(
     files: Iterable[WriteResult],
     started_at: datetime,
     completed_at: datetime,
+    metrics: dict[str, object] | None = None,
 ) -> dict[str, object]:
     manifest_files = [
         ManifestFile(
@@ -37,7 +38,7 @@ def build_manifest(
         )
         for item in files
     ]
-    return {
+    payload: dict[str, object] = {
         "pipeline_version": pipeline_version,
         "schema_version": schema_version,
         "started_at": started_at.astimezone(timezone.utc).isoformat(),
@@ -45,6 +46,9 @@ def build_manifest(
         "counts": counts,
         "files": [asdict(item) for item in manifest_files],
     }
+    if metrics:
+        payload["metrics"] = metrics
+    return payload
 
 
 def write_manifest(manifest: dict[str, object], dest_uri: str) -> None:
@@ -58,3 +62,14 @@ def write_manifest(manifest: dict[str, object], dest_uri: str) -> None:
     fs.makedirs("/".join(path.split("/")[:-1]), exist_ok=True)
     with fs.open(path, "wb") as handle:
         handle.write(payload)
+
+
+def manifest_metrics_subset(metrics: dict[str, object] | None) -> dict[str, object]:
+    if not metrics:
+        return {}
+    subset: dict[str, object] = {}
+    for key in ("io", "quality", "embeddings", "evidence", "stage_timings_ms"):
+        value = metrics.get(key)
+        if value is not None:
+            subset[key] = value
+    return subset
