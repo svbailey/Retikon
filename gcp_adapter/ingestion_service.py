@@ -198,6 +198,27 @@ def _media_delegate_modalities() -> set[str]:
     return {item.strip() for item in raw.split(",") if item.strip()}
 
 
+def _media_embed_delegate_url() -> str | None:
+    raw = os.getenv("INGEST_MEDIA_EMBED_URL", "").strip()
+    if not raw:
+        return None
+    if raw.endswith("/ingest"):
+        return raw
+    return raw.rstrip("/") + "/ingest"
+
+
+def _media_embed_delegate_topic() -> str | None:
+    raw = os.getenv("INGEST_MEDIA_EMBED_TOPIC", "").strip()
+    return raw or None
+
+
+def _media_embed_delegate_modalities() -> set[str]:
+    raw = os.getenv("INGEST_MEDIA_EMBED_MODALITIES", "").strip()
+    if not raw:
+        return set()
+    return {item.strip() for item in raw.split(",") if item.strip()}
+
+
 def _fetch_id_token(audience: str) -> str | None:
     env = os.getenv("ENV", "dev").lower()
     if env in {"dev", "local", "test"}:
@@ -412,7 +433,13 @@ def _warm_ingest_models() -> None:
         return
     warmup_start = time.monotonic()
     allowed = _allowed_modalities()
-    audio_transcribe_enabled = os.getenv("AUDIO_TRANSCRIBE", "1") == "1"
+    transcribe_enabled = os.getenv("TRANSCRIBE_ENABLED", "1") == "1"
+    transcribe_tier = os.getenv("TRANSCRIBE_TIER", "accurate").strip().lower()
+    audio_transcribe_enabled = (
+        transcribe_enabled
+        and os.getenv("AUDIO_TRANSCRIBE", "1") == "1"
+        and transcribe_tier != "off"
+    )
     warm_audio = _warmup_audio_enabled() and (
         allowed is None or "audio" in allowed or "video" in allowed
     )
@@ -579,7 +606,7 @@ async def ingest_status(
                 action="ingest.status.read",
                 decision="allow",
                 auth_context=auth_context,
-                scope=auth_context.scope if auth_context else _default_scope(config),
+                scope=auth_context.scope if (auth_context and auth_context.scope) else _default_scope(config),
                 resource=request.url.path,
                 request_id=trace_id,
                 pipeline_version=os.getenv("RETIKON_VERSION", "dev"),
@@ -650,7 +677,7 @@ async def ingest(
                 action=ACTION_INGEST,
                 decision="allow",
                 auth_context=auth_context,
-                scope=auth_context.scope if auth_context else _default_scope(config),
+                scope=auth_context.scope if (auth_context and auth_context.scope) else _default_scope(config),
                 resource=request.url.path,
                 request_id=trace_id,
                 pipeline_version=os.getenv("RETIKON_VERSION", "dev"),
@@ -680,6 +707,42 @@ async def ingest(
     delegate_url = _media_delegate_url()
     delegate_topic = _media_delegate_topic()
     delegate_modalities = _media_delegate_modalities()
+    embed_url = _media_embed_delegate_url()
+    embed_topic = _media_embed_delegate_topic()
+    embed_modalities = _media_embed_delegate_modalities()
+    if embed_modalities and modality in embed_modalities:
+        if embed_topic:
+            logger.info(
+                "Queueing ingest to embed-only media topic",
+                extra={
+                    "request_id": trace_id,
+                    "correlation_id": request.state.correlation_id,
+                    "modality": modality,
+                    "topic": embed_topic,
+                },
+            )
+            return _publish_media_ingest(
+                topic=embed_topic,
+                payload=cloudevent_payload,
+                trace_id=trace_id,
+                correlation_id=request.state.correlation_id,
+                modality=modality,
+            )
+        if embed_url:
+            logger.info(
+                "Delegating ingest to embed-only media service",
+                extra={
+                    "request_id": trace_id,
+                    "correlation_id": request.state.correlation_id,
+                    "modality": modality,
+                },
+            )
+            return _delegate_media_ingest(
+                url=embed_url,
+                payload=cloudevent_payload,
+                trace_id=trace_id,
+                correlation_id=request.state.correlation_id,
+            )
     if modality in delegate_modalities:
         if delegate_topic:
             logger.info(
@@ -717,7 +780,7 @@ async def ingest(
     if allowed is not None and modality not in allowed:
         raise HTTPException(status_code=400, detail="Modality not allowed")
     cold_start = _consume_cold_start()
-    scope = auth_context.scope if auth_context else _default_scope(config)
+    scope = auth_context.scope if (auth_context and auth_context.scope) else _default_scope(config)
     scope_key = _scope_key(scope)
 
     if config.ingestion_dry_run:
@@ -803,7 +866,7 @@ async def ingest(
 
     try:
         try:
-            if _apply_checksum_dedupe(
+            if config.dedupe_cache_enabled and _apply_checksum_dedupe(
                 client=firestore_client,
                 collection=config.firestore_collection,
                 doc_id=decision.doc_id,
@@ -848,6 +911,7 @@ async def ingest(
             "cold_start": cold_start,
             "instance_id": _instance_id(),
         }
+        wall_ms = int((time.monotonic() - start_time) * 1000)
         idempotency.mark_completed(decision.doc_id)
         update_payload = {
             "manifest_uri": outcome.manifest_uri,
@@ -859,10 +923,18 @@ async def ingest(
         if outcome.duration_ms is not None:
             update_payload["object_duration_ms"] = outcome.duration_ms
         metrics_payload: dict[str, object] = {}
-        if outcome.metrics:
-            metrics_payload["pipeline"] = outcome.metrics
+        pipeline_metrics = outcome.metrics
+        if pipeline_metrics:
+            metrics_payload["pipeline"] = pipeline_metrics
+            stage_timings = pipeline_metrics.get("stage_timings_ms")
+            if isinstance(stage_timings, dict):
+                metrics_payload["stage_timings_ms"] = stage_timings
+            pipe_ms = pipeline_metrics.get("pipe_ms")
+            if isinstance(pipe_ms, (int, float)):
+                metrics_payload["pipe_ms"] = round(float(pipe_ms), 2)
         if queue_wait_ms is not None:
             metrics_payload["queue_wait_ms"] = queue_wait_ms
+        metrics_payload["wall_ms"] = wall_ms
         queue_depth_payload: dict[str, Any] = {}
         if inflight_snapshot:
             queue_depth_payload["inflight"] = inflight_snapshot
@@ -878,7 +950,7 @@ async def ingest(
         firestore_client.collection(config.firestore_collection).document(
             decision.doc_id
         ).update(update_payload)
-        duration_ms = int((time.monotonic() - start_time) * 1000)
+        duration_ms = wall_ms
         logger.info(
             "Ingest completed",
             extra={
@@ -897,7 +969,7 @@ async def ingest(
             },
         )
         if _metering_enabled():
-            scope = auth_context.scope if auth_context else _default_scope(config)
+            scope = auth_context.scope if (auth_context and auth_context.scope) else _default_scope(config)
             bytes_in = gcs_event.size if gcs_event.size is not None else 0
             try:
                 record_usage(

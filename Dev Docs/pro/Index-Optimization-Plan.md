@@ -27,6 +27,54 @@ Index SLOs:
 - Index build: duration_s p95 <= 60s for micro-batch size N (define N)
 - Freshness: index_queue_length p95 <= threshold (e.g., <= 50 pending manifests)
 
+## Phase 0 baseline pack (staging)
+
+Baseline run (staging): 2026-02-11
+- Run id: sla-20260211-131546
+- Bucket/prefix: retikon-raw-simitor-staging / raw_clean
+
+Docs p95 (baseline):
+- wall_ms: 2624
+- queue_wait_ms: 4600
+- pipe_ms: 1852
+- stage p95: embed_text_ms 751, write_parquet_ms 756, write_manifest_ms 171, finalize_ms 272
+
+Images p95 (baseline):
+- wall_ms: 11453
+- queue_wait_ms: 12756
+- pipe_ms: 10887
+- stage p95: embed_image_ms 9998, write_parquet_ms 559, write_blobs_ms 152, write_manifest_ms 144, decode_ms 78
+
+Stage SLO targets (p95, staging)
+Docs:
+- download_ms <= 150
+- decode_ms <= 100
+- embed_text_ms <= 600
+- write_parquet_ms <= 300
+- write_manifest_ms <= 120
+- write_blobs_ms <= 100
+- finalize_ms <= 120
+
+Images:
+- download_ms <= 300
+- decode_ms <= 150
+- embed_image_ms <= 7000
+- write_parquet_ms <= 400
+- write_blobs_ms <= 200
+- write_manifest_ms <= 120
+- finalize_ms <= 150
+
+Accuracy regression suite (docs/images)
+- Spec: Dev Docs/pro/Doc-Image-Accuracy-Regression.md
+- Run: `python scripts/load_test_ingest.py --source tests/fixtures --count 5 --poll`
+- Validate: `python scripts/report_ingest_baseline.py --project simitor --bucket retikon-raw-simitor-staging --raw-prefix raw_clean --run-id <run-id> --quality-check`
+ - Latest run (staging): acc-docimg-20260211-143101 (quality checks passed)
+
+Cost baseline capture + guardrails
+- Tooling: `python scripts/report_ingest_baseline.py --project simitor --bucket retikon-raw-simitor-staging --raw-prefix raw_clean --run-id <run-id>`
+- Record baselines in Dev Docs/pro/Cost-Estimates.md (doc/image cpu_s, memory_peak_kb, bytes_derived).
+- Guardrails: p95 cpu_s <= 1.5x baseline, p95 bytes_derived <= 2.0x baseline.
+
 ## Canonical status taxonomy
 
 transcript_status enum:

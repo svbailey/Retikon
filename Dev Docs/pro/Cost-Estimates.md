@@ -29,6 +29,23 @@ Notes:
 - These are end-to-end completion times, not pure CPU time. Use them as a
   conservative envelope when estimating costs and capacity.
 
+## Doc/Image ingest baseline (staging, 2026-02-11)
+
+Run id: `sla-20260211-131546`
+
+Docs:
+- cpu_s p50 0.965, p95 1.307
+- memory_peak_kb p50 1,209,172 (~1.15 GiB), p95 1,216,244 (~1.16 GiB)
+- bytes_derived p50 20,455, p95 20,462
+
+Images:
+- cpu_s p50 9.62, p95 10.106
+- memory_peak_kb p50 1,769,574 (~1.69 GiB), p95 1,789,883 (~1.71 GiB)
+- bytes_derived p50 20,015, p95 20,018
+
+Source:
+- `python scripts/report_ingest_baseline.py --project simitor --bucket retikon-raw-simitor-staging --raw-prefix raw_clean --run-id sla-20260211-131546 --modalities docs,images`
+
 ## Guardrails that cap cost growth
 
 - `MAX_RAW_BYTES=500000000` (per object)

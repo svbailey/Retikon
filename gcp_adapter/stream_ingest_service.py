@@ -2,12 +2,14 @@ import asyncio
 import contextlib
 import json
 import os
+import time
 import uuid
 from datetime import datetime, timedelta, timezone
 from typing import Any
 
 from fastapi import FastAPI, Header, HTTPException, Request
 from google.cloud import firestore
+from google.cloud import storage
 from pydantic import BaseModel
 
 from gcp_adapter.dlq_pubsub import PubSubDlqPublisher
@@ -176,6 +178,28 @@ def _apply_checksum_dedupe(
     return True
 
 
+def _storage_client() -> storage.Client:
+    return storage.Client()
+
+
+def _queue_wait_ms(bucket: str, name: str) -> float | None:
+    try:
+        blob = _storage_client().bucket(bucket).blob(name)
+        blob.reload()
+    except Exception as exc:
+        logger.warning(
+            "Queue wait lookup failed",
+            extra={"bucket": bucket, "name": name, "error_message": str(exc)},
+        )
+        return None
+    created_at = blob.time_created
+    if created_at is None:
+        return None
+    created_at = created_at.astimezone(timezone.utc)
+    now = datetime.now(timezone.utc)
+    return round((now - created_at).total_seconds() * 1000.0, 2)
+
+
 PIPELINE = _init_pipeline()
 
 
@@ -324,6 +348,7 @@ async def ingest_stream_push(request: Request) -> dict[str, Any]:
     processed = 0
     skipped = 0
     for event in events:
+        start_time = time.monotonic()
         scope_key = resolve_scope_key(event.org_id, event.site_id, event.stream_id)
         storage_event = event.to_storage_event()
         checksum = resolve_checksum(storage_event.md5_hash, storage_event.crc32c)
@@ -387,7 +412,7 @@ async def ingest_stream_push(request: Request) -> dict[str, Any]:
             continue
 
         try:
-            if _apply_checksum_dedupe(
+            if config.dedupe_cache_enabled and _apply_checksum_dedupe(
                 client=firestore_client,
                 collection=config.firestore_collection,
                 doc_id=decision.doc_id,
@@ -409,6 +434,27 @@ async def ingest_stream_push(request: Request) -> dict[str, Any]:
             }
             if outcome.duration_ms is not None:
                 update_payload["object_duration_ms"] = outcome.duration_ms
+            metrics_payload: dict[str, object] = {}
+            if outcome.metrics:
+                metrics_payload["pipeline"] = outcome.metrics
+                stage_timings = outcome.metrics.get("stage_timings_ms")
+                if isinstance(stage_timings, dict):
+                    metrics_payload["stage_timings_ms"] = stage_timings
+                pipe_ms = outcome.metrics.get("pipe_ms")
+                if isinstance(pipe_ms, (int, float)):
+                    metrics_payload["pipe_ms"] = round(float(pipe_ms), 2)
+            queue_wait_ms = _queue_wait_ms(
+                storage_event.bucket,
+                storage_event.name,
+            )
+            if queue_wait_ms is not None:
+                metrics_payload["queue_wait_ms"] = queue_wait_ms
+            metrics_payload["wall_ms"] = round(
+                (time.monotonic() - start_time) * 1000.0,
+                2,
+            )
+            if metrics_payload:
+                update_payload["metrics"] = metrics_payload
             firestore_client.collection(config.firestore_collection).document(
                 decision.doc_id
             ).update(update_payload)

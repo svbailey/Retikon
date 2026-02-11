@@ -4,12 +4,16 @@ from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 from typing import Any
 
+from google.cloud import storage
+import logging
+
 from google.cloud import firestore
 
 from retikon_core.errors import RecoverableError
 from retikon_core.ingestion.idempotency import IdempotencyDecision, build_doc_id
 
 _SCOPE_PLACEHOLDER = "-"
+logger = logging.getLogger(__name__)
 
 
 @dataclass(frozen=True)
@@ -211,12 +215,29 @@ def update_object_metadata(
         payload["object_size_bytes"] = size_bytes
     if duration_ms is not None:
         payload["object_duration_ms"] = duration_ms
-    if checksum:
-        payload["object_checksum"] = checksum
-        checksum_scope = resolve_checksum_scope(checksum, scope_key)
+    resolved_checksum = checksum
+    if not resolved_checksum:
+        try:
+            blob = storage.Client().bucket(bucket).blob(name)
+            blob.reload()
+            resolved_checksum = resolve_checksum(blob.md5_hash, blob.crc32c)
+            if content_type is None and blob.content_type:
+                payload["object_content_type"] = blob.content_type
+            if size_bytes is None and blob.size is not None:
+                payload["object_size_bytes"] = blob.size
+        except Exception as exc:
+            logger.warning(
+                "Failed to hydrate checksum metadata from GCS",
+                extra={"bucket": bucket, "name": name, "error_message": str(exc)},
+            )
+    if resolved_checksum:
+        payload["object_checksum"] = resolved_checksum
+        checksum_scope = resolve_checksum_scope(resolved_checksum, scope_key)
         if checksum_scope:
             payload["checksum_scope"] = checksum_scope
-    client.collection(collection).document(doc_id).update(payload)
+    # Use merge=True so metadata writes succeed even if the idempotency doc
+    # was not created yet (or was removed); this keeps dedupe reliable.
+    client.collection(collection).document(doc_id).set(payload, merge=True)
 
 
 def find_completed_by_checksum(

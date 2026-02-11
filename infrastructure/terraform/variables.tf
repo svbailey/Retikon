@@ -49,6 +49,21 @@ variable "ingestion_media_service_name" {
   default = "retikon-ingestion-media"
 }
 
+variable "ingestion_embed_enabled" {
+  type    = bool
+  default = false
+}
+
+variable "ingestion_embed_service_name" {
+  type    = string
+  default = "retikon-ingestion-embed"
+}
+
+variable "ingestion_embed_modalities" {
+  type    = string
+  default = ""
+}
+
 variable "query_service_name" {
   type    = string
   default = "retikon-query"
@@ -274,9 +289,44 @@ variable "ingestion_media_autoscale_enabled" {
   default = true
 }
 
+variable "ingestion_media_cpu_always_on" {
+  type    = bool
+  default = false
+}
+
 variable "ingestion_media_max_scale" {
   type    = number
   default = 10
+}
+
+variable "ingestion_embed_concurrency" {
+  type    = number
+  default = 1
+}
+
+variable "ingestion_embed_min_scale" {
+  type    = number
+  default = 0
+}
+
+variable "ingestion_embed_keep_warm_enabled" {
+  type    = bool
+  default = false
+}
+
+variable "ingestion_embed_autoscale_enabled" {
+  type    = bool
+  default = true
+}
+
+variable "ingestion_embed_cpu_always_on" {
+  type    = bool
+  default = false
+}
+
+variable "ingestion_embed_max_scale" {
+  type    = number
+  default = 5
 }
 
 variable "transcribe_tier" {
@@ -292,6 +342,11 @@ variable "transcribe_enabled" {
 variable "transcribe_max_ms" {
   type    = number
   default = 0
+}
+
+variable "dedupe_cache_enabled" {
+  type    = bool
+  default = true
 }
 
 variable "query_memory" {
@@ -1736,6 +1791,16 @@ variable "ingest_media_subscription_name" {
 variable "ingest_media_max_delivery_attempts" {
   type    = number
   default = 5
+}
+
+variable "ingest_embed_topic_name" {
+  type    = string
+  default = "retikon-ingest-embed"
+}
+
+variable "ingest_embed_subscription_name" {
+  type    = string
+  default = "retikon-ingest-embed-sub"
 }
 
 variable "workflow_queue_topic_name" {

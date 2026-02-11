@@ -9,6 +9,7 @@ Firestore (ingest) or the snapshot report JSON (index).
 Top-level fields:
 
 - `queue_wait_ms`: Time from GCS object creation to ingest start (ms).
+- `wall_ms`: Wall time from ingest start to completion (ms).
 - `queue_depth`: Inflight counts at ingest start (`inflight`, `inflight_total`).
 - `system.cpu_user_s`: CPU user seconds consumed during ingest.
 - `system.cpu_sys_s`: CPU system seconds consumed during ingest.
