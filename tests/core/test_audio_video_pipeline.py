@@ -7,7 +7,7 @@ import pytest
 
 from retikon_core.config import get_config
 from retikon_core.errors import PermanentError, RecoverableError
-from retikon_core.ingestion.media import FrameInfo
+from retikon_core.ingestion.media import AudioAnalysis, FrameInfo
 from retikon_core.ingestion.pipelines import audio as audio_pipeline
 from retikon_core.ingestion.pipelines import video as video_pipeline
 from retikon_core.ingestion.transcribe import TranscriptSegment
@@ -159,6 +159,170 @@ def test_audio_pipeline_empty_transcript_skips_embeddings(tmp_path, monkeypatch)
     )
 
     assert result.counts["Transcript"] == 0
+
+
+def test_audio_pipeline_vad_no_speech_skips_transcribe(tmp_path, monkeypatch):
+    from retikon_core import config as config_module
+
+    monkeypatch.setenv("AUDIO_VAD_ENABLED", "1")
+    monkeypatch.setenv("TRANSCRIBE_ENABLED", "1")
+    monkeypatch.setenv("TRANSCRIBE_TIER", "fast")
+    monkeypatch.setenv("AUDIO_TRANSCRIBE", "1")
+    config_module.get_config.cache_clear()
+    config = get_config()
+    fixture = Path("tests/fixtures/sample.wav")
+
+    def fake_probe(_path):
+        return type(
+            "Probe",
+            (),
+            {
+                "duration_seconds": 1.0,
+                "has_audio": True,
+                "has_video": False,
+                "audio_sample_rate": 48000,
+                "audio_channels": 1,
+                "video_width": None,
+                "video_height": None,
+                "frame_rate": None,
+                "frame_count": None,
+            },
+        )()
+
+    monkeypatch.setattr(audio_pipeline, "probe_media", fake_probe)
+    monkeypatch.setattr(
+        audio_pipeline,
+        "normalize_audio",
+        lambda _path, sample_rate=48000: str(fixture),
+    )
+    monkeypatch.setattr(
+        audio_pipeline,
+        "analyze_audio",
+        lambda *_args, **_kwargs: AudioAnalysis(
+            duration_ms=1000,
+            speech_ms=0,
+            silence_ms=1000,
+            has_speech=False,
+        ),
+    )
+    monkeypatch.setattr(
+        audio_pipeline,
+        "transcribe_audio",
+        lambda *_, **__: (_ for _ in ()).throw(
+            AssertionError("transcribe_audio should not run for no_speech")
+        ),
+    )
+
+    source = IngestSource(
+        bucket="test-raw",
+        name="raw/audio/sample.wav",
+        generation="1",
+        content_type="audio/wav",
+        size_bytes=fixture.stat().st_size,
+        md5_hash=None,
+        crc32c=None,
+        local_path=str(fixture),
+        uri_scheme="gs",
+    )
+
+    result = audio_pipeline.ingest_audio(
+        source=source,
+        config=config,
+        output_uri=tmp_path.as_posix(),
+        pipeline_version="v2.5",
+        schema_version="1",
+    )
+
+    quality = result.metrics["quality"]
+    assert quality["transcript_status"] == "no_speech"
+    assert quality["transcribed_ms"] == 0
+    assert 0 <= quality["transcribed_ms"] <= quality["extracted_audio_duration_ms"]
+    assert quality["extracted_audio_duration_ms"] <= quality["audio_duration_ms"]
+    assert result.metrics["stage_timings_ms"]["transcribe_ms"] == 0.0
+    assert "transcribe" not in result.metrics["model_calls"]
+
+
+def test_audio_pipeline_duration_fields_order(tmp_path, monkeypatch):
+    from retikon_core import config as config_module
+
+    monkeypatch.setenv("AUDIO_VAD_ENABLED", "1")
+    monkeypatch.setenv("TRANSCRIBE_ENABLED", "1")
+    monkeypatch.setenv("TRANSCRIBE_TIER", "fast")
+    monkeypatch.setenv("AUDIO_TRANSCRIBE", "1")
+    config_module.get_config.cache_clear()
+    config = get_config()
+    fixture = Path("tests/fixtures/sample.wav")
+
+    def fake_probe(_path):
+        return type(
+            "Probe",
+            (),
+            {
+                "duration_seconds": 1.2,
+                "has_audio": True,
+                "has_video": False,
+                "audio_sample_rate": 48000,
+                "audio_channels": 1,
+                "video_width": None,
+                "video_height": None,
+                "frame_rate": None,
+                "frame_count": None,
+            },
+        )()
+
+    monkeypatch.setattr(audio_pipeline, "probe_media", fake_probe)
+    monkeypatch.setattr(
+        audio_pipeline,
+        "normalize_audio",
+        lambda _path, sample_rate=48000: str(fixture),
+    )
+    monkeypatch.setattr(
+        audio_pipeline,
+        "analyze_audio",
+        lambda *_args, **_kwargs: AudioAnalysis(
+            duration_ms=1100,
+            speech_ms=900,
+            silence_ms=200,
+            has_speech=True,
+        ),
+    )
+    monkeypatch.setattr(
+        audio_pipeline,
+        "transcribe_audio",
+        lambda *_, **__: [
+            TranscriptSegment(
+                index=0,
+                start_ms=0,
+                end_ms=900,
+                text="hello",
+                language="en",
+            )
+        ],
+    )
+
+    source = IngestSource(
+        bucket="test-raw",
+        name="raw/audio/sample.wav",
+        generation="1",
+        content_type="audio/wav",
+        size_bytes=fixture.stat().st_size,
+        md5_hash=None,
+        crc32c=None,
+        local_path=str(fixture),
+        uri_scheme="gs",
+    )
+
+    result = audio_pipeline.ingest_audio(
+        source=source,
+        config=config,
+        output_uri=tmp_path.as_posix(),
+        pipeline_version="v2.5",
+        schema_version="1",
+    )
+
+    quality = result.metrics["quality"]
+    assert 0 <= quality["transcribed_ms"] <= quality["extracted_audio_duration_ms"]
+    assert quality["extracted_audio_duration_ms"] <= quality["audio_duration_ms"]
 
 
 def test_audio_pipeline_respects_max_segments(tmp_path, monkeypatch):
@@ -525,6 +689,179 @@ def test_video_pipeline_empty_transcript_skips_embeddings(tmp_path, monkeypatch)
     )
 
     assert result.counts["Transcript"] == 0
+
+
+def test_video_pipeline_no_audio_track_skips_transcribe(tmp_path, monkeypatch):
+    from retikon_core import config as config_module
+
+    monkeypatch.setenv("AUDIO_VAD_ENABLED", "1")
+    monkeypatch.setenv("TRANSCRIBE_ENABLED", "1")
+    monkeypatch.setenv("TRANSCRIBE_TIER", "fast")
+    monkeypatch.setenv("AUDIO_TRANSCRIBE", "1")
+    config_module.get_config.cache_clear()
+    config = get_config()
+    video_fixture = Path("tests/fixtures/sample.mp4")
+    frame_fixture = Path("tests/fixtures/sample.jpg")
+
+    def fake_probe(_path):
+        return type(
+            "Probe",
+            (),
+            {
+                "duration_seconds": 1.0,
+                "has_audio": False,
+                "has_video": True,
+                "audio_sample_rate": None,
+                "audio_channels": None,
+                "video_width": 2,
+                "video_height": 2,
+                "frame_rate": 1.0,
+                "frame_count": 1,
+            },
+        )()
+
+    monkeypatch.setattr(video_pipeline, "probe_media", fake_probe)
+    monkeypatch.setattr(
+        video_pipeline,
+        "extract_keyframes",
+        lambda *args, **kwargs: [
+            FrameInfo(path=str(frame_fixture), timestamp_ms=0),
+        ],
+    )
+    monkeypatch.setattr(
+        video_pipeline,
+        "extract_audio",
+        lambda *_args, **_kwargs: (_ for _ in ()).throw(
+            AssertionError("extract_audio should not run without audio track")
+        ),
+    )
+    monkeypatch.setattr(video_pipeline, "cleanup_tmp", lambda _path: None)
+    monkeypatch.setattr(
+        video_pipeline,
+        "transcribe_audio",
+        lambda *_, **__: (_ for _ in ()).throw(
+            AssertionError("transcribe_audio should not run without audio track")
+        ),
+    )
+
+    source = IngestSource(
+        bucket="test-raw",
+        name="raw/videos/sample.mp4",
+        generation="1",
+        content_type="video/mp4",
+        size_bytes=video_fixture.stat().st_size,
+        md5_hash=None,
+        crc32c=None,
+        local_path=str(video_fixture),
+        uri_scheme="gs",
+    )
+
+    result = video_pipeline.ingest_video(
+        source=source,
+        config=config,
+        output_uri=tmp_path.as_posix(),
+        pipeline_version="v2.5",
+        schema_version="1",
+    )
+
+    quality = result.metrics["quality"]
+    assert quality["transcript_status"] == "no_audio_track"
+    assert quality["transcribed_ms"] == 0
+    assert result.metrics["stage_timings_ms"]["transcribe_ms"] == 0.0
+    assert "transcribe" not in result.metrics["model_calls"]
+
+
+def test_video_pipeline_duration_fields_order(tmp_path, monkeypatch):
+    from retikon_core import config as config_module
+
+    monkeypatch.setenv("AUDIO_VAD_ENABLED", "1")
+    monkeypatch.setenv("TRANSCRIBE_ENABLED", "1")
+    monkeypatch.setenv("TRANSCRIBE_TIER", "fast")
+    monkeypatch.setenv("AUDIO_TRANSCRIBE", "1")
+    config_module.get_config.cache_clear()
+    config = get_config()
+    video_fixture = Path("tests/fixtures/sample.mp4")
+    frame_fixture = Path("tests/fixtures/sample.jpg")
+    audio_fixture = Path("tests/fixtures/sample.wav")
+
+    def fake_probe(_path):
+        return type(
+            "Probe",
+            (),
+            {
+                "duration_seconds": 1.0,
+                "has_audio": True,
+                "has_video": True,
+                "audio_sample_rate": 48000,
+                "audio_channels": 1,
+                "video_width": 2,
+                "video_height": 2,
+                "frame_rate": 1.0,
+                "frame_count": 1,
+            },
+        )()
+
+    monkeypatch.setattr(video_pipeline, "probe_media", fake_probe)
+    monkeypatch.setattr(
+        video_pipeline,
+        "extract_keyframes",
+        lambda *args, **kwargs: [
+            FrameInfo(path=str(frame_fixture), timestamp_ms=0),
+        ],
+    )
+    monkeypatch.setattr(
+        video_pipeline,
+        "extract_audio",
+        lambda _path, sample_rate=48000: str(audio_fixture),
+    )
+    monkeypatch.setattr(video_pipeline, "cleanup_tmp", lambda _path: None)
+    monkeypatch.setattr(
+        video_pipeline,
+        "analyze_audio",
+        lambda *_args, **_kwargs: AudioAnalysis(
+            duration_ms=900,
+            speech_ms=800,
+            silence_ms=100,
+            has_speech=True,
+        ),
+    )
+    monkeypatch.setattr(
+        video_pipeline,
+        "transcribe_audio",
+        lambda *_, **__: [
+            TranscriptSegment(
+                index=0,
+                start_ms=0,
+                end_ms=900,
+                text="hello",
+                language="en",
+            )
+        ],
+    )
+
+    source = IngestSource(
+        bucket="test-raw",
+        name="raw/videos/sample.mp4",
+        generation="1",
+        content_type="video/mp4",
+        size_bytes=video_fixture.stat().st_size,
+        md5_hash=None,
+        crc32c=None,
+        local_path=str(video_fixture),
+        uri_scheme="gs",
+    )
+
+    result = video_pipeline.ingest_video(
+        source=source,
+        config=config,
+        output_uri=tmp_path.as_posix(),
+        pipeline_version="v2.5",
+        schema_version="1",
+    )
+
+    quality = result.metrics["quality"]
+    assert 0 <= quality["transcribed_ms"] <= quality["extracted_audio_duration_ms"]
+    assert quality["extracted_audio_duration_ms"] <= quality["audio_duration_ms"]
 
 
 def test_video_duration_cap(monkeypatch):

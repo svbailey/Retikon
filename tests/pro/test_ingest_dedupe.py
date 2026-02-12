@@ -91,6 +91,7 @@ def test_checksum_dedupe_updates_signature_metadata(dedupe_func):
         "object_duration_ms": 1200,
         "manifest_uri": "gs://example/manifest.json",
         "media_asset_id": "media-1",
+        "metrics": {"stage_timings_ms": {"decode_ms": 1.0}, "pipe_ms": 1.0},
     }
     client.store["new"] = {
         "status": "PROCESSING",

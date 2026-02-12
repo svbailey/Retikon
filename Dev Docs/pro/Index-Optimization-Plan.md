@@ -196,14 +196,30 @@ Acceptance: 0 <= transcribed_ms <= extracted_audio_duration_ms <= audio_duration
 E) Split modality queues/services  
 Where: main.tf (Pub/Sub topics + Cloud Run services), ingestion_service.py routing  
 Acceptance: docs/images ingest continues normally while a video backlog exists (no correlated increase in docs/images queue_s).
+Verification: run a video-heavy load test (`python scripts/load_test_ingest.py --mix videos=0.6,images=0.2,docs=0.2 ...`)
+and compare docs/images `queue_wait_ms` p95 to a baseline run via `scripts/report_ingest_baseline.py`.
+Latest run (staging, 2026-02-11, --unique uploads to avoid dedupe):
+- Baseline run id: queue-baseline-20260211-203152
+  - docs queue_wait_ms p95: 59082.48 ms (n=30)
+  - images queue_wait_ms p95: 58723.69 ms (n=30)
+- Video-heavy run id: queue-video-20260211-203326
+  - docs queue_wait_ms p95: 3372.88 ms (n=16)
+  - images queue_wait_ms p95: 3823.18 ms (n=16)
+Notes: docs/images queue_wait_ms did not increase under video backlog; sample sizes improved.
 
 F) Queue depth + wait time metrics per modality  
 Where: ingestion_service.py (emit queue wait per message + periodic queue depth poll)  
 Acceptance: dashboard shows queue_depth and queue_s p50/p95 by modality.
+Verification: Ops dashboard panels show `retikon_ingest_queue_wait_ms` and `retikon_ingest_queue_depth_backlog`.
 
 H) Lazy-load models by modality  
 Where: ingestion_service.py (or model registry)  
 Acceptance: docs/images workers do not load transcribe/CLAP dependencies; peak_mb drops materially on doc/image traffic.
+Verification: capture docs/images `memory_peak_kb` via `scripts/report_ingest_baseline.py --modalities docs,images`
+and record deltas in Dev Docs/pro/Cost-Estimates.md.
+Latest run (staging, 2026-02-11, --unique uploads): queue-baseline-20260211-203152
+- docs memory_peak_kb p50 1,594,096 (~1.52 GiB), p95 2,029,294 (~1.94 GiB)
+- images memory_peak_kb p50 1,967,396 (~1.88 GiB), p95 2,035,860 (~1.94 GiB)
 
 K) Indexer timing breakdown  
 Where: index_builder.py  
@@ -287,12 +303,48 @@ Load test definition (minimum):
 - Mix: 40% images, 30% docs, 20% audio, 10% video
 - Concurrency: 20 in-flight ingests (increase to 50 for stress)
 - Collect: queue_s, wall_s, pipe_s, stage timings, error rates
+  - Use `--mix` on `scripts/load_test_ingest.py` to enforce the ratio.
 
 Acceptance harness output:
 - p50/p95 by modality
 - p95 by stage (transcribe_ms, embed_image_ms, etc.)
 - cache hit rate (once T implemented)
 - index queue length trend + index duration trend
+
+SLA verification workflow (staging):
+1. Preflight
+   - Confirm metrics coverage for API/GCS/stream paths (queue/wall/pipe + stage_timings_ms).
+   - Confirm target run bucket/prefix and baseline run id are set.
+   - Ensure fixtures include docs and images (and any modalities under test).
+2. Load test run (records run id)
+   ```bash
+   RUN_ID="sla-$(date +%Y%m%d-%H%M%S)"
+   python scripts/load_test_ingest.py --project simitor --bucket retikon-raw-simitor-staging \
+     --prefix raw_clean --source tests/fixtures --count 40 --poll --run-id "$RUN_ID"
+   ```
+3. Generate SLA report + quality checks
+   ```bash
+   python scripts/report_ingest_baseline.py --project simitor --bucket retikon-raw-simitor-staging \
+     --raw-prefix raw_clean --run-id "$RUN_ID" --quality-check
+   ```
+4. Evaluate deltas vs baseline and stage SLO targets
+   - Compare wall_ms/queue_wait_ms/pipe_ms p95 to baseline and SLOs.
+   - Compare stage p95 to stage SLO targets (embed_* and write_*).
+   - Verify cache_hit metrics when dedupe is enabled.
+5. Index SLO check (staging)
+   - Trigger the scheduled index build (or manual run if needed).
+   - Capture snapshot report fields (load_snapshot_s/apply_deltas_s/build_vectors_s/write_snapshot_s/upload_s/total_s).
+   - Verify index build duration p95 and index_queue_length p95 are within targets.
+6. Record artifacts
+   - Update this doc with the new run id + deltas summary.
+   - Update Dev Docs/pro/Cost-Estimates.md if cost guardrails were re-baselined.
+
+Pass/Fail checks:
+- Any modality with count=0 is a fail (re-run with the correct fixtures).
+- Docs/images wall_ms p95 meet SLOs; stage p95 meets stage targets.
+- queue_wait_ms p95 does not regress beyond baseline unless explained (e.g., known backlog).
+- Accuracy regression suite passes (no quality_check failures).
+- Cost guardrails pass (p95 cpu_s <= 1.5x baseline, p95 bytes_derived <= 2.0x baseline).
 
 ## Dashboards + alerts
 

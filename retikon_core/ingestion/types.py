@@ -17,6 +17,7 @@ class IngestSource:
     md5_hash: str | None
     crc32c: str | None
     local_path: str
+    content_hash_sha256: str | None = None
     org_id: str | None = None
     site_id: str | None = None
     stream_id: str | None = None

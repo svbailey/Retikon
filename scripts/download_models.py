@@ -21,6 +21,23 @@ def main() -> None:
         "yes",
     }
     embedding_backend = _env("EMBEDDING_BACKEND", "").strip().lower()
+    text_backend = _env("TEXT_EMBED_BACKEND", "").strip().lower()
+    image_backend = _env("IMAGE_EMBED_BACKEND", "").strip().lower()
+    audio_backend = _env("AUDIO_EMBED_BACKEND", "").strip().lower()
+    image_text_backend = _env("IMAGE_TEXT_EMBED_BACKEND", "").strip().lower()
+    audio_text_backend = _env("AUDIO_TEXT_EMBED_BACKEND", "").strip().lower()
+    backends = {
+        backend
+        for backend in (
+            embedding_backend,
+            text_backend,
+            image_backend,
+            audio_backend,
+            image_text_backend,
+            audio_text_backend,
+        )
+        if backend
+    }
 
     Path(model_dir).mkdir(parents=True, exist_ok=True)
     os.environ.setdefault("HF_HOME", model_dir)
@@ -48,7 +65,7 @@ def main() -> None:
 
     whisper.load_model(whisper_model, download_root=model_dir)
 
-    if export_onnx or embedding_backend in {"onnx", "quantized"}:
+    if export_onnx or any(backend in {"onnx", "quantized"} for backend in backends):
         export_script = Path(__file__).with_name("export_onnx.py")
         if export_script.exists():
             print("Exporting ONNX models...")
@@ -59,7 +76,7 @@ def main() -> None:
         else:
             raise SystemExit(f"Missing ONNX export script: {export_script}")
 
-    if quantize_onnx or embedding_backend == "quantized":
+    if quantize_onnx or any(backend == "quantized" for backend in backends):
         quantize_script = Path(__file__).with_name("quantize_onnx.py")
         if quantize_script.exists():
             print("Quantizing ONNX models...")

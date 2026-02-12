@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hashlib
 import os
 import tempfile
 from dataclasses import dataclass
@@ -17,6 +18,7 @@ class DownloadResult:
     content_type: str | None
     md5_hash: str | None
     crc32c: str | None
+    content_hash_sha256: str | None
     metadata: dict[str, str] | None = None
 
 
@@ -68,6 +70,7 @@ def download_to_tmp(
 
     try:
         size = 0
+        digest = hashlib.sha256()
         with fs.open(path, "rb") as reader, open(tmp_path, "wb") as writer:
             while True:
                 chunk = reader.read(8 * 1024 * 1024)
@@ -76,6 +79,7 @@ def download_to_tmp(
                 size += len(chunk)
                 if size > max_bytes:
                     raise PermanentError("Download exceeded MAX_RAW_BYTES")
+                digest.update(chunk)
                 writer.write(chunk)
     except Exception as exc:
         cleanup_tmp(tmp_path)
@@ -89,6 +93,7 @@ def download_to_tmp(
         content_type=content_type,
         md5_hash=md5_hash,
         crc32c=crc32c,
+        content_hash_sha256=digest.hexdigest(),
         metadata=metadata,
     )
 

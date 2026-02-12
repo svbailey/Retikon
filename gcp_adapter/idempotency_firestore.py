@@ -178,6 +178,17 @@ def resolve_checksum_scope(checksum: str | None, scope_key: str | None) -> str |
     return f"{scope_key}:{checksum}"
 
 
+def resolve_content_hash_scope(
+    content_hash: str | None,
+    scope_key: str | None,
+) -> str | None:
+    if not content_hash:
+        return None
+    if not scope_key:
+        return content_hash
+    return f"{scope_key}:{content_hash}"
+
+
 def update_object_metadata(
     *,
     client: firestore.Client,
@@ -240,6 +251,19 @@ def update_object_metadata(
     client.collection(collection).document(doc_id).set(payload, merge=True)
 
 
+def _has_pipeline_metrics(data: dict[str, Any]) -> bool:
+    metrics = data.get("metrics")
+    if not isinstance(metrics, dict):
+        return False
+    if isinstance(metrics.get("pipeline"), dict):
+        return True
+    if isinstance(metrics.get("stage_timings_ms"), dict):
+        return True
+    if isinstance(metrics.get("pipe_ms"), (int, float)):
+        return True
+    return False
+
+
 def find_completed_by_checksum(
     *,
     client: firestore.Client,
@@ -251,7 +275,7 @@ def find_completed_by_checksum(
     duration_ms: int | None = None,
     bucket: str | None = None,
     name: str | None = None,
-    limit: int = 5,
+    limit: int = 20,
 ) -> dict[str, Any] | None:
     checksum_scope = resolve_checksum_scope(checksum, scope_key)
     if checksum_scope and scope_key:
@@ -266,6 +290,7 @@ def find_completed_by_checksum(
             .where("object_checksum", "==", checksum)
             .limit(limit)
         )
+    fallback: dict[str, Any] | None = None
     for snapshot in query.stream():
         data = snapshot.to_dict() or {}
         if data.get("status") != "COMPLETED":
@@ -289,5 +314,68 @@ def find_completed_by_checksum(
         if name is not None and data.get("object_name") != name:
             continue
         data["doc_id"] = snapshot.id
-        return data
-    return None
+        if _has_pipeline_metrics(data):
+            return data
+        if fallback is None:
+            fallback = data
+    return fallback
+
+
+def find_completed_by_content_hash(
+    *,
+    client: firestore.Client,
+    collection: str,
+    content_hash: str,
+    scope_key: str | None = None,
+    size_bytes: int | None = None,
+    content_type: str | None = None,
+    duration_ms: int | None = None,
+    pipeline_version: str | None = None,
+    bucket: str | None = None,
+    name: str | None = None,
+    limit: int = 20,
+) -> dict[str, Any] | None:
+    content_scope = resolve_content_hash_scope(content_hash, scope_key)
+    if content_scope and scope_key:
+        query = (
+            client.collection(collection)
+            .where("content_hash_scope", "==", content_scope)
+            .limit(limit)
+        )
+    else:
+        query = (
+            client.collection(collection)
+            .where("content_hash_sha256", "==", content_hash)
+            .limit(limit)
+        )
+    fallback: dict[str, Any] | None = None
+    for snapshot in query.stream():
+        data = snapshot.to_dict() or {}
+        if data.get("status") != "COMPLETED":
+            continue
+        if scope_key and data.get("scope_key") != scope_key:
+            continue
+        if pipeline_version and data.get("pipeline_version") != pipeline_version:
+            continue
+        if size_bytes is not None:
+            stored_size = data.get("object_size_bytes", data.get("object_size"))
+            if stored_size is not None and int(stored_size) != int(size_bytes):
+                continue
+        if content_type:
+            stored_type = data.get("object_content_type")
+            if stored_type and stored_type.split(";", 1)[0].strip().lower() != content_type.split(";", 1)[0].strip().lower():
+                continue
+        if duration_ms is not None:
+            stored_duration = data.get("object_duration_ms")
+            if stored_duration is not None and int(stored_duration) != int(duration_ms):
+                continue
+        if bucket is not None and data.get("object_bucket") != bucket:
+            continue
+        if name is not None and data.get("object_name") != name:
+            continue
+        data["doc_id"] = snapshot.id
+        if _has_pipeline_metrics(data):
+            return data
+        if fallback is None:
+            fallback = data
+    return fallback

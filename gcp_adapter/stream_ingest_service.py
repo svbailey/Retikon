@@ -7,6 +7,7 @@ import uuid
 from datetime import datetime, timedelta, timezone
 from typing import Any
 
+import fsspec
 from fastapi import FastAPI, Header, HTTPException, Request
 from google.cloud import firestore
 from google.cloud import storage
@@ -16,7 +17,9 @@ from gcp_adapter.dlq_pubsub import PubSubDlqPublisher
 from gcp_adapter.idempotency_firestore import (
     FirestoreIdempotency,
     find_completed_by_checksum,
+    find_completed_by_content_hash,
     resolve_checksum,
+    resolve_content_hash_scope,
     resolve_scope_key,
     update_object_metadata,
 )
@@ -24,6 +27,7 @@ from gcp_adapter.queue_pubsub import PubSubPublisher, parse_pubsub_push
 from retikon_core.config import get_config
 from retikon_core.errors import PermanentError, RecoverableError, ValidationError
 from retikon_core.ingestion import process_event
+from retikon_core.ingestion.download import cleanup_tmp, download_to_tmp
 from retikon_core.ingestion.router import pipeline_version
 from retikon_core.ingestion.streaming import (
     StreamBackpressureError,
@@ -54,6 +58,28 @@ add_correlation_id_middleware(app)
 
 _dlq_publisher: PubSubDlqPublisher | None = None
 _flush_task: asyncio.Task | None = None
+
+
+def _manifest_metrics(manifest_uri: str, *, bucket: str, name: str) -> dict[str, object] | None:
+    try:
+        fs, path = fsspec.core.url_to_fs(manifest_uri)
+        with fs.open(path, "rb") as handle:
+            payload = json.load(handle)
+    except Exception as exc:
+        logger.warning(
+            "Failed to read manifest metrics",
+            extra={
+                "bucket": bucket,
+                "object_name": name,
+                "manifest_uri": manifest_uri,
+                "error_message": str(exc),
+            },
+        )
+        return None
+    if not isinstance(payload, dict):
+        return None
+    metrics = payload.get("metrics")
+    return metrics if isinstance(metrics, dict) else None
 
 
 class StreamIngestResponse(BaseModel):
@@ -160,6 +186,13 @@ def _apply_checksum_dedupe(
         "cache_hit": True,
         "cache_source": "both",
     }
+    match_hash = match.get("content_hash_sha256")
+    if match_hash:
+        payload["content_hash_sha256"] = match_hash
+        payload["content_hash_scope"] = resolve_content_hash_scope(
+            match_hash,
+            scope_key,
+        )
     if size_bytes is not None:
         payload["object_size_bytes"] = size_bytes
     if content_type:
@@ -174,6 +207,172 @@ def _apply_checksum_dedupe(
     for key in ("manifest_uri", "media_asset_id", "counts"):
         if key in match:
             payload[key] = match[key]
+    metrics_payload: dict[str, object] = {}
+    match_metrics = match.get("metrics")
+    if isinstance(match_metrics, dict):
+        pipeline_metrics = match_metrics.get("pipeline")
+        if pipeline_metrics is not None:
+            metrics_payload["pipeline"] = pipeline_metrics
+        stage_timings = match_metrics.get("stage_timings_ms")
+        if not isinstance(stage_timings, dict) and isinstance(pipeline_metrics, dict):
+            stage_timings = pipeline_metrics.get("stage_timings_ms")
+        if isinstance(stage_timings, dict):
+            metrics_payload["stage_timings_ms"] = stage_timings
+        pipe_ms = match_metrics.get("pipe_ms")
+        if not isinstance(pipe_ms, (int, float)) and isinstance(pipeline_metrics, dict):
+            pipe_ms = pipeline_metrics.get("pipe_ms")
+        if isinstance(pipe_ms, (int, float)):
+            metrics_payload["pipe_ms"] = round(float(pipe_ms), 2)
+    if "stage_timings_ms" not in metrics_payload:
+        manifest_uri = match.get("manifest_uri")
+        if isinstance(manifest_uri, str) and manifest_uri:
+            manifest_metrics = _manifest_metrics(
+                manifest_uri,
+                bucket=bucket,
+                name=name,
+            )
+            if isinstance(manifest_metrics, dict):
+                stage_timings = manifest_metrics.get("stage_timings_ms")
+                if isinstance(stage_timings, dict):
+                    metrics_payload["stage_timings_ms"] = stage_timings
+                    if "pipe_ms" not in metrics_payload:
+                        total = 0.0
+                        for value in stage_timings.values():
+                            if isinstance(value, (int, float)):
+                                total += float(value)
+                        metrics_payload["pipe_ms"] = round(total, 2)
+    if not isinstance(metrics_payload.get("stage_timings_ms"), dict):
+        logger.info(
+            "Dedupe match missing stage timings; skipping checksum dedupe",
+            extra={
+                "bucket": bucket,
+                "name": name,
+                "dedupe_source_doc_id": match.get("doc_id"),
+            },
+        )
+        return False
+    if metrics_payload:
+        payload["metrics"] = metrics_payload
+    client.collection(collection).document(doc_id).update(payload)
+    return True
+
+
+def _apply_content_hash_dedupe(
+    *,
+    client: firestore.Client,
+    collection: str,
+    doc_id: str,
+    bucket: str,
+    name: str,
+    scope_key: str,
+    content_hash: str | None,
+    size_bytes: int | None,
+    content_type: str | None,
+    duration_ms: int | None = None,
+    pipeline_version_value: str | None = None,
+    queue_wait_ms: float | None = None,
+    wall_ms: float | None = None,
+) -> bool:
+    if not content_hash:
+        return False
+    try:
+        match = find_completed_by_content_hash(
+            client=client,
+            collection=collection,
+            content_hash=content_hash,
+            scope_key=scope_key,
+            size_bytes=size_bytes,
+            content_type=content_type,
+            duration_ms=duration_ms,
+            pipeline_version=pipeline_version_value,
+        )
+    except Exception as exc:
+        logger.warning(
+            "Content hash dedupe lookup failed",
+            extra={
+                "bucket": bucket,
+                "name": name,
+                "scope_key": scope_key,
+                "error_message": str(exc),
+            },
+        )
+        return False
+    if not match:
+        return False
+    payload: dict[str, object] = {
+        "status": "COMPLETED",
+        "updated_at": datetime.now(timezone.utc),
+        "content_hash_sha256": content_hash,
+        "content_hash_scope": resolve_content_hash_scope(content_hash, scope_key),
+        "dedupe_content_hash": content_hash,
+        "dedupe_source_doc_id": match.get("doc_id"),
+        "cache_hit": True,
+        "cache_source": "both",
+    }
+    if size_bytes is not None:
+        payload["object_size_bytes"] = size_bytes
+    if content_type:
+        payload["object_content_type"] = content_type
+    resolved_duration = duration_ms
+    if resolved_duration is None:
+        match_duration = match.get("object_duration_ms")
+        if match_duration is not None:
+            resolved_duration = int(match_duration)
+    if resolved_duration is not None:
+        payload["object_duration_ms"] = resolved_duration
+    for key in ("manifest_uri", "media_asset_id", "counts"):
+        if key in match:
+            payload[key] = match[key]
+    metrics_payload: dict[str, object] = {}
+    match_metrics = match.get("metrics")
+    if isinstance(match_metrics, dict):
+        pipeline_metrics = match_metrics.get("pipeline")
+        if pipeline_metrics is not None:
+            metrics_payload["pipeline"] = pipeline_metrics
+        stage_timings = match_metrics.get("stage_timings_ms")
+        if not isinstance(stage_timings, dict) and isinstance(pipeline_metrics, dict):
+            stage_timings = pipeline_metrics.get("stage_timings_ms")
+        if isinstance(stage_timings, dict):
+            metrics_payload["stage_timings_ms"] = stage_timings
+        pipe_ms = match_metrics.get("pipe_ms")
+        if not isinstance(pipe_ms, (int, float)) and isinstance(pipeline_metrics, dict):
+            pipe_ms = pipeline_metrics.get("pipe_ms")
+        if isinstance(pipe_ms, (int, float)):
+            metrics_payload["pipe_ms"] = round(float(pipe_ms), 2)
+    if "stage_timings_ms" not in metrics_payload:
+        manifest_uri = match.get("manifest_uri")
+        if isinstance(manifest_uri, str) and manifest_uri:
+            manifest_metrics = _manifest_metrics(
+                manifest_uri,
+                bucket=bucket,
+                name=name,
+            )
+            if isinstance(manifest_metrics, dict):
+                stage_timings = manifest_metrics.get("stage_timings_ms")
+                if isinstance(stage_timings, dict):
+                    metrics_payload["stage_timings_ms"] = stage_timings
+                    if "pipe_ms" not in metrics_payload:
+                        total = 0.0
+                        for value in stage_timings.values():
+                            if isinstance(value, (int, float)):
+                                total += float(value)
+                        metrics_payload["pipe_ms"] = round(total, 2)
+    if not isinstance(metrics_payload.get("stage_timings_ms"), dict):
+        logger.info(
+            "Dedupe match missing stage timings; skipping content hash dedupe",
+            extra={
+                "bucket": bucket,
+                "name": name,
+                "dedupe_source_doc_id": match.get("doc_id"),
+            },
+        )
+        return False
+    if queue_wait_ms is not None:
+        metrics_payload["queue_wait_ms"] = queue_wait_ms
+    if wall_ms is not None:
+        metrics_payload["wall_ms"] = round(float(wall_ms), 2)
+    if metrics_payload:
+        payload["metrics"] = metrics_payload
     client.collection(collection).document(doc_id).update(payload)
     return True
 
@@ -352,6 +551,8 @@ async def ingest_stream_push(request: Request) -> dict[str, Any]:
         scope_key = resolve_scope_key(event.org_id, event.site_id, event.stream_id)
         storage_event = event.to_storage_event()
         checksum = resolve_checksum(storage_event.md5_hash, storage_event.crc32c)
+        download = None
+        content_hash = None
         decision = idempotency.begin(
             bucket=storage_event.bucket,
             name=storage_event.name,
@@ -425,13 +626,62 @@ async def ingest_stream_push(request: Request) -> dict[str, Any]:
             ):
                 skipped += 1
                 continue
-            outcome = process_event(event=storage_event, config=config)
+            object_uri = config.raw_object_uri(
+                storage_event.name,
+                bucket=storage_event.bucket,
+            )
+            download = download_to_tmp(object_uri, config.max_raw_bytes)
+            content_hash = download.content_hash_sha256
+            if content_hash:
+                content_scope = resolve_content_hash_scope(content_hash, scope_key)
+                firestore_client.collection(config.firestore_collection).document(
+                    decision.doc_id
+                ).update(
+                    {
+                        "content_hash_sha256": content_hash,
+                        "content_hash_scope": content_scope,
+                    }
+                )
+            if config.dedupe_cache_enabled and _apply_content_hash_dedupe(
+                client=firestore_client,
+                collection=config.firestore_collection,
+                doc_id=decision.doc_id,
+                bucket=storage_event.bucket,
+                name=storage_event.name,
+                scope_key=scope_key,
+                content_hash=content_hash,
+                size_bytes=storage_event.size,
+                content_type=storage_event.content_type,
+                pipeline_version_value=pipeline_version(),
+                queue_wait_ms=_queue_wait_ms(
+                    storage_event.bucket,
+                    storage_event.name,
+                ),
+                wall_ms=(time.monotonic() - start_time) * 1000.0,
+            ):
+                cleanup_tmp(download.path)
+                skipped += 1
+                continue
+            outcome = process_event(
+                event=storage_event,
+                config=config,
+                download=download,
+            )
+            download = None
             idempotency.mark_completed(decision.doc_id)
             update_payload = {
                 "manifest_uri": outcome.manifest_uri,
                 "media_asset_id": outcome.media_asset_id,
                 "counts": outcome.counts,
+                "cache_hit": False,
+                "cache_source": "none",
             }
+            if content_hash:
+                update_payload["content_hash_sha256"] = content_hash
+                update_payload["content_hash_scope"] = resolve_content_hash_scope(
+                    content_hash,
+                    scope_key,
+                )
             if outcome.duration_ms is not None:
                 update_payload["object_duration_ms"] = outcome.duration_ms
             metrics_payload: dict[str, object] = {}
@@ -460,6 +710,8 @@ async def ingest_stream_push(request: Request) -> dict[str, Any]:
             ).update(update_payload)
             processed += 1
         except PermanentError as exc:
+            if download is not None:
+                cleanup_tmp(download.path)
             _publish_dlq(
                 dlq_publisher,
                 error_code="PERMANENT",
@@ -471,6 +723,8 @@ async def ingest_stream_push(request: Request) -> dict[str, Any]:
             idempotency.mark_dlq(decision.doc_id, "PERMANENT", str(exc))
             skipped += 1
         except RecoverableError as exc:
+            if download is not None:
+                cleanup_tmp(download.path)
             idempotency.mark_failed(decision.doc_id, "RECOVERABLE", str(exc))
             logger.exception(
                 "Stream ingest failed (recoverable)",
@@ -482,9 +736,13 @@ async def ingest_stream_push(request: Request) -> dict[str, Any]:
             )
             raise HTTPException(status_code=500, detail=str(exc)) from exc
         except ValidationError as exc:
+            if download is not None:
+                cleanup_tmp(download.path)
             idempotency.mark_failed(decision.doc_id, "VALIDATION", str(exc))
             raise HTTPException(status_code=400, detail=str(exc)) from exc
         except Exception as exc:
+            if download is not None:
+                cleanup_tmp(download.path)
             idempotency.mark_failed(decision.doc_id, "UNKNOWN", str(exc))
             logger.exception("Stream ingest failed (unexpected)")
             raise HTTPException(status_code=500, detail="Unexpected error") from exc

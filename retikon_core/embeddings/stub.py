@@ -63,8 +63,7 @@ def _use_real_models() -> bool:
     return os.getenv("USE_REAL_MODELS") == "1"
 
 
-def _embedding_backend() -> str:
-    raw = os.getenv("EMBEDDING_BACKEND") or os.getenv("RETIKON_EMBEDDING_BACKEND")
+def _normalize_backend(raw: str | None) -> str:
     backend = (raw or BACKEND_AUTO).strip().lower()
     if backend in {"", BACKEND_AUTO}:
         return BACKEND_HF if _use_real_models() else BACKEND_STUB
@@ -73,6 +72,23 @@ def _embedding_backend() -> str:
     if backend in {BACKEND_STUB, BACKEND_HF, BACKEND_ONNX, BACKEND_QUANTIZED}:
         return backend
     raise ValueError(f"Unsupported embedding backend: {backend}")
+
+
+def _embedding_backend() -> str:
+    raw = os.getenv("EMBEDDING_BACKEND") or os.getenv("RETIKON_EMBEDDING_BACKEND")
+    return _normalize_backend(raw)
+
+
+def _embedding_backend_for(kind: str, fallback_kind: str | None = None) -> str:
+    kind_key = f"{kind.upper()}_EMBED_BACKEND"
+    specific = os.getenv(kind_key)
+    if specific:
+        return _normalize_backend(specific)
+    if fallback_kind:
+        fallback = os.getenv(f"{fallback_kind.upper()}_EMBED_BACKEND")
+        if fallback:
+            return _normalize_backend(fallback)
+    return _embedding_backend()
 
 
 def _model_dir() -> str:
@@ -489,7 +505,7 @@ def _get_real_audio_text_embedder() -> TextEmbedder:
 
 
 def get_text_embedder(dim: int) -> TextEmbedder:
-    backend = _embedding_backend()
+    backend = _embedding_backend_for("text")
     if backend == BACKEND_STUB or not _use_real_models():
         return _get_cached_embedder(_TEXT_CACHE, StubTextEmbedder, dim)
     if backend == BACKEND_HF:
@@ -508,7 +524,7 @@ def get_text_embedder(dim: int) -> TextEmbedder:
 
 
 def get_image_embedder(dim: int) -> ImageEmbedder:
-    backend = _embedding_backend()
+    backend = _embedding_backend_for("image")
     if backend == BACKEND_STUB or not _use_real_models():
         return _get_cached_embedder(_IMAGE_CACHE, StubImageEmbedder, dim)
     if backend == BACKEND_HF:
@@ -527,7 +543,7 @@ def get_image_embedder(dim: int) -> ImageEmbedder:
 
 
 def get_image_text_embedder(dim: int) -> TextEmbedder:
-    backend = _embedding_backend()
+    backend = _embedding_backend_for("image_text", "image")
     if backend == BACKEND_STUB or not _use_real_models():
         return _get_cached_embedder(_TEXT_CACHE, StubTextEmbedder, dim)
     if backend == BACKEND_HF:
@@ -546,7 +562,7 @@ def get_image_text_embedder(dim: int) -> TextEmbedder:
 
 
 def get_audio_embedder(dim: int) -> AudioEmbedder:
-    backend = _embedding_backend()
+    backend = _embedding_backend_for("audio")
     if backend == BACKEND_STUB or not _use_real_models():
         return _get_cached_embedder(_AUDIO_CACHE, StubAudioEmbedder, dim)
     if backend == BACKEND_HF:
@@ -565,7 +581,7 @@ def get_audio_embedder(dim: int) -> AudioEmbedder:
 
 
 def get_audio_text_embedder(dim: int) -> TextEmbedder:
-    backend = _embedding_backend()
+    backend = _embedding_backend_for("audio_text", "audio")
     if backend == BACKEND_STUB or not _use_real_models():
         return _get_cached_embedder(_TEXT_CACHE, StubTextEmbedder, dim)
     if backend == BACKEND_HF:
@@ -583,8 +599,15 @@ def get_audio_text_embedder(dim: int) -> TextEmbedder:
     return _get_real_audio_text_embedder()
 
 
-def get_embedding_backend() -> str:
-    return _embedding_backend()
+def get_embedding_backend(kind: str | None = None) -> str:
+    if kind is None:
+        return _embedding_backend()
+    kind = kind.strip().lower()
+    if kind in {"image_text", "clip_text"}:
+        return _embedding_backend_for("image_text", "image")
+    if kind in {"audio_text", "clap_text"}:
+        return _embedding_backend_for("audio_text", "audio")
+    return _embedding_backend_for(kind)
 
 
 def reset_embedding_cache() -> None:

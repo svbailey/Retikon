@@ -352,6 +352,9 @@ def ingest_audio(
         transcript_word_count_preview = sum(
             len(segment.text.split()) for segment in segments if segment.text
         )
+        hashes_preview: dict[str, str] = {}
+        if source.content_hash_sha256:
+            hashes_preview["content_sha256"] = source.content_hash_sha256
         raw_timings_preview = timer.summary()
         stage_timings_preview = build_stage_timings(
             raw_timings_preview,
@@ -387,6 +390,7 @@ def ingest_audio(
                     "transcript_language": transcript_language,
                     "transcript_error_reason": transcript_error_reason,
                 },
+                "hashes": hashes_preview,
                 "embeddings": {
                     "audio": {
                         "count": 1,
@@ -431,6 +435,9 @@ def ingest_audio(
         transcript_word_count = sum(
             len(segment.text.split()) for segment in segments if segment.text
         )
+        hashes: dict[str, str] = {}
+        if source.content_hash_sha256:
+            hashes["content_sha256"] = source.content_hash_sha256
         raw_timings = timer.summary()
         stage_timings_ms = build_stage_timings(
             raw_timings,
@@ -456,19 +463,20 @@ def ingest_audio(
                 "bytes_parquet": parquet_bytes,
                 "bytes_derived": parquet_bytes,
             },
-                "quality": {
-                    "transcript_status": transcript_status,
-                    "transcript_model_tier": transcript_model_tier,
-                    "transcript_word_count": transcript_word_count,
-                    "transcript_segment_count": len(transcript_core_rows),
-                    "normalize_skipped": normalize_skipped,
-                    "audio_duration_ms": audio_duration_ms,
-                    "extracted_audio_duration_ms": extracted_audio_duration_ms,
-                "trimmed_silence_ms": trimmed_silence_ms,
-                "transcribed_ms": transcribed_ms,
-                "transcript_language": transcript_language,
-                "transcript_error_reason": transcript_error_reason,
+            "quality": {
+                "transcript_status": transcript_status,
+                "transcript_model_tier": transcript_model_tier,
+                "transcript_word_count": transcript_word_count,
+                "transcript_segment_count": len(transcript_core_rows),
+                "normalize_skipped": normalize_skipped,
+                "audio_duration_ms": audio_duration_ms,
+                "extracted_audio_duration_ms": extracted_audio_duration_ms,
+            "trimmed_silence_ms": trimmed_silence_ms,
+            "transcribed_ms": transcribed_ms,
+            "transcript_language": transcript_language,
+            "transcript_error_reason": transcript_error_reason,
             },
+            "hashes": hashes,
             "embeddings": {
                 "audio": {
                     "count": 1,

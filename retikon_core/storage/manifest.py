@@ -51,8 +51,18 @@ def build_manifest(
     return payload
 
 
-def write_manifest(manifest: dict[str, object], dest_uri: str) -> None:
-    payload = json.dumps(manifest, indent=2, sort_keys=True).encode("utf-8")
+def write_manifest(
+    manifest: dict[str, object],
+    dest_uri: str,
+    *,
+    compact: bool = False,
+) -> None:
+    if compact:
+        payload = json.dumps(manifest, separators=(",", ":"), sort_keys=False).encode(
+            "utf-8"
+        )
+    else:
+        payload = json.dumps(manifest, indent=2, sort_keys=True).encode("utf-8")
     parsed = urlparse(dest_uri)
     if parsed.scheme == "file" or not parsed.scheme:
         store = ObjectStore.from_base_uri(dest_uri)
@@ -68,7 +78,14 @@ def manifest_metrics_subset(metrics: dict[str, object] | None) -> dict[str, obje
     if not metrics:
         return {}
     subset: dict[str, object] = {}
-    for key in ("io", "quality", "embeddings", "evidence", "stage_timings_ms"):
+    for key in (
+        "io",
+        "quality",
+        "embeddings",
+        "evidence",
+        "hashes",
+        "stage_timings_ms",
+    ):
         value = metrics.get(key)
         if value is not None:
             subset[key] = value

@@ -168,6 +168,7 @@ def _make_source(
         md5_hash=download.md5_hash or event.md5_hash,
         crc32c=download.crc32c or event.crc32c,
         local_path=download.path,
+        content_hash_sha256=download.content_hash_sha256,
         org_id=scope.org_id,
         site_id=scope.site_id,
         stream_id=scope.stream_id,
@@ -270,6 +271,7 @@ def process_event(
     config: Config,
     rate_limit_scope: TenantScope | None = None,
     skip_rate_limit: bool = False,
+    download: DownloadResult | None = None,
 ) -> PipelineOutcome:
     _check_size(event, config)
     modality = _modality_for_name(event.name, config.raw_prefix)
@@ -288,7 +290,8 @@ def process_event(
             object_uri = config.raw_object_uri(event.name, bucket=event.bucket)
     except ValueError as exc:
         raise PermanentError(str(exc)) from exc
-    download = download_to_tmp(object_uri, config.max_raw_bytes)
+    if download is None:
+        download = download_to_tmp(object_uri, config.max_raw_bytes)
     try:
         source = _make_source(event, download, config)
         outcome = _run_pipeline(

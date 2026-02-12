@@ -13,6 +13,7 @@ from PIL import Image
 from retikon_core.config import Config
 from retikon_core.embeddings import (
     get_audio_embedder,
+    get_embedding_backend,
     get_image_embedder,
     get_text_embedder,
 )
@@ -30,6 +31,11 @@ from retikon_core.ingestion.pipelines.metrics import (
     StageTimer,
     build_stage_timings,
     timed_call,
+)
+from retikon_core.ingestion.pipelines.embedding_utils import (
+    image_embed_batch_size,
+    image_embed_max_dim,
+    prepare_image_for_embed,
 )
 from retikon_core.ingestion.pipelines.types import PipelineResult
 from retikon_core.ingestion.transcribe import (
@@ -195,58 +201,87 @@ def ingest_video(
         next_keyframe_edges = []
         image_ids: list[str] = []
 
-        for idx, frame_info in enumerate(frame_infos):
-            frame_path = frame_info.path
-            with Image.open(frame_path) as img:
-                rgb = img.convert("RGB")
-                width, height = rgb.size
-                with timer.track("image_embed"):
-                    vector = timed_call(
-                        calls,
-                        "image_embed",
-                        lambda: run_inference(
-                            "image",
-                            lambda: get_image_embedder(512).encode([rgb])[0],
-                        ),
-                    )
+        embedder = get_image_embedder(512)
+        batch_size = image_embed_batch_size()
+        calls.set_context(
+            "image_embed",
+            {
+                "batch_size": batch_size,
+                "backend": get_embedding_backend("image"),
+                "max_dim": image_embed_max_dim(),
+            },
+        )
+
+        for batch_start in range(0, len(frame_infos), batch_size):
+            batch_infos = frame_infos[batch_start : batch_start + batch_size]
+            batch_images: list[Image.Image] = []
+            batch_meta: list[tuple[int, object, int, int, Image.Image | None]] = []
+            for idx_offset, frame_info in enumerate(batch_infos):
+                idx = batch_start + idx_offset
+                with Image.open(frame_info.path) as img:
+                    rgb = img.convert("RGB")
+                    width, height = rgb.size
+                    embed_image = prepare_image_for_embed(rgb)
+                    thumb_source = rgb if config.video_thumbnail_width > 0 else None
+                    batch_images.append(embed_image)
+                    batch_meta.append((idx, frame_info, width, height, thumb_source))
+            if not batch_images:
+                continue
+            with timer.track("image_embed"):
+                vectors = timed_call(
+                    calls,
+                    "image_embed",
+                    lambda batch=batch_images: run_inference(
+                        "image",
+                        lambda batch=batch: embedder.encode(batch),
+                    ),
+                )
+            if len(vectors) != len(batch_meta):
+                raise PermanentError("Image embedding count mismatch")
+
+            for (idx, frame_info, width, height, thumb_source), vector in zip(
+                batch_meta,
+                vectors,
+                strict=False,
+            ):
                 thumb_uri = None
-                if config.video_thumbnail_width > 0:
+                if thumb_source is not None:
                     thumb_uri = _thumbnail_uri(output_root, media_asset_id, idx)
                     with timer.track("write_thumbnail"):
                         thumbnail_bytes += _write_thumbnail(
-                            rgb,
+                            thumb_source,
                             thumb_uri,
                             config.video_thumbnail_width,
                         )
-            image_vectors.append(vector)
-            image_id = str(uuid.uuid4())
-            image_ids.append(image_id)
-            image_core_rows.append(
-                {
-                    "id": image_id,
-                    "media_asset_id": media_asset_id,
-                    "frame_index": idx,
-                    "timestamp_ms": frame_info.timestamp_ms,
-                    "width_px": width,
-                    "height_px": height,
-                    "thumbnail_uri": thumb_uri,
-                    "embedding_model": _image_model(),
-                    **tenancy_fields(
-                        org_id=source.org_id,
-                        site_id=source.site_id,
-                        stream_id=source.stream_id,
-                    ),
-                    "pipeline_version": pipeline_version,
-                    "schema_version": schema_version,
-                }
-            )
-            derived_edges.append(
-                {
-                    "src_id": image_id,
-                    "dst_id": media_asset_id,
-                    "schema_version": schema_version,
-                }
-            )
+                image_vectors.append(vector)
+                image_id = str(uuid.uuid4())
+                image_ids.append(image_id)
+                image_core_rows.append(
+                    {
+                        "id": image_id,
+                        "media_asset_id": media_asset_id,
+                        "frame_index": idx,
+                        "timestamp_ms": frame_info.timestamp_ms,
+                        "width_px": width,
+                        "height_px": height,
+                        "thumbnail_uri": thumb_uri,
+                        "embedding_model": _image_model(),
+                        **tenancy_fields(
+                            org_id=source.org_id,
+                            site_id=source.site_id,
+                            stream_id=source.stream_id,
+                        ),
+                        "pipeline_version": pipeline_version,
+                        "schema_version": schema_version,
+                    }
+                )
+                derived_edges.append(
+                    {
+                        "src_id": image_id,
+                        "dst_id": media_asset_id,
+                        "schema_version": schema_version,
+                    }
+                )
 
         for idx in range(1, len(image_ids)):
             next_keyframe_edges.append(
@@ -520,6 +555,9 @@ def ingest_video(
         transcript_word_count_preview = sum(
             len(segment.text.split()) for segment in segments if segment.text
         )
+        hashes_preview: dict[str, str] = {}
+        if source.content_hash_sha256:
+            hashes_preview["content_sha256"] = source.content_hash_sha256
         raw_timings_preview = timer.summary()
         stage_timings_preview = build_stage_timings(
             raw_timings_preview,
@@ -557,6 +595,7 @@ def ingest_video(
                     "transcript_language": transcript_language,
                     "transcript_error_reason": transcript_error_reason,
                 },
+                "hashes": hashes_preview,
                 "embeddings": {
                     "image": {
                         "count": len(image_core_rows),
@@ -607,6 +646,9 @@ def ingest_video(
         transcript_word_count = sum(
             len(segment.text.split()) for segment in segments if segment.text
         )
+        hashes: dict[str, str] = {}
+        if source.content_hash_sha256:
+            hashes["content_sha256"] = source.content_hash_sha256
         raw_timings = timer.summary()
         stage_timings_ms = build_stage_timings(
             raw_timings,
@@ -647,6 +689,7 @@ def ingest_video(
                 "transcript_language": transcript_language,
                 "transcript_error_reason": transcript_error_reason,
             },
+            "hashes": hashes,
             "embeddings": {
                 "image": {
                     "count": len(image_core_rows),

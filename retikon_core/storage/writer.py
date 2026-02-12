@@ -46,13 +46,20 @@ def write_parquet(
     schema: pa.Schema,
     dest_uri: str,
     compression: str = "zstd",
+    row_group_size: int | None = None,
 ) -> WriteResult:
-    table = pa.Table.from_pylist(list(rows), schema=schema)
+    rows_list = rows if isinstance(rows, list) else list(rows)
+    table = pa.Table.from_pylist(rows_list, schema=schema)
     with tempfile.NamedTemporaryFile(suffix=".parquet", delete=False) as tmp:
         tmp_path = tmp.name
 
     try:
-        pq.write_table(table, tmp_path, compression=compression)
+        pq.write_table(
+            table,
+            tmp_path,
+            compression=compression,
+            row_group_size=row_group_size,
+        )
         bytes_written = os.path.getsize(tmp_path)
         checksum = _sha256_file(tmp_path)
         parsed = urlparse(dest_uri)

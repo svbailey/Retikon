@@ -12,6 +12,7 @@ from datetime import datetime, timedelta, timezone
 from typing import Any
 from urllib.parse import urlparse
 
+import fsspec
 import requests  # type: ignore[import-untyped]
 from google.auth.transport import requests as google_requests
 from google.oauth2 import id_token
@@ -26,7 +27,9 @@ from gcp_adapter.eventarc import parse_cloudevent
 from gcp_adapter.idempotency_firestore import (
     FirestoreIdempotency,
     find_completed_by_checksum,
+    find_completed_by_content_hash,
     resolve_checksum,
+    resolve_content_hash_scope,
     resolve_scope_key,
     update_object_metadata,
 )
@@ -41,6 +44,7 @@ from retikon_core.embeddings import get_audio_embedder, get_text_embedder
 from retikon_core.embeddings.timeout import run_inference
 from retikon_core.errors import PermanentError, RecoverableError, ValidationError
 from retikon_core.ingestion import process_event
+from retikon_core.ingestion.download import cleanup_tmp, download_to_tmp
 from retikon_core.ingestion.idempotency import build_doc_id
 from retikon_core.ingestion.rate_limit import (
     RateLimitBackendError,
@@ -414,6 +418,20 @@ def _instance_id() -> str:
     )
 
 
+def _system_metrics(
+    usage_start: resource.struct_rusage,
+    cold_start: bool,
+) -> dict[str, object]:
+    usage_end = resource.getrusage(resource.RUSAGE_SELF)
+    return {
+        "cpu_user_s": round(usage_end.ru_utime - usage_start.ru_utime, 4),
+        "cpu_sys_s": round(usage_end.ru_stime - usage_start.ru_stime, 4),
+        "memory_peak_kb": int(usage_end.ru_maxrss),
+        "cold_start": cold_start,
+        "instance_id": _instance_id(),
+    }
+
+
 def _silent_wav_bytes(
     duration_ms: int = 250,
     sample_rate: int = 48000,
@@ -493,6 +511,28 @@ def _queue_depth_snapshot() -> dict[str, Any] | None:
     return monitor.snapshot()
 
 
+def _manifest_metrics(manifest_uri: str, *, bucket: str, name: str) -> dict[str, object] | None:
+    try:
+        fs, path = fsspec.core.url_to_fs(manifest_uri)
+        with fs.open(path, "rb") as handle:
+            payload = json.load(handle)
+    except Exception as exc:
+        logger.warning(
+            "Failed to read manifest metrics",
+            extra={
+                "bucket": bucket,
+                "object_name": name,
+                "manifest_uri": manifest_uri,
+                "error_message": str(exc),
+            },
+        )
+        return None
+    if not isinstance(payload, dict):
+        return None
+    metrics = payload.get("metrics")
+    return metrics if isinstance(metrics, dict) else None
+
+
 def _apply_checksum_dedupe(
     *,
     client: firestore.Client,
@@ -505,6 +545,9 @@ def _apply_checksum_dedupe(
     size_bytes: int | None,
     content_type: str | None,
     duration_ms: int | None = None,
+    queue_wait_ms: float | None = None,
+    wall_ms: int | None = None,
+    system_metrics: dict[str, object] | None = None,
 ) -> bool:
     if not checksum:
         return False
@@ -539,6 +582,13 @@ def _apply_checksum_dedupe(
         "cache_hit": True,
         "cache_source": "both",
     }
+    match_hash = match.get("content_hash_sha256")
+    if match_hash:
+        payload["content_hash_sha256"] = match_hash
+        payload["content_hash_scope"] = resolve_content_hash_scope(
+            match_hash,
+            scope_key,
+        )
     if size_bytes is not None:
         payload["object_size_bytes"] = size_bytes
     if content_type:
@@ -553,6 +603,181 @@ def _apply_checksum_dedupe(
     for key in ("manifest_uri", "media_asset_id", "counts"):
         if key in match:
             payload[key] = match[key]
+    metrics_payload: dict[str, object] = {}
+    match_metrics = match.get("metrics")
+    if isinstance(match_metrics, dict):
+        pipeline_metrics = match_metrics.get("pipeline")
+        if pipeline_metrics is not None:
+            metrics_payload["pipeline"] = pipeline_metrics
+        stage_timings = match_metrics.get("stage_timings_ms")
+        if not isinstance(stage_timings, dict) and isinstance(pipeline_metrics, dict):
+            stage_timings = pipeline_metrics.get("stage_timings_ms")
+        if isinstance(stage_timings, dict):
+            metrics_payload["stage_timings_ms"] = stage_timings
+        pipe_ms = match_metrics.get("pipe_ms")
+        if not isinstance(pipe_ms, (int, float)) and isinstance(pipeline_metrics, dict):
+            pipe_ms = pipeline_metrics.get("pipe_ms")
+        if isinstance(pipe_ms, (int, float)):
+            metrics_payload["pipe_ms"] = round(float(pipe_ms), 2)
+    if "stage_timings_ms" not in metrics_payload:
+        manifest_uri = match.get("manifest_uri")
+        if isinstance(manifest_uri, str) and manifest_uri:
+            manifest_metrics = _manifest_metrics(
+                manifest_uri,
+                bucket=bucket,
+                name=name,
+            )
+            if isinstance(manifest_metrics, dict):
+                stage_timings = manifest_metrics.get("stage_timings_ms")
+                if isinstance(stage_timings, dict):
+                    metrics_payload["stage_timings_ms"] = stage_timings
+                    if "pipe_ms" not in metrics_payload:
+                        total = 0.0
+                        for value in stage_timings.values():
+                            if isinstance(value, (int, float)):
+                                total += float(value)
+                        metrics_payload["pipe_ms"] = round(total, 2)
+    if queue_wait_ms is not None:
+        metrics_payload["queue_wait_ms"] = queue_wait_ms
+    if wall_ms is not None:
+        metrics_payload["wall_ms"] = wall_ms
+    if system_metrics:
+        metrics_payload["system"] = system_metrics
+    if not isinstance(metrics_payload.get("stage_timings_ms"), dict):
+        logger.info(
+            "Dedupe match missing stage timings; skipping checksum dedupe",
+            extra={
+                "bucket": bucket,
+                "name": name,
+                "dedupe_source_doc_id": match.get("doc_id"),
+            },
+        )
+        return False
+    if metrics_payload:
+        payload["metrics"] = metrics_payload
+    client.collection(collection).document(doc_id).update(payload)
+    return True
+
+
+def _apply_content_hash_dedupe(
+    *,
+    client: firestore.Client,
+    collection: str,
+    doc_id: str,
+    bucket: str,
+    name: str,
+    scope_key: str,
+    content_hash: str | None,
+    size_bytes: int | None,
+    content_type: str | None,
+    duration_ms: int | None = None,
+    pipeline_version_value: str | None = None,
+    queue_wait_ms: float | None = None,
+    wall_ms: int | None = None,
+    system_metrics: dict[str, object] | None = None,
+) -> bool:
+    if not content_hash:
+        return False
+    try:
+        match = find_completed_by_content_hash(
+            client=client,
+            collection=collection,
+            content_hash=content_hash,
+            scope_key=scope_key,
+            size_bytes=size_bytes,
+            content_type=content_type,
+            duration_ms=duration_ms,
+            pipeline_version=pipeline_version_value,
+        )
+    except Exception as exc:
+        logger.warning(
+            "Content hash dedupe lookup failed",
+            extra={
+                "bucket": bucket,
+                "name": name,
+                "scope_key": scope_key,
+                "error_message": str(exc),
+            },
+        )
+        return False
+    if not match:
+        return False
+    payload: dict[str, object] = {
+        "status": "COMPLETED",
+        "updated_at": datetime.now(timezone.utc),
+        "content_hash_sha256": content_hash,
+        "content_hash_scope": resolve_content_hash_scope(content_hash, scope_key),
+        "dedupe_content_hash": content_hash,
+        "dedupe_source_doc_id": match.get("doc_id"),
+        "cache_hit": True,
+        "cache_source": "both",
+    }
+    if size_bytes is not None:
+        payload["object_size_bytes"] = size_bytes
+    if content_type:
+        payload["object_content_type"] = content_type
+    resolved_duration = duration_ms
+    if resolved_duration is None:
+        match_duration = match.get("object_duration_ms")
+        if match_duration is not None:
+            resolved_duration = int(match_duration)
+    if resolved_duration is not None:
+        payload["object_duration_ms"] = resolved_duration
+    for key in ("manifest_uri", "media_asset_id", "counts"):
+        if key in match:
+            payload[key] = match[key]
+    metrics_payload: dict[str, object] = {}
+    match_metrics = match.get("metrics")
+    if isinstance(match_metrics, dict):
+        pipeline_metrics = match_metrics.get("pipeline")
+        if pipeline_metrics is not None:
+            metrics_payload["pipeline"] = pipeline_metrics
+        stage_timings = match_metrics.get("stage_timings_ms")
+        if not isinstance(stage_timings, dict) and isinstance(pipeline_metrics, dict):
+            stage_timings = pipeline_metrics.get("stage_timings_ms")
+        if isinstance(stage_timings, dict):
+            metrics_payload["stage_timings_ms"] = stage_timings
+        pipe_ms = match_metrics.get("pipe_ms")
+        if not isinstance(pipe_ms, (int, float)) and isinstance(pipeline_metrics, dict):
+            pipe_ms = pipeline_metrics.get("pipe_ms")
+        if isinstance(pipe_ms, (int, float)):
+            metrics_payload["pipe_ms"] = round(float(pipe_ms), 2)
+    if "stage_timings_ms" not in metrics_payload:
+        manifest_uri = match.get("manifest_uri")
+        if isinstance(manifest_uri, str) and manifest_uri:
+            manifest_metrics = _manifest_metrics(
+                manifest_uri,
+                bucket=bucket,
+                name=name,
+            )
+            if isinstance(manifest_metrics, dict):
+                stage_timings = manifest_metrics.get("stage_timings_ms")
+                if isinstance(stage_timings, dict):
+                    metrics_payload["stage_timings_ms"] = stage_timings
+                    if "pipe_ms" not in metrics_payload:
+                        total = 0.0
+                        for value in stage_timings.values():
+                            if isinstance(value, (int, float)):
+                                total += float(value)
+                        metrics_payload["pipe_ms"] = round(total, 2)
+    if queue_wait_ms is not None:
+        metrics_payload["queue_wait_ms"] = queue_wait_ms
+    if wall_ms is not None:
+        metrics_payload["wall_ms"] = wall_ms
+    if system_metrics:
+        metrics_payload["system"] = system_metrics
+    if not isinstance(metrics_payload.get("stage_timings_ms"), dict):
+        logger.info(
+            "Dedupe match missing stage timings; skipping content hash dedupe",
+            extra={
+                "bucket": bucket,
+                "name": name,
+                "dedupe_source_doc_id": match.get("doc_id"),
+            },
+        )
+        return False
+    if metrics_payload:
+        payload["metrics"] = metrics_payload
     client.collection(collection).document(doc_id).update(payload)
     return True
 
@@ -787,8 +1012,12 @@ async def ingest(
         try:
             enforce_rate_limit(modality, config=config, scope=scope)
         except RateLimitExceeded as exc:
+            if download is not None:
+                cleanup_tmp(download.path)
             raise HTTPException(status_code=429, detail=str(exc)) from exc
         except RateLimitBackendError as exc:
+            if download is not None:
+                cleanup_tmp(download.path)
             raise HTTPException(status_code=503, detail=str(exc)) from exc
         return IngestResponse(status="accepted", trace_id=trace_id)
 
@@ -864,6 +1093,8 @@ async def ingest(
         idempotency.mark_dlq(decision.doc_id, "MAX_ATTEMPTS", "Max attempts exceeded")
         return IngestResponse(status="dlq", trace_id=trace_id)
 
+    download = None
+    content_hash = None
     try:
         try:
             if config.dedupe_cache_enabled and _apply_checksum_dedupe(
@@ -876,6 +1107,9 @@ async def ingest(
                 checksum=checksum,
                 size_bytes=gcs_event.size,
                 content_type=gcs_event.content_type,
+                queue_wait_ms=queue_wait_ms,
+                wall_ms=int((time.monotonic() - start_time) * 1000),
+                system_metrics=_system_metrics(usage_start, cold_start),
             ):
                 logger.info(
                     "Ingest deduped by checksum",
@@ -887,6 +1121,49 @@ async def ingest(
                         "attempt_count": attempt_count,
                     },
                 )
+                return IngestResponse(status="completed", trace_id=trace_id)
+            object_uri = config.raw_object_uri(
+                gcs_event.name,
+                bucket=gcs_event.bucket,
+            )
+            download = download_to_tmp(object_uri, config.max_raw_bytes)
+            content_hash = download.content_hash_sha256
+            if content_hash:
+                content_scope = resolve_content_hash_scope(content_hash, scope_key)
+                firestore_client.collection(config.firestore_collection).document(
+                    decision.doc_id
+                ).update(
+                    {
+                        "content_hash_sha256": content_hash,
+                        "content_hash_scope": content_scope,
+                    }
+                )
+            if config.dedupe_cache_enabled and _apply_content_hash_dedupe(
+                client=firestore_client,
+                collection=config.firestore_collection,
+                doc_id=decision.doc_id,
+                bucket=gcs_event.bucket,
+                name=gcs_event.name,
+                scope_key=scope_key,
+                content_hash=content_hash,
+                size_bytes=gcs_event.size,
+                content_type=gcs_event.content_type,
+                pipeline_version_value=pipeline_version(),
+                queue_wait_ms=queue_wait_ms,
+                wall_ms=int((time.monotonic() - start_time) * 1000),
+                system_metrics=_system_metrics(usage_start, cold_start),
+            ):
+                logger.info(
+                    "Ingest deduped by content hash",
+                    extra={
+                        "request_id": trace_id,
+                        "correlation_id": request.state.correlation_id,
+                        "modality": modality,
+                        "bytes_downloaded": gcs_event.size,
+                        "attempt_count": attempt_count,
+                    },
+                )
+                cleanup_tmp(download.path)
                 return IngestResponse(status="completed", trace_id=trace_id)
             enforce_rate_limit(modality, config=config, scope=scope)
         except RateLimitExceeded as exc:
@@ -900,17 +1177,12 @@ async def ingest(
                 config=config,
                 rate_limit_scope=scope,
                 skip_rate_limit=True,
+                download=download,
             )
         finally:
             _ingest_load.decrement(modality)
-        usage_end = resource.getrusage(resource.RUSAGE_SELF)
-        system_metrics = {
-            "cpu_user_s": round(usage_end.ru_utime - usage_start.ru_utime, 4),
-            "cpu_sys_s": round(usage_end.ru_stime - usage_start.ru_stime, 4),
-            "memory_peak_kb": int(usage_end.ru_maxrss),
-            "cold_start": cold_start,
-            "instance_id": _instance_id(),
-        }
+            download = None
+        system_metrics = _system_metrics(usage_start, cold_start)
         wall_ms = int((time.monotonic() - start_time) * 1000)
         idempotency.mark_completed(decision.doc_id)
         update_payload = {
@@ -920,6 +1192,12 @@ async def ingest(
             "cache_hit": False,
             "cache_source": "none",
         }
+        if content_hash:
+            update_payload["content_hash_sha256"] = content_hash
+            update_payload["content_hash_scope"] = resolve_content_hash_scope(
+                content_hash,
+                scope_key,
+            )
         if outcome.duration_ms is not None:
             update_payload["object_duration_ms"] = outcome.duration_ms
         metrics_payload: dict[str, object] = {}
@@ -947,6 +1225,18 @@ async def ingest(
         metrics_payload["system"] = system_metrics
         if metrics_payload:
             update_payload["metrics"] = metrics_payload
+        queue_depth_backlog = None
+        queue_depth_oldest = None
+        subscriptions = queue_depth_payload.get("subscriptions") if queue_depth_payload else None
+        if isinstance(subscriptions, dict):
+            entry = subscriptions.get(outcome.modality or modality)
+            if isinstance(entry, dict):
+                backlog = entry.get("backlog")
+                if isinstance(backlog, (int, float)):
+                    queue_depth_backlog = int(backlog)
+                oldest = entry.get("oldest_unacked_s")
+                if isinstance(oldest, (int, float)):
+                    queue_depth_oldest = round(float(oldest), 2)
         firestore_client.collection(config.firestore_collection).document(
             decision.doc_id
         ).update(update_payload)
@@ -963,6 +1253,8 @@ async def ingest(
                 "media_asset_id": outcome.media_asset_id,
                 "attempt_count": attempt_count,
                 "queue_wait_ms": queue_wait_ms,
+                "queue_depth_backlog": queue_depth_backlog,
+                "queue_depth_oldest_unacked_s": queue_depth_oldest,
                 "cpu_user_s": system_metrics["cpu_user_s"],
                 "cpu_sys_s": system_metrics["cpu_sys_s"],
                 "memory_peak_kb": system_metrics["memory_peak_kb"],
@@ -991,6 +1283,8 @@ async def ingest(
                 )
         return IngestResponse(status=outcome.status, trace_id=trace_id)
     except PermanentError as exc:
+        if download is not None:
+            cleanup_tmp(download.path)
         _publish_dlq(
             dlq_publisher,
             error_code="PERMANENT",
@@ -1017,6 +1311,8 @@ async def ingest(
         )
         return IngestResponse(status="failed", trace_id=trace_id)
     except RecoverableError as exc:
+        if download is not None:
+            cleanup_tmp(download.path)
         if (
             config.max_ingest_attempts > 0
             and attempt_count >= config.max_ingest_attempts
@@ -1058,6 +1354,8 @@ async def ingest(
         idempotency.mark_failed(decision.doc_id, "RECOVERABLE", str(exc))
         raise HTTPException(status_code=500, detail=str(exc)) from exc
     except Exception as exc:
+        if download is not None:
+            cleanup_tmp(download.path)
         logger.exception(
             "Ingest failed (unexpected)",
             extra={

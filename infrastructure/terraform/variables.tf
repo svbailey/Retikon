@@ -1638,6 +1638,46 @@ variable "audio_model_name" {
   default = "laion/clap-htsat-fused"
 }
 
+variable "text_embed_batch_size" {
+  type    = number
+  default = 32
+}
+
+variable "image_embed_batch_size" {
+  type    = number
+  default = 8
+}
+
+variable "image_embed_max_dim" {
+  type    = number
+  default = 0
+}
+
+variable "text_embed_backend" {
+  type    = string
+  default = ""
+}
+
+variable "image_embed_backend" {
+  type    = string
+  default = ""
+}
+
+variable "audio_embed_backend" {
+  type    = string
+  default = ""
+}
+
+variable "image_text_embed_backend" {
+  type    = string
+  default = ""
+}
+
+variable "audio_text_embed_backend" {
+  type    = string
+  default = ""
+}
+
 variable "whisper_model_name" {
   type    = string
   default = "small"

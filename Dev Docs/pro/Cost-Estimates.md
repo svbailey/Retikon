@@ -46,6 +46,12 @@ Images:
 Source:
 - `python scripts/report_ingest_baseline.py --project simitor --bucket retikon-raw-simitor-staging --raw-prefix raw_clean --run-id sla-20260211-131546 --modalities docs,images`
 
+Follow-up (queue isolation check, 2026-02-11, --unique uploads):
+- Run id: queue-baseline-20260211-203152
+- Docs: cpu_s p50 0.65, p95 1.355; memory_peak_kb p50 1,594,096 (~1.52 GiB), p95 2,029,294 (~1.94 GiB)
+- Images: cpu_s p50 0.705, p95 8.8555; memory_peak_kb p50 1,967,396 (~1.88 GiB), p95 2,035,860 (~1.94 GiB)
+- Source: `python scripts/report_ingest_baseline.py --project simitor --bucket retikon-raw-simitor-staging --raw-prefix raw_clean --run-id queue-baseline-20260211-203152 --modalities docs,images`
+
 ## Guardrails that cap cost growth
 
 - `MAX_RAW_BYTES=500000000` (per object)

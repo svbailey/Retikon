@@ -218,6 +218,10 @@ def test_resolve_scope_key_checksum_scope():
         idem.resolve_checksum_scope("md5:abc", scope_key)
         == "org:site:stream:md5:abc"
     )
+    assert (
+        idem.resolve_content_hash_scope("sha256:abc", scope_key)
+        == "org:site:stream:sha256:abc"
+    )
 
 
 def test_find_completed_by_checksum_scope_key():
@@ -269,5 +273,64 @@ def test_find_completed_by_checksum_signature_filters():
         checksum=checksum,
         size_bytes=7,
         content_type="video/mp4",
+    )
+    assert mismatch is None
+
+
+def test_find_completed_by_content_hash_scope_key():
+    client = _Client()
+    scope_key = idem.resolve_scope_key("org", "site", "stream")
+    content_hash = "sha256:abc"
+    content_scope = idem.resolve_content_hash_scope(content_hash, scope_key)
+    client.store["doc-1"] = {
+        "status": "COMPLETED",
+        "content_hash_scope": content_scope,
+        "content_hash_sha256": content_hash,
+        "scope_key": scope_key,
+        "manifest_uri": "gs://example/manifest.json",
+        "pipeline_version": "v1",
+    }
+    result = idem.find_completed_by_content_hash(
+        client=client,
+        collection="events",
+        content_hash=content_hash,
+        scope_key=scope_key,
+        pipeline_version="v1",
+    )
+    assert result is not None
+    assert result["doc_id"] == "doc-1"
+
+
+def test_find_completed_by_content_hash_filters():
+    client = _Client()
+    content_hash = "sha256:abc"
+    client.store["doc-1"] = {
+        "status": "COMPLETED",
+        "content_hash_sha256": content_hash,
+        "object_size_bytes": 42,
+        "object_content_type": "video/mp4",
+        "object_duration_ms": 1200,
+        "pipeline_version": "v2",
+    }
+
+    match = idem.find_completed_by_content_hash(
+        client=client,
+        collection="events",
+        content_hash=content_hash,
+        size_bytes=42,
+        content_type="video/mp4",
+        duration_ms=1200,
+        pipeline_version="v2",
+    )
+    assert match is not None
+    assert match["doc_id"] == "doc-1"
+
+    mismatch = idem.find_completed_by_content_hash(
+        client=client,
+        collection="events",
+        content_hash=content_hash,
+        size_bytes=7,
+        content_type="video/mp4",
+        pipeline_version="v2",
     )
     assert mismatch is None

@@ -77,7 +77,7 @@
                     "aggregation": {
                       "alignmentPeriod": "60s",
                       "crossSeriesReducer": "REDUCE_MAX",
-                      "perSeriesAligner": "ALIGN_MAX"
+                      "perSeriesAligner": "ALIGN_PERCENTILE_95"
                     },
                     "filter": "resource.type=\"pubsub_subscription\" AND resource.labels.subscription_id=\"retikon-ingest-dlq-sub\" AND metric.type=\"pubsub.googleapis.com/subscription/num_undelivered_messages\""
                   }
@@ -92,6 +92,94 @@
         },
         "width": 4,
         "xPos": 8
+      },
+      {
+        "height": 4,
+        "widget": {
+          "title": "Ingest queue wait p50/p95 (ms)",
+          "xyChart": {
+            "dataSets": [
+              {
+                "legendTemplate": "${metric.label.modality} p50",
+                "plotType": "LINE",
+                "targetAxis": "Y1",
+                "timeSeriesQuery": {
+                  "timeSeriesFilter": {
+                    "aggregation": {
+                      "alignmentPeriod": "60s",
+                      "crossSeriesReducer": "REDUCE_NONE",
+                      "groupByFields": [
+                        "metric.label.modality"
+                      ],
+                      "perSeriesAligner": "ALIGN_PERCENTILE_50"
+                    },
+                    "filter": "metric.type=\"logging.googleapis.com/user/retikon_ingest_queue_wait_ms\""
+                  }
+                }
+              },
+              {
+                "legendTemplate": "${metric.label.modality} p95",
+                "plotType": "LINE",
+                "targetAxis": "Y1",
+                "timeSeriesQuery": {
+                  "timeSeriesFilter": {
+                    "aggregation": {
+                      "alignmentPeriod": "60s",
+                      "crossSeriesReducer": "REDUCE_NONE",
+                      "groupByFields": [
+                        "metric.label.modality"
+                      ],
+                      "perSeriesAligner": "ALIGN_PERCENTILE_95"
+                    },
+                    "filter": "metric.type=\"logging.googleapis.com/user/retikon_ingest_queue_wait_ms\""
+                  }
+                }
+              }
+            ],
+            "yAxis": {
+              "label": "milliseconds",
+              "scale": "LINEAR"
+            }
+          }
+        },
+        "width": 6,
+        "xPos": 0,
+        "yPos": 4
+      },
+      {
+        "height": 4,
+        "widget": {
+          "title": "Ingest queue depth by modality",
+          "xyChart": {
+            "dataSets": [
+              {
+                "legendTemplate": "${metric.label.modality}",
+                "plotType": "LINE",
+                "targetAxis": "Y1",
+                "timeSeriesQuery": {
+                  "timeSeriesFilter": {
+                    "aggregation": {
+                      "alignmentPeriod": "60s",
+                      "crossSeriesReducer": "REDUCE_NONE",
+                      "groupByFields": [
+                        "metric.label.modality"
+                      ],
+                      "perSeriesAligner": "ALIGN_MAX"
+                    },
+                    "filter": "metric.type=\"logging.googleapis.com/user/retikon_ingest_queue_depth_backlog\""
+                  }
+                }
+              }
+            ],
+            "yAxis": {
+              "label": "messages",
+              "scale": "LINEAR"
+            }
+          }
+        },
+        "width": 6,
+        "xPos": 6,
+        "yPos": 4
       }
     ]
   },

@@ -3,6 +3,7 @@ from __future__ import annotations
 import os
 import re
 import uuid
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from functools import lru_cache
@@ -14,10 +15,11 @@ from docx import Document
 from pptx import Presentation
 
 from retikon_core.config import Config
-from retikon_core.embeddings import get_text_embedder
+from retikon_core.embeddings import get_embedding_backend, get_text_embedder
 from retikon_core.embeddings.timeout import run_inference
 from retikon_core.errors import PermanentError
 from retikon_core.ingestion.ocr import ocr_text_from_pdf
+from retikon_core.ingestion.pipelines.embedding_utils import text_embed_batch_size
 from retikon_core.ingestion.pipelines.metrics import (
     CallTracker,
     StageTimer,
@@ -62,6 +64,64 @@ def _tokenizer_name() -> str:
 
 def _tokenizer_cache_dir() -> str | None:
     return os.getenv("MODEL_DIR")
+
+
+def _doc_parquet_compression() -> str:
+    value = os.getenv("DOC_PARQUET_COMPRESSION", "").strip()
+    if value:
+        return value
+    return os.getenv("PARQUET_COMPRESSION", "zstd").strip() or "zstd"
+
+
+def _doc_parquet_row_group_size() -> int | None:
+    raw = os.getenv("DOC_PARQUET_ROW_GROUP_SIZE", "").strip()
+    if not raw:
+        raw = os.getenv("PARQUET_ROW_GROUP_SIZE", "").strip()
+    if not raw:
+        return None
+    try:
+        value = int(raw)
+    except ValueError:
+        return None
+    return value if value > 0 else None
+
+
+def _write_parquet_parallel(
+    jobs: list[tuple[list[dict[str, object]], object, str]],
+    *,
+    compression: str,
+    row_group_size: int | None,
+) -> list[WriteResult]:
+    if not jobs:
+        return []
+    if len(jobs) == 1:
+        rows, schema, uri = jobs[0]
+        return [
+            write_parquet(
+                rows,
+                schema,
+                uri,
+                compression=compression,
+                row_group_size=row_group_size,
+            )
+        ]
+    max_workers = min(4, len(jobs))
+    results: list[WriteResult | None] = [None] * len(jobs)
+    with ThreadPoolExecutor(max_workers=max_workers) as executor:
+        future_map = {}
+        for idx, (rows, schema, uri) in enumerate(jobs):
+            future = executor.submit(
+                write_parquet,
+                rows,
+                schema,
+                uri,
+                compression,
+                row_group_size,
+            )
+            future_map[future] = idx
+        for future in as_completed(future_map):
+            results[future_map[future]] = future.result()
+    return [item for item in results if item is not None]
 
 
 class _SimpleTokenizer:
@@ -196,15 +256,6 @@ def _chunk_text(text: str, target_tokens: int, overlap_tokens: int) -> list[Chun
     return chunks
 
 
-def _doc_embed_batch_size() -> int:
-    raw = os.getenv("DOC_EMBED_BATCH_SIZE", "32")
-    try:
-        value = int(raw)
-    except ValueError:
-        value = 32
-    return max(1, value)
-
-
 def _embed_chunks(
     chunks: list[Chunk],
     tracker: CallTracker | None = None,
@@ -212,7 +263,15 @@ def _embed_chunks(
     if not chunks:
         return []
     embedder = get_text_embedder(768)
-    batch_size = _doc_embed_batch_size()
+    batch_size = text_embed_batch_size()
+    if tracker is not None:
+        tracker.set_context(
+            "text_embed",
+            {
+                "batch_size": batch_size,
+                "backend": get_embedding_backend("text"),
+            },
+        )
     embeddings: list[list[float]] = []
     for start in range(0, len(chunks), batch_size):
         batch = [chunk.text for chunk in chunks[start : start + batch_size]]
@@ -343,39 +402,44 @@ def ingest_document(
 
     files: list[WriteResult] = []
     with timer.track("write_parquet"):
-        files.append(
-            write_parquet(
+        compression = _doc_parquet_compression()
+        row_group_size = _doc_parquet_row_group_size()
+        jobs = [
+            (
                 [media_row],
                 schema_for("MediaAsset", "core"),
-                vertex_part_uri(output_root, "MediaAsset", "core", str(uuid.uuid4())),
-            )
-        )
-        files.append(
-            write_parquet(
+                vertex_part_uri(
+                    output_root, "MediaAsset", "core", str(uuid.uuid4())
+                ),
+            ),
+            (
                 chunk_core_rows,
                 schema_for("DocChunk", "core"),
                 vertex_part_uri(output_root, "DocChunk", "core", str(uuid.uuid4())),
-            )
-        )
-        files.append(
-            write_parquet(
+            ),
+            (
                 chunk_text_rows,
                 schema_for("DocChunk", "text"),
                 vertex_part_uri(output_root, "DocChunk", "text", str(uuid.uuid4())),
-            )
-        )
-        files.append(
-            write_parquet(
+            ),
+            (
                 chunk_vector_rows,
                 schema_for("DocChunk", "vector"),
-                vertex_part_uri(output_root, "DocChunk", "vector", str(uuid.uuid4())),
-            )
-        )
-        files.append(
-            write_parquet(
+                vertex_part_uri(
+                    output_root, "DocChunk", "vector", str(uuid.uuid4())
+                ),
+            ),
+            (
                 edge_rows,
                 schema_for("DerivedFrom", "adj_list"),
                 edge_part_uri(output_root, "DerivedFrom", str(uuid.uuid4())),
+            ),
+        ]
+        files.extend(
+            _write_parquet_parallel(
+                jobs,
+                compression=compression,
+                row_group_size=row_group_size,
             )
         )
 
@@ -383,6 +447,9 @@ def ingest_document(
     bytes_raw = source.size_bytes or 0
     token_total = sum(chunk.token_count for chunk in chunks)
     word_count = len(text.split())
+    hashes: dict[str, str] = {}
+    if source.content_hash_sha256:
+        hashes["content_sha256"] = source.content_hash_sha256
     raw_timings_preview = timer.summary()
     stage_timings_preview = build_stage_timings(
         raw_timings_preview,
@@ -407,6 +474,7 @@ def ingest_document(
                 "token_count": token_total,
                 "chunk_count": len(chunks),
             },
+            "hashes": hashes,
             "embeddings": {
                 "text": {
                     "count": len(chunks),
@@ -438,7 +506,7 @@ def ingest_document(
             metrics=manifest_metrics,
         )
         manifest_path = manifest_uri(output_root, run_id)
-        write_manifest(manifest, manifest_path)
+        write_manifest(manifest, manifest_path, compact=True)
     raw_timings = timer.summary()
     stage_timings_ms = build_stage_timings(
         raw_timings,
@@ -466,6 +534,7 @@ def ingest_document(
             "token_count": token_total,
             "chunk_count": len(chunks),
         },
+        "hashes": hashes,
         "embeddings": {
             "text": {
                 "count": len(chunks),

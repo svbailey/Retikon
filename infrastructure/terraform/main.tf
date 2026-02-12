@@ -810,6 +810,38 @@ resource "google_cloud_run_service" "ingestion" {
           value = var.audio_model_name
         }
         env {
+          name  = "TEXT_EMBED_BATCH_SIZE"
+          value = tostring(var.text_embed_batch_size)
+        }
+        env {
+          name  = "IMAGE_EMBED_BATCH_SIZE"
+          value = tostring(var.image_embed_batch_size)
+        }
+        env {
+          name  = "IMAGE_EMBED_MAX_DIM"
+          value = tostring(var.image_embed_max_dim)
+        }
+        env {
+          name  = "TEXT_EMBED_BACKEND"
+          value = var.text_embed_backend
+        }
+        env {
+          name  = "IMAGE_EMBED_BACKEND"
+          value = var.image_embed_backend
+        }
+        env {
+          name  = "AUDIO_EMBED_BACKEND"
+          value = var.audio_embed_backend
+        }
+        env {
+          name  = "IMAGE_TEXT_EMBED_BACKEND"
+          value = var.image_text_embed_backend
+        }
+        env {
+          name  = "AUDIO_TEXT_EMBED_BACKEND"
+          value = var.audio_text_embed_backend
+        }
+        env {
           name  = "INGEST_WARMUP"
           value = var.ingest_warmup ? "1" : "0"
         }
@@ -4247,6 +4279,38 @@ resource "google_cloud_run_service" "ingestion_media" {
           value = var.audio_model_name
         }
         env {
+          name  = "TEXT_EMBED_BATCH_SIZE"
+          value = tostring(var.text_embed_batch_size)
+        }
+        env {
+          name  = "IMAGE_EMBED_BATCH_SIZE"
+          value = tostring(var.image_embed_batch_size)
+        }
+        env {
+          name  = "IMAGE_EMBED_MAX_DIM"
+          value = tostring(var.image_embed_max_dim)
+        }
+        env {
+          name  = "TEXT_EMBED_BACKEND"
+          value = var.text_embed_backend
+        }
+        env {
+          name  = "IMAGE_EMBED_BACKEND"
+          value = var.image_embed_backend
+        }
+        env {
+          name  = "AUDIO_EMBED_BACKEND"
+          value = var.audio_embed_backend
+        }
+        env {
+          name  = "IMAGE_TEXT_EMBED_BACKEND"
+          value = var.image_text_embed_backend
+        }
+        env {
+          name  = "AUDIO_TEXT_EMBED_BACKEND"
+          value = var.audio_text_embed_backend
+        }
+        env {
           name  = "INGEST_WARMUP"
           value = var.ingest_media_warmup ? "1" : "0"
         }
@@ -4718,6 +4782,38 @@ resource "google_cloud_run_service" "ingestion_embed" {
         env {
           name  = "AUDIO_MODEL_NAME"
           value = var.audio_model_name
+        }
+        env {
+          name  = "TEXT_EMBED_BATCH_SIZE"
+          value = tostring(var.text_embed_batch_size)
+        }
+        env {
+          name  = "IMAGE_EMBED_BATCH_SIZE"
+          value = tostring(var.image_embed_batch_size)
+        }
+        env {
+          name  = "IMAGE_EMBED_MAX_DIM"
+          value = tostring(var.image_embed_max_dim)
+        }
+        env {
+          name  = "TEXT_EMBED_BACKEND"
+          value = var.text_embed_backend
+        }
+        env {
+          name  = "IMAGE_EMBED_BACKEND"
+          value = var.image_embed_backend
+        }
+        env {
+          name  = "AUDIO_EMBED_BACKEND"
+          value = var.audio_embed_backend
+        }
+        env {
+          name  = "IMAGE_TEXT_EMBED_BACKEND"
+          value = var.image_text_embed_backend
+        }
+        env {
+          name  = "AUDIO_TEXT_EMBED_BACKEND"
+          value = var.audio_text_embed_backend
         }
         env {
           name  = "INGEST_WARMUP"
@@ -5689,6 +5785,66 @@ resource "google_monitoring_notification_channel" "email" {
   }
 }
 
+resource "google_logging_metric" "ingest_queue_wait_ms" {
+  name   = "retikon_ingest_queue_wait_ms"
+  filter = "resource.type=\"cloud_run_revision\" AND jsonPayload.service=\"retikon-ingestion\" AND jsonPayload.queue_wait_ms>0"
+
+  metric_descriptor {
+    metric_kind = "DELTA"
+    value_type  = "DISTRIBUTION"
+    unit        = "ms"
+
+    labels {
+      key         = "modality"
+      value_type  = "STRING"
+      description = "Ingest modality"
+    }
+  }
+
+  value_extractor = "EXTRACT(jsonPayload.queue_wait_ms)"
+  label_extractors = {
+    modality = "EXTRACT(jsonPayload.modality)"
+  }
+
+  bucket_options {
+    exponential_buckets {
+      num_finite_buckets = 20
+      growth_factor      = 2
+      scale              = 1
+    }
+  }
+}
+
+resource "google_logging_metric" "ingest_queue_depth_backlog" {
+  name   = "retikon_ingest_queue_depth_backlog"
+  filter = "resource.type=\"cloud_run_revision\" AND jsonPayload.service=\"retikon-ingestion\" AND jsonPayload.queue_depth_backlog>=0"
+
+  metric_descriptor {
+    metric_kind = "DELTA"
+    value_type  = "DISTRIBUTION"
+    unit        = "1"
+
+    labels {
+      key         = "modality"
+      value_type  = "STRING"
+      description = "Ingest modality"
+    }
+  }
+
+  value_extractor = "EXTRACT(jsonPayload.queue_depth_backlog)"
+  label_extractors = {
+    modality = "EXTRACT(jsonPayload.modality)"
+  }
+
+  bucket_options {
+    exponential_buckets {
+      num_finite_buckets = 20
+      growth_factor      = 2
+      scale              = 1
+    }
+  }
+}
+
 resource "google_monitoring_dashboard" "ops" {
   dashboard_json = jsonencode(
     {
@@ -5801,7 +5957,7 @@ resource "google_monitoring_dashboard" "ops" {
                         filter = "resource.type=\"pubsub_subscription\" AND resource.labels.subscription_id=\"${var.ingest_dlq_subscription_name}\" AND metric.type=\"pubsub.googleapis.com/subscription/num_undelivered_messages\""
                         aggregation = {
                           alignmentPeriod    = "60s"
-                          perSeriesAligner   = "ALIGN_MAX"
+                              perSeriesAligner   = "ALIGN_PERCENTILE_95"
                           crossSeriesReducer = "REDUCE_MAX"
                         }
                       }
@@ -6152,6 +6308,85 @@ resource "google_monitoring_dashboard" "ops" {
                 ]
                 yAxis = {
                   label = "bytes"
+                  scale = "LINEAR"
+                }
+              }
+            }
+          },
+          {
+            xPos   = 0
+            yPos   = 20
+            width  = 6
+            height = 4
+            widget = {
+              title = "Ingest queue wait p50/p95 (ms)"
+              xyChart = {
+                dataSets = [
+                  {
+                    plotType = "LINE"
+                    legendTemplate = "$${metric.label.modality} p50"
+                    timeSeriesQuery = {
+                      timeSeriesFilter = {
+                        filter = "metric.type=\"logging.googleapis.com/user/retikon_ingest_queue_wait_ms\""
+                        aggregation = {
+                          alignmentPeriod    = "60s"
+                          perSeriesAligner   = "ALIGN_PERCENTILE_50"
+                          crossSeriesReducer = "REDUCE_NONE"
+                          groupByFields      = ["metric.label.modality"]
+                        }
+                      }
+                    }
+                  },
+                  {
+                    plotType = "LINE"
+                    legendTemplate = "$${metric.label.modality} p95"
+                    timeSeriesQuery = {
+                      timeSeriesFilter = {
+                        filter = "metric.type=\"logging.googleapis.com/user/retikon_ingest_queue_wait_ms\""
+                        aggregation = {
+                          alignmentPeriod    = "60s"
+                          perSeriesAligner   = "ALIGN_PERCENTILE_95"
+                          crossSeriesReducer = "REDUCE_NONE"
+                          groupByFields      = ["metric.label.modality"]
+                        }
+                      }
+                    }
+                  }
+                ]
+                yAxis = {
+                  label = "milliseconds"
+                  scale = "LINEAR"
+                }
+              }
+            }
+          },
+          {
+            xPos   = 6
+            yPos   = 20
+            width  = 6
+            height = 4
+            widget = {
+              title = "Ingest queue depth by modality"
+              xyChart = {
+                dataSets = [
+                  {
+                    plotType = "LINE"
+                    legendTemplate = "$${metric.label.modality}"
+                    timeSeriesQuery = {
+                      timeSeriesFilter = {
+                        filter = "metric.type=\"logging.googleapis.com/user/retikon_ingest_queue_depth_backlog\""
+                        aggregation = {
+                          alignmentPeriod    = "60s"
+                          perSeriesAligner   = "ALIGN_MAX"
+                          crossSeriesReducer = "REDUCE_NONE"
+                          groupByFields      = ["metric.label.modality"]
+                        }
+                      }
+                    }
+                  }
+                ]
+                yAxis = {
+                  label = "messages"
                   scale = "LINEAR"
                 }
               }
