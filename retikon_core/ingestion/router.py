@@ -34,8 +34,8 @@ def _schema_version() -> str:
     return "1"
 
 
-def _modality_for_name(name: str, raw_prefix: str) -> str:
-    prefix = raw_prefix.strip("/")
+def _modality_for_name(name: str, raw_prefix: str | None = None) -> str:
+    prefix = (raw_prefix or os.getenv("RAW_PREFIX", "raw")).strip("/")
     if name.startswith(f"{prefix}/docs/"):
         return "document"
     if name.startswith(f"{prefix}/images/"):

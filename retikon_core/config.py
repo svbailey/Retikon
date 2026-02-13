@@ -1,3 +1,4 @@
+import json
 import os
 from dataclasses import dataclass
 from functools import lru_cache
@@ -42,6 +43,9 @@ class Config:
     audio_vad_min_speech_ms: int
     transcribe_tier: str
     transcribe_max_ms: int
+    transcribe_max_ms_by_org: dict[str, int]
+    transcribe_max_ms_by_plan: dict[str, int]
+    transcribe_plan_metadata_keys: tuple[str, ...]
     dedupe_cache_enabled: bool
     firestore_collection: str
     idempotency_ttl_seconds: int
@@ -183,6 +187,15 @@ class Config:
                 "TRANSCRIBE_TIER must be one of: fast, accurate, off"
             )
         transcribe_max_ms = int(os.getenv("TRANSCRIBE_MAX_MS", "0"))
+        transcribe_max_ms_by_org = _parse_int_map(
+            os.getenv("TRANSCRIBE_MAX_MS_BY_ORG")
+        )
+        transcribe_max_ms_by_plan = _parse_int_map(
+            os.getenv("TRANSCRIBE_MAX_MS_BY_PLAN")
+        )
+        transcribe_plan_metadata_keys = _parse_csv_lower(
+            os.getenv("TRANSCRIBE_PLAN_METADATA_KEYS", "plan,plan_id,tier")
+        )
         dedupe_cache_enabled = _parse_bool(
             os.getenv("ENABLE_DEDUPE_CACHE"),
             True,
@@ -306,6 +319,9 @@ class Config:
             audio_vad_min_speech_ms=audio_vad_min_speech_ms,
             transcribe_tier=transcribe_tier,
             transcribe_max_ms=transcribe_max_ms,
+            transcribe_max_ms_by_org=transcribe_max_ms_by_org,
+            transcribe_max_ms_by_plan=transcribe_max_ms_by_plan,
+            transcribe_plan_metadata_keys=transcribe_plan_metadata_keys,
             dedupe_cache_enabled=dedupe_cache_enabled,
             firestore_collection=firestore_collection,
             idempotency_ttl_seconds=idempotency_ttl_seconds,
@@ -367,6 +383,53 @@ def _parse_bool(value: str | None, default: bool) -> bool:
     if value is None or value == "":
         return default
     return value.strip().lower() in {"1", "true", "yes", "y", "on"}
+
+
+def _parse_int_map(value: str | None) -> dict[str, int]:
+    if not value:
+        return {}
+    raw = value.strip()
+    if not raw:
+        return {}
+    if raw.startswith("{"):
+        try:
+            payload = json.loads(raw)
+        except json.JSONDecodeError:
+            return {}
+        if not isinstance(payload, dict):
+            return {}
+        result: dict[str, int] = {}
+        for key, item in payload.items():
+            try:
+                result[str(key).strip()] = int(item)
+            except (TypeError, ValueError):
+                continue
+        return result
+    result: dict[str, int] = {}
+    for entry in raw.split(","):
+        if not entry.strip():
+            continue
+        if "=" in entry:
+            key, item = entry.split("=", 1)
+        elif ":" in entry:
+            key, item = entry.split(":", 1)
+        else:
+            continue
+        key = key.strip()
+        if not key:
+            continue
+        try:
+            result[key] = int(item)
+        except (TypeError, ValueError):
+            continue
+    return result
+
+
+def _parse_csv_lower(value: str | None) -> tuple[str, ...]:
+    if not value:
+        return ()
+    items = [item.strip().lower() for item in value.split(",") if item.strip()]
+    return tuple(items)
 
 
 @lru_cache(maxsize=1)

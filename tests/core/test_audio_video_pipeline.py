@@ -10,6 +10,7 @@ from retikon_core.errors import PermanentError, RecoverableError
 from retikon_core.ingestion.media import AudioAnalysis, FrameInfo
 from retikon_core.ingestion.pipelines import audio as audio_pipeline
 from retikon_core.ingestion.pipelines import video as video_pipeline
+from retikon_core.ingestion.pipelines.metrics import CANONICAL_STAGE_KEYS
 from retikon_core.ingestion.transcribe import TranscriptSegment
 from retikon_core.ingestion.types import IngestSource
 
@@ -19,6 +20,15 @@ def _is_uuid4(value: str) -> bool:
         return uuid.UUID(value).version == 4
     except ValueError:
         return False
+
+
+def _assert_stage_timings(metrics: dict[str, object]) -> None:
+    stage_timings = metrics.get("stage_timings_ms")
+    assert isinstance(stage_timings, dict)
+    assert set(stage_timings.keys()) == set(CANONICAL_STAGE_KEYS)
+    pipe_ms = metrics.get("pipe_ms")
+    assert isinstance(pipe_ms, (int, float))
+    assert round(sum(stage_timings.values()), 2) == pipe_ms
 
 
 def test_audio_pipeline_writes_graphar(tmp_path, monkeypatch):
@@ -103,6 +113,8 @@ def test_audio_pipeline_writes_graphar(tmp_path, monkeypatch):
         assert _is_uuid4(value)
     for value in edge_table.column("dst_id").to_pylist():
         assert _is_uuid4(value)
+    assert result.metrics is not None
+    _assert_stage_timings(result.metrics)
 
 
 def test_audio_pipeline_empty_transcript_skips_embeddings(tmp_path, monkeypatch):
@@ -240,6 +252,75 @@ def test_audio_pipeline_vad_no_speech_skips_transcribe(tmp_path, monkeypatch):
     assert quality["extracted_audio_duration_ms"] <= quality["audio_duration_ms"]
     assert result.metrics["stage_timings_ms"]["transcribe_ms"] == 0.0
     assert "transcribe" not in result.metrics["model_calls"]
+    assert result.metrics["pipe_ms"] <= 2000
+    _assert_stage_timings(result.metrics)
+
+
+def test_audio_pipeline_org_transcribe_limit_skips_transcribe(tmp_path, monkeypatch):
+    from retikon_core import config as config_module
+
+    monkeypatch.setenv("TRANSCRIBE_ENABLED", "1")
+    monkeypatch.setenv("TRANSCRIBE_TIER", "fast")
+    monkeypatch.setenv("AUDIO_TRANSCRIBE", "1")
+    monkeypatch.setenv("AUDIO_VAD_ENABLED", "0")
+    monkeypatch.setenv("TRANSCRIBE_MAX_MS_BY_ORG", "org-1=500")
+    config_module.get_config.cache_clear()
+    config = get_config()
+    fixture = Path("tests/fixtures/sample.wav")
+
+    def fake_probe(_path):
+        return type(
+            "Probe",
+            (),
+            {
+                "duration_seconds": 1.0,
+                "has_audio": True,
+                "has_video": False,
+                "audio_sample_rate": 48000,
+                "audio_channels": 1,
+                "video_width": None,
+                "video_height": None,
+                "frame_rate": None,
+                "frame_count": None,
+            },
+        )()
+
+    monkeypatch.setattr(audio_pipeline, "probe_media", fake_probe)
+    monkeypatch.setattr(
+        audio_pipeline,
+        "normalize_audio",
+        lambda _path, sample_rate=48000: str(fixture),
+    )
+
+    def forbid_transcribe(*_args, **_kwargs):
+        raise AssertionError("Transcribe should be skipped for org cap")
+
+    monkeypatch.setattr(audio_pipeline, "transcribe_audio", forbid_transcribe)
+
+    source = IngestSource(
+        bucket="test-raw",
+        name="raw/audio/sample.wav",
+        generation="1",
+        content_type="audio/wav",
+        size_bytes=fixture.stat().st_size,
+        md5_hash=None,
+        crc32c=None,
+        local_path=str(fixture),
+        uri_scheme="gs",
+        org_id="org-1",
+    )
+
+    result = audio_pipeline.ingest_audio(
+        source=source,
+        config=config,
+        output_uri=tmp_path.as_posix(),
+        pipeline_version="v2.5",
+        schema_version="1",
+    )
+
+    quality = result.metrics["quality"]
+    assert quality["transcript_status"] == "skipped_by_policy"
+    assert quality["transcript_error_reason"] == "transcribe_org_limit_exceeded"
 
 
 def test_audio_pipeline_duration_fields_order(tmp_path, monkeypatch):
@@ -622,6 +703,8 @@ def test_video_pipeline_writes_graphar(tmp_path, monkeypatch):
         assert _is_uuid4(value)
     for value in edge_table.column("dst_id").to_pylist():
         assert _is_uuid4(value)
+    assert result.metrics is not None
+    _assert_stage_timings(result.metrics)
 
 
 def test_video_pipeline_empty_transcript_skips_embeddings(tmp_path, monkeypatch):
@@ -769,6 +852,8 @@ def test_video_pipeline_no_audio_track_skips_transcribe(tmp_path, monkeypatch):
     assert quality["transcribed_ms"] == 0
     assert result.metrics["stage_timings_ms"]["transcribe_ms"] == 0.0
     assert "transcribe" not in result.metrics["model_calls"]
+    assert result.metrics["pipe_ms"] <= 2000
+    _assert_stage_timings(result.metrics)
 
 
 def test_video_pipeline_duration_fields_order(tmp_path, monkeypatch):

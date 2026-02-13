@@ -6,6 +6,7 @@ import pyarrow.parquet as pq
 
 from retikon_core.config import get_config
 from retikon_core.ingestion.pipelines import document as document_pipeline
+from retikon_core.ingestion.pipelines.metrics import CANONICAL_STAGE_KEYS
 from retikon_core.ingestion.types import IngestSource
 
 
@@ -14,6 +15,15 @@ def _is_uuid4(value: str) -> bool:
         return uuid.UUID(value).version == 4
     except ValueError:
         return False
+
+
+def _assert_stage_timings(metrics: dict[str, object]) -> None:
+    stage_timings = metrics.get("stage_timings_ms")
+    assert isinstance(stage_timings, dict)
+    assert set(stage_timings.keys()) == set(CANONICAL_STAGE_KEYS)
+    pipe_ms = metrics.get("pipe_ms")
+    assert isinstance(pipe_ms, (int, float))
+    assert round(sum(stage_timings.values()), 2) == pipe_ms
 
 
 def test_document_pipeline_writes_graphar(tmp_path):
@@ -81,3 +91,5 @@ def test_document_pipeline_writes_graphar(tmp_path):
         assert token_end > token_start
         assert token_count == token_end - token_start
         assert text_rows["content"][idx] == extracted_text[char_start:char_end]
+    assert result.metrics is not None
+    _assert_stage_timings(result.metrics)

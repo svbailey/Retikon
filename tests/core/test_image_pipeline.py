@@ -6,6 +6,7 @@ import pyarrow.parquet as pq
 
 from retikon_core.config import get_config
 from retikon_core.ingestion.pipelines.image import ingest_image
+from retikon_core.ingestion.pipelines.metrics import CANONICAL_STAGE_KEYS
 from retikon_core.ingestion.types import IngestSource
 
 
@@ -14,6 +15,15 @@ def _is_uuid4(value: str) -> bool:
         return uuid.UUID(value).version == 4
     except ValueError:
         return False
+
+
+def _assert_stage_timings(metrics: dict[str, object]) -> None:
+    stage_timings = metrics.get("stage_timings_ms")
+    assert isinstance(stage_timings, dict)
+    assert set(stage_timings.keys()) == set(CANONICAL_STAGE_KEYS)
+    pipe_ms = metrics.get("pipe_ms")
+    assert isinstance(pipe_ms, (int, float))
+    assert round(sum(stage_timings.values()), 2) == pipe_ms
 
 
 def test_image_pipeline_writes_graphar(tmp_path):
@@ -63,3 +73,5 @@ def test_image_pipeline_writes_graphar(tmp_path):
         assert _is_uuid4(value)
     for value in edge_table.column("dst_id").to_pylist():
         assert _is_uuid4(value)
+    assert result.metrics is not None
+    _assert_stage_timings(result.metrics)

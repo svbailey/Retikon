@@ -53,6 +53,9 @@ def collect_metrics(
     memory_peak_kb: List[float] = []
     bytes_derived: List[float] = []
     stage_timings: Dict[str, List[float]] = {}
+    cold_start_flags: List[bool] = []
+    cold_wall_ms: List[float] = []
+    warm_wall_ms: List[float] = []
     quality_failures: List[Dict[str, str]] = []
 
     for doc in docs:
@@ -78,6 +81,14 @@ def collect_metrics(
         mem_kb = coerce_float(system.get("memory_peak_kb"))
         if mem_kb is not None:
             memory_peak_kb.append(mem_kb)
+        cold_start = system.get("cold_start")
+        if isinstance(cold_start, bool):
+            cold_start_flags.append(cold_start)
+            if wall is not None:
+                if cold_start:
+                    cold_wall_ms.append(wall)
+                else:
+                    warm_wall_ms.append(wall)
         io = pipeline.get("io") or {}
         derived = coerce_float(io.get("bytes_derived"))
         if derived is not None:
@@ -146,6 +157,11 @@ def collect_metrics(
                 )
 
     stage_p95 = {key: percentile(values, 95) for key, values in stage_timings.items()}
+    cold_start_rate = None
+    if cold_start_flags:
+        cold_start_rate = sum(1 for item in cold_start_flags if item) / len(
+            cold_start_flags
+        )
     return {
         "wall_ms": summarize(wall_ms),
         "queue_wait_ms": summarize(queue_wait_ms),
@@ -154,6 +170,9 @@ def collect_metrics(
         "memory_peak_kb": summarize(memory_peak_kb),
         "bytes_derived": summarize(bytes_derived),
         "stage_timings_p95": stage_p95,
+        "cold_start_rate": cold_start_rate,
+        "cold_start_wall_ms": summarize(cold_wall_ms),
+        "warm_wall_ms": summarize(warm_wall_ms),
         "quality_failures": quality_failures,
     }
 
@@ -228,6 +247,17 @@ def write_markdown(path: str, summary: Dict[str, Any]) -> None:
                 f"| {metric} | {values.get('p50')} | {values.get('p95')} | {values.get('p99')} | {values.get('count')} |\n"
             )
         lines.append("\n")
+        cold_rate = stats.get("cold_start_rate")
+        if cold_rate is not None:
+            lines.append(f"Cold start rate: {round(cold_rate * 100.0, 2)}%\n\n")
+            lines.append("| Metric | p50 | p95 | p99 | count |\n")
+            lines.append("| --- | --- | --- | --- | --- |\n")
+            for metric in ("cold_start_wall_ms", "warm_wall_ms"):
+                values = stats.get(metric, {})
+                lines.append(
+                    f"| {metric} | {values.get('p50')} | {values.get('p95')} | {values.get('p99')} | {values.get('count')} |\n"
+                )
+            lines.append("\n")
         lines.append("Stage timings p95 (ms):\n\n")
         lines.append("```\n")
         for key, value in sorted((stats.get("stage_timings_p95") or {}).items()):

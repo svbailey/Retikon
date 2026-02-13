@@ -810,6 +810,8 @@ def build_snapshot(
     copy_local: bool,
     fallback_local: bool,
     allow_install: bool,
+    hnsw_ef_construction: int = 200,
+    hnsw_m: int = 16,
     skip_if_unchanged: bool = False,
     use_latest_compaction: bool = False,
     incremental: bool = False,
@@ -1535,10 +1537,10 @@ def build_snapshot(
         apply_deltas_seconds = round(time.monotonic() - apply_deltas_start, 2)
 
         index_specs = [
-            ("doc_chunks_text_vector", "doc_chunks", "text_vector"),
-            ("transcripts_text_embedding", "transcripts", "text_embedding"),
-            ("image_assets_clip_vector", "image_assets", "clip_vector"),
-            ("audio_clips_clap_embedding", "audio_clips", "clap_embedding"),
+            ("doc_chunks_text_vector", "doc_chunks", "text_vector", 768),
+            ("transcripts_text_embedding", "transcripts", "text_embedding", 768),
+            ("image_assets_clip_vector", "image_assets", "clip_vector", 512),
+            ("audio_clips_clap_embedding", "audio_clips", "clap_embedding", 512),
         ]
 
         indexes: dict[str, dict[str, Any]] = {}
@@ -1546,11 +1548,22 @@ def build_snapshot(
         build_vectors_start = time.monotonic()
         hnsw_build_seconds = 0.0
         index_size_delta_bytes = 0
+        hnsw_ef_value = hnsw_ef_construction or 0
+        hnsw_m_value = hnsw_m or 0
+        hnsw_with = ""
+        if hnsw_ef_value > 0 and hnsw_m_value > 0:
+            hnsw_with = (
+                " WITH ("
+                f"ef_construction={hnsw_ef_value}, "
+                f"m={hnsw_m_value}"
+                ")"
+            )
 
-        for index_name, table, column in index_specs:
+        for index_name, table, column, dim in index_specs:
             index_start = time.monotonic()
             conn.execute(
                 f"CREATE INDEX {index_name} ON {table} USING HNSW ({column})"
+                f"{hnsw_with}"
             )
             conn.execute("CHECKPOINT")
             index_seconds = round(time.monotonic() - index_start, 2)
@@ -1559,6 +1572,9 @@ def build_snapshot(
             indexes[index_name] = {
                 "table": table,
                 "column": column,
+                "dim": dim,
+                "ef_construction": hnsw_ef_value,
+                "m": hnsw_m_value,
                 "size_bytes": size_delta,
                 "build_seconds": index_seconds,
             }
@@ -1739,6 +1755,13 @@ def _config_from_env() -> dict[str, Any]:
     incremental_min_value: int | None = None
     if incremental_min and incremental_min.isdigit():
         incremental_min_value = int(incremental_min)
+    hnsw_ef = os.getenv("HNSW_EF_CONSTRUCTION", "").strip()
+    hnsw_m = os.getenv("HNSW_M", "").strip()
+    try:
+        hnsw_ef_value = int(hnsw_ef) if hnsw_ef else 200
+        hnsw_m_value = int(hnsw_m) if hnsw_m else 16
+    except ValueError as exc:
+        raise ValueError("HNSW_EF_CONSTRUCTION and HNSW_M must be integers") from exc
     return {
         "graph_uri": graph_uri,
         "snapshot_uri": snapshot_uri,
@@ -1746,6 +1769,8 @@ def _config_from_env() -> dict[str, Any]:
         "copy_local": os.getenv("INDEX_BUILDER_COPY_LOCAL", "0") == "1",
         "fallback_local": os.getenv("INDEX_BUILDER_FALLBACK_LOCAL", "1") == "1",
         "allow_install": os.getenv("DUCKDB_ALLOW_INSTALL", "0") == "1",
+        "hnsw_ef_construction": hnsw_ef_value,
+        "hnsw_m": hnsw_m_value,
         "skip_if_unchanged": os.getenv("INDEX_BUILDER_SKIP_IF_UNCHANGED", "0") == "1",
         "use_latest_compaction": os.getenv("INDEX_BUILDER_USE_LATEST_COMPACTION", "0")
         == "1",

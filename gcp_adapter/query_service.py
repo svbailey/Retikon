@@ -551,6 +551,15 @@ async def ready() -> dict[str, object]:
     status = "ready"
     if snapshot_manifest_count is None:
         status = "not_ready"
+    logger.info(
+        "Index queue status",
+        extra={
+            "snapshot_uri": snapshot_uri,
+            "manifest_count": manifest_count,
+            "snapshot_manifest_count": snapshot_manifest_count,
+            "index_queue_length": index_queue_length,
+        },
+    )
     return {
         "status": status,
         "snapshot_uri": snapshot_uri,

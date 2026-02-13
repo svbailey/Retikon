@@ -28,6 +28,7 @@ from retikon_core.config import get_config
 from retikon_core.errors import PermanentError, RecoverableError, ValidationError
 from retikon_core.ingestion import process_event
 from retikon_core.ingestion.download import cleanup_tmp, download_to_tmp
+from retikon_core.ingestion.pipelines.metrics import build_dedupe_stage_timings
 from retikon_core.ingestion.router import pipeline_version
 from retikon_core.ingestion.streaming import (
     StreamBackpressureError,
@@ -152,6 +153,8 @@ def _apply_checksum_dedupe(
     size_bytes: int | None,
     content_type: str | None,
     duration_ms: int | None = None,
+    queue_wait_ms: float | None = None,
+    wall_ms: float | None = None,
 ) -> bool:
     if not checksum:
         return False
@@ -208,21 +211,37 @@ def _apply_checksum_dedupe(
         if key in match:
             payload[key] = match[key]
     metrics_payload: dict[str, object] = {}
+    dedupe_pipe_ms = None
+    if wall_ms is not None:
+        dedupe_pipe_ms = round(float(wall_ms), 2)
+        metrics_payload["stage_timings_ms"] = build_dedupe_stage_timings(dedupe_pipe_ms)
+        metrics_payload["pipe_ms"] = dedupe_pipe_ms
     match_metrics = match.get("metrics")
     if isinstance(match_metrics, dict):
         pipeline_metrics = match_metrics.get("pipeline")
-        if pipeline_metrics is not None:
+        if isinstance(pipeline_metrics, dict):
+            pipeline_copy = dict(pipeline_metrics)
+            if dedupe_pipe_ms is not None:
+                pipeline_copy.pop("stage_timings_ms", None)
+                pipeline_copy.pop("pipe_ms", None)
+            metrics_payload["pipeline"] = pipeline_copy
+        elif pipeline_metrics is not None:
             metrics_payload["pipeline"] = pipeline_metrics
-        stage_timings = match_metrics.get("stage_timings_ms")
-        if not isinstance(stage_timings, dict) and isinstance(pipeline_metrics, dict):
-            stage_timings = pipeline_metrics.get("stage_timings_ms")
-        if isinstance(stage_timings, dict):
-            metrics_payload["stage_timings_ms"] = stage_timings
-        pipe_ms = match_metrics.get("pipe_ms")
-        if not isinstance(pipe_ms, (int, float)) and isinstance(pipeline_metrics, dict):
-            pipe_ms = pipeline_metrics.get("pipe_ms")
-        if isinstance(pipe_ms, (int, float)):
-            metrics_payload["pipe_ms"] = round(float(pipe_ms), 2)
+        if dedupe_pipe_ms is None:
+            stage_timings = match_metrics.get("stage_timings_ms")
+            if not isinstance(stage_timings, dict) and isinstance(
+                pipeline_metrics, dict
+            ):
+                stage_timings = pipeline_metrics.get("stage_timings_ms")
+            if isinstance(stage_timings, dict):
+                metrics_payload["stage_timings_ms"] = stage_timings
+            pipe_ms = match_metrics.get("pipe_ms")
+            if not isinstance(pipe_ms, (int, float)) and isinstance(
+                pipeline_metrics, dict
+            ):
+                pipe_ms = pipeline_metrics.get("pipe_ms")
+            if isinstance(pipe_ms, (int, float)):
+                metrics_payload["pipe_ms"] = round(float(pipe_ms), 2)
     if "stage_timings_ms" not in metrics_payload:
         manifest_uri = match.get("manifest_uri")
         if isinstance(manifest_uri, str) and manifest_uri:
@@ -251,6 +270,10 @@ def _apply_checksum_dedupe(
             },
         )
         return False
+    if queue_wait_ms is not None:
+        metrics_payload["queue_wait_ms"] = queue_wait_ms
+    if wall_ms is not None:
+        metrics_payload["wall_ms"] = round(float(wall_ms), 2)
     if metrics_payload:
         payload["metrics"] = metrics_payload
     client.collection(collection).document(doc_id).update(payload)
@@ -324,21 +347,37 @@ def _apply_content_hash_dedupe(
         if key in match:
             payload[key] = match[key]
     metrics_payload: dict[str, object] = {}
+    dedupe_pipe_ms = None
+    if wall_ms is not None:
+        dedupe_pipe_ms = round(float(wall_ms), 2)
+        metrics_payload["stage_timings_ms"] = build_dedupe_stage_timings(dedupe_pipe_ms)
+        metrics_payload["pipe_ms"] = dedupe_pipe_ms
     match_metrics = match.get("metrics")
     if isinstance(match_metrics, dict):
         pipeline_metrics = match_metrics.get("pipeline")
-        if pipeline_metrics is not None:
+        if isinstance(pipeline_metrics, dict):
+            pipeline_copy = dict(pipeline_metrics)
+            if dedupe_pipe_ms is not None:
+                pipeline_copy.pop("stage_timings_ms", None)
+                pipeline_copy.pop("pipe_ms", None)
+            metrics_payload["pipeline"] = pipeline_copy
+        elif pipeline_metrics is not None:
             metrics_payload["pipeline"] = pipeline_metrics
-        stage_timings = match_metrics.get("stage_timings_ms")
-        if not isinstance(stage_timings, dict) and isinstance(pipeline_metrics, dict):
-            stage_timings = pipeline_metrics.get("stage_timings_ms")
-        if isinstance(stage_timings, dict):
-            metrics_payload["stage_timings_ms"] = stage_timings
-        pipe_ms = match_metrics.get("pipe_ms")
-        if not isinstance(pipe_ms, (int, float)) and isinstance(pipeline_metrics, dict):
-            pipe_ms = pipeline_metrics.get("pipe_ms")
-        if isinstance(pipe_ms, (int, float)):
-            metrics_payload["pipe_ms"] = round(float(pipe_ms), 2)
+        if dedupe_pipe_ms is None:
+            stage_timings = match_metrics.get("stage_timings_ms")
+            if not isinstance(stage_timings, dict) and isinstance(
+                pipeline_metrics, dict
+            ):
+                stage_timings = pipeline_metrics.get("stage_timings_ms")
+            if isinstance(stage_timings, dict):
+                metrics_payload["stage_timings_ms"] = stage_timings
+            pipe_ms = match_metrics.get("pipe_ms")
+            if not isinstance(pipe_ms, (int, float)) and isinstance(
+                pipeline_metrics, dict
+            ):
+                pipe_ms = pipeline_metrics.get("pipe_ms")
+            if isinstance(pipe_ms, (int, float)):
+                metrics_payload["pipe_ms"] = round(float(pipe_ms), 2)
     if "stage_timings_ms" not in metrics_payload:
         manifest_uri = match.get("manifest_uri")
         if isinstance(manifest_uri, str) and manifest_uri:
@@ -613,6 +652,7 @@ async def ingest_stream_push(request: Request) -> dict[str, Any]:
             continue
 
         try:
+            queue_wait_ms = _queue_wait_ms(storage_event.bucket, storage_event.name)
             if config.dedupe_cache_enabled and _apply_checksum_dedupe(
                 client=firestore_client,
                 collection=config.firestore_collection,
@@ -623,6 +663,8 @@ async def ingest_stream_push(request: Request) -> dict[str, Any]:
                 checksum=checksum,
                 size_bytes=storage_event.size,
                 content_type=storage_event.content_type,
+                queue_wait_ms=queue_wait_ms,
+                wall_ms=(time.monotonic() - start_time) * 1000.0,
             ):
                 skipped += 1
                 continue
@@ -653,10 +695,7 @@ async def ingest_stream_push(request: Request) -> dict[str, Any]:
                 size_bytes=storage_event.size,
                 content_type=storage_event.content_type,
                 pipeline_version_value=pipeline_version(),
-                queue_wait_ms=_queue_wait_ms(
-                    storage_event.bucket,
-                    storage_event.name,
-                ),
+                queue_wait_ms=queue_wait_ms,
                 wall_ms=(time.monotonic() - start_time) * 1000.0,
             ):
                 cleanup_tmp(download.path)
@@ -693,10 +732,6 @@ async def ingest_stream_push(request: Request) -> dict[str, Any]:
                 pipe_ms = outcome.metrics.get("pipe_ms")
                 if isinstance(pipe_ms, (int, float)):
                     metrics_payload["pipe_ms"] = round(float(pipe_ms), 2)
-            queue_wait_ms = _queue_wait_ms(
-                storage_event.bucket,
-                storage_event.name,
-            )
             if queue_wait_ms is not None:
                 metrics_payload["queue_wait_ms"] = queue_wait_ms
             metrics_payload["wall_ms"] = round(

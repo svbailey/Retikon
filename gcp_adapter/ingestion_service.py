@@ -46,6 +46,7 @@ from retikon_core.errors import PermanentError, RecoverableError, ValidationErro
 from retikon_core.ingestion import process_event
 from retikon_core.ingestion.download import cleanup_tmp, download_to_tmp
 from retikon_core.ingestion.idempotency import build_doc_id
+from retikon_core.ingestion.pipelines.metrics import build_dedupe_stage_timings
 from retikon_core.ingestion.rate_limit import (
     RateLimitBackendError,
     RateLimitExceeded,
@@ -345,7 +346,7 @@ def _queue_wait_ms(bucket: str, name: str) -> float | None:
     except Exception as exc:
         logger.warning(
             "Queue wait lookup failed",
-            extra={"bucket": bucket, "name": name, "error_message": str(exc)},
+            extra={"bucket": bucket, "object_name": name, "error_message": str(exc)},
         )
         return None
     created_at = blob.time_created
@@ -371,7 +372,7 @@ def _hydrate_storage_event(event: StorageEvent) -> StorageEvent:
             "Failed to refresh storage metadata",
             extra={
                 "bucket": event.bucket,
-                "name": event.name,
+                "object_name": event.name,
                 "error_message": str(exc),
             },
         )
@@ -604,21 +605,37 @@ def _apply_checksum_dedupe(
         if key in match:
             payload[key] = match[key]
     metrics_payload: dict[str, object] = {}
+    dedupe_pipe_ms = None
+    if wall_ms is not None:
+        dedupe_pipe_ms = round(float(wall_ms), 2)
+        metrics_payload["stage_timings_ms"] = build_dedupe_stage_timings(dedupe_pipe_ms)
+        metrics_payload["pipe_ms"] = dedupe_pipe_ms
     match_metrics = match.get("metrics")
     if isinstance(match_metrics, dict):
         pipeline_metrics = match_metrics.get("pipeline")
-        if pipeline_metrics is not None:
+        if isinstance(pipeline_metrics, dict):
+            pipeline_copy = dict(pipeline_metrics)
+            if dedupe_pipe_ms is not None:
+                pipeline_copy.pop("stage_timings_ms", None)
+                pipeline_copy.pop("pipe_ms", None)
+            metrics_payload["pipeline"] = pipeline_copy
+        elif pipeline_metrics is not None:
             metrics_payload["pipeline"] = pipeline_metrics
-        stage_timings = match_metrics.get("stage_timings_ms")
-        if not isinstance(stage_timings, dict) and isinstance(pipeline_metrics, dict):
-            stage_timings = pipeline_metrics.get("stage_timings_ms")
-        if isinstance(stage_timings, dict):
-            metrics_payload["stage_timings_ms"] = stage_timings
-        pipe_ms = match_metrics.get("pipe_ms")
-        if not isinstance(pipe_ms, (int, float)) and isinstance(pipeline_metrics, dict):
-            pipe_ms = pipeline_metrics.get("pipe_ms")
-        if isinstance(pipe_ms, (int, float)):
-            metrics_payload["pipe_ms"] = round(float(pipe_ms), 2)
+        if dedupe_pipe_ms is None:
+            stage_timings = match_metrics.get("stage_timings_ms")
+            if not isinstance(stage_timings, dict) and isinstance(
+                pipeline_metrics, dict
+            ):
+                stage_timings = pipeline_metrics.get("stage_timings_ms")
+            if isinstance(stage_timings, dict):
+                metrics_payload["stage_timings_ms"] = stage_timings
+            pipe_ms = match_metrics.get("pipe_ms")
+            if not isinstance(pipe_ms, (int, float)) and isinstance(
+                pipeline_metrics, dict
+            ):
+                pipe_ms = pipeline_metrics.get("pipe_ms")
+            if isinstance(pipe_ms, (int, float)):
+                metrics_payload["pipe_ms"] = round(float(pipe_ms), 2)
     if "stage_timings_ms" not in metrics_payload:
         manifest_uri = match.get("manifest_uri")
         if isinstance(manifest_uri, str) and manifest_uri:
@@ -727,21 +744,37 @@ def _apply_content_hash_dedupe(
         if key in match:
             payload[key] = match[key]
     metrics_payload: dict[str, object] = {}
+    dedupe_pipe_ms = None
+    if wall_ms is not None:
+        dedupe_pipe_ms = round(float(wall_ms), 2)
+        metrics_payload["stage_timings_ms"] = build_dedupe_stage_timings(dedupe_pipe_ms)
+        metrics_payload["pipe_ms"] = dedupe_pipe_ms
     match_metrics = match.get("metrics")
     if isinstance(match_metrics, dict):
         pipeline_metrics = match_metrics.get("pipeline")
-        if pipeline_metrics is not None:
+        if isinstance(pipeline_metrics, dict):
+            pipeline_copy = dict(pipeline_metrics)
+            if dedupe_pipe_ms is not None:
+                pipeline_copy.pop("stage_timings_ms", None)
+                pipeline_copy.pop("pipe_ms", None)
+            metrics_payload["pipeline"] = pipeline_copy
+        elif pipeline_metrics is not None:
             metrics_payload["pipeline"] = pipeline_metrics
-        stage_timings = match_metrics.get("stage_timings_ms")
-        if not isinstance(stage_timings, dict) and isinstance(pipeline_metrics, dict):
-            stage_timings = pipeline_metrics.get("stage_timings_ms")
-        if isinstance(stage_timings, dict):
-            metrics_payload["stage_timings_ms"] = stage_timings
-        pipe_ms = match_metrics.get("pipe_ms")
-        if not isinstance(pipe_ms, (int, float)) and isinstance(pipeline_metrics, dict):
-            pipe_ms = pipeline_metrics.get("pipe_ms")
-        if isinstance(pipe_ms, (int, float)):
-            metrics_payload["pipe_ms"] = round(float(pipe_ms), 2)
+        if dedupe_pipe_ms is None:
+            stage_timings = match_metrics.get("stage_timings_ms")
+            if not isinstance(stage_timings, dict) and isinstance(
+                pipeline_metrics, dict
+            ):
+                stage_timings = pipeline_metrics.get("stage_timings_ms")
+            if isinstance(stage_timings, dict):
+                metrics_payload["stage_timings_ms"] = stage_timings
+            pipe_ms = match_metrics.get("pipe_ms")
+            if not isinstance(pipe_ms, (int, float)) and isinstance(
+                pipeline_metrics, dict
+            ):
+                pipe_ms = pipeline_metrics.get("pipe_ms")
+            if isinstance(pipe_ms, (int, float)):
+                metrics_payload["pipe_ms"] = round(float(pipe_ms), 2)
     if "stage_timings_ms" not in metrics_payload:
         manifest_uri = match.get("manifest_uri")
         if isinstance(manifest_uri, str) and manifest_uri:
@@ -1012,12 +1045,8 @@ async def ingest(
         try:
             enforce_rate_limit(modality, config=config, scope=scope)
         except RateLimitExceeded as exc:
-            if download is not None:
-                cleanup_tmp(download.path)
             raise HTTPException(status_code=429, detail=str(exc)) from exc
         except RateLimitBackendError as exc:
-            if download is not None:
-                cleanup_tmp(download.path)
             raise HTTPException(status_code=503, detail=str(exc)) from exc
         return IngestResponse(status="accepted", trace_id=trace_id)
 
@@ -1241,6 +1270,11 @@ async def ingest(
             decision.doc_id
         ).update(update_payload)
         duration_ms = wall_ms
+        stage_timings_ms = None
+        pipe_ms = None
+        if isinstance(pipeline_metrics, dict):
+            stage_timings_ms = pipeline_metrics.get("stage_timings_ms")
+            pipe_ms = pipeline_metrics.get("pipe_ms")
         logger.info(
             "Ingest completed",
             extra={
@@ -1255,6 +1289,10 @@ async def ingest(
                 "queue_wait_ms": queue_wait_ms,
                 "queue_depth_backlog": queue_depth_backlog,
                 "queue_depth_oldest_unacked_s": queue_depth_oldest,
+                "pipe_ms": pipe_ms if isinstance(pipe_ms, (int, float)) else None,
+                "stage_timings_ms": stage_timings_ms
+                if isinstance(stage_timings_ms, dict)
+                else None,
                 "cpu_user_s": system_metrics["cpu_user_s"],
                 "cpu_sys_s": system_metrics["cpu_sys_s"],
                 "memory_peak_kb": system_metrics["memory_peak_kb"],

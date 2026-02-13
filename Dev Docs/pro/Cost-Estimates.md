@@ -52,6 +52,18 @@ Follow-up (queue isolation check, 2026-02-11, --unique uploads):
 - Images: cpu_s p50 0.705, p95 8.8555; memory_peak_kb p50 1,967,396 (~1.88 GiB), p95 2,035,860 (~1.94 GiB)
 - Source: `python scripts/report_ingest_baseline.py --project simitor --bucket retikon-raw-simitor-staging --raw-prefix raw_clean --run-id queue-baseline-20260211-203152 --modalities docs,images`
 
+Latest SLA run (staging, 2026-02-13, doc-minimal/typical/multipage fixtures):
+- Run id: sla-20260213-113957
+- Docs: cpu_s p50 0.63, p95 0.883; memory_peak_kb p50 1,887,768 (~1.80 GiB), p95 1,973,760 (~1.88 GiB); bytes_derived p50 21,067, p95 21,225.3
+- Images: cpu_s p50 0.67, p95 0.87; memory_peak_kb p50 1,887,768 (~1.80 GiB), p95 1,973,760 (~1.88 GiB); bytes_derived p50 22,099, p95 22,117
+- Source: `python scripts/report_ingest_baseline.py --project simitor --bucket retikon-raw-simitor-staging --raw-prefix raw_clean --run-id sla-20260213-113957 --modalities docs,images`
+
+Embed-only baseline (staging, 2026-02-13, doc/image only):
+- Run id: embed-baseline-20260213-103820
+- Docs: cpu_s p50 12.45, p95 64.6155; memory_peak_kb p50 2,215,528 (~2.11 GiB), p95 2,283,992 (~2.18 GiB); bytes_derived p50 31,498, p95 35,132.5
+- Images: cpu_s p50 0.695, p95 0.988; memory_peak_kb p50 2,179,424 (~2.08 GiB), p95 2,240,308.8 (~2.14 GiB); bytes_derived p50 20,199, p95 20,214.4
+- Source: `python scripts/report_ingest_baseline.py --project simitor --bucket retikon-raw-simitor-staging --raw-prefix raw_clean --run-id embed-baseline-20260213-103820 --modalities docs,images`
+
 ## Guardrails that cap cost growth
 
 - `MAX_RAW_BYTES=500000000` (per object)

@@ -38,6 +38,10 @@ from retikon_core.ingestion.pipelines.embedding_utils import (
     prepare_image_for_embed,
 )
 from retikon_core.ingestion.pipelines.types import PipelineResult
+from retikon_core.ingestion.transcription_policy import (
+    resolve_transcribe_policy,
+    transcribe_limit_reason,
+)
 from retikon_core.ingestion.transcribe import (
     resolve_transcribe_model_name,
     transcribe_audio,
@@ -152,7 +156,8 @@ def ingest_video(
     transcript_error_reason = ""
     transcribe_tier = config.transcribe_tier
     transcribe_enabled = config.audio_transcribe and transcribe_tier != "off"
-    transcribe_max_ms = config.transcribe_max_ms
+    transcribe_policy = resolve_transcribe_policy(config, source)
+    transcribe_max_ms = transcribe_policy.max_ms
     transcript_model_tier = transcribe_tier if transcribe_enabled else "off"
     fps = _resolve_fps(config, probe.duration_seconds)
 
@@ -329,8 +334,10 @@ def ingest_video(
             elif not audio_has_speech:
                 transcript_status = "no_speech"
             elif transcribe_max_ms > 0 and extracted_audio_duration_ms > transcribe_max_ms:
-                transcript_status = "skipped_too_long"
-                transcript_error_reason = "transcribe_max_ms_exceeded"
+                transcript_status = "skipped_by_policy"
+                transcript_error_reason = transcribe_limit_reason(
+                    transcribe_policy.source
+                )
             else:
                 transcript_status = "ok"
             with timer.track("audio_embed"):

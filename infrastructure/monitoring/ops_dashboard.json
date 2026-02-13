@@ -180,6 +180,159 @@
         "width": 6,
         "xPos": 6,
         "yPos": 4
+      },
+      {
+        "height": 4,
+        "widget": {
+          "title": "Ingest stage timings p95 (ms)",
+          "xyChart": {
+            "dataSets": [
+              {
+                "legendTemplate": "decode_ms",
+                "plotType": "LINE",
+                "targetAxis": "Y1",
+                "timeSeriesQuery": {
+                  "timeSeriesFilter": {
+                    "aggregation": {
+                      "alignmentPeriod": "60s",
+                      "crossSeriesReducer": "REDUCE_MAX",
+                      "perSeriesAligner": "ALIGN_PERCENTILE_95"
+                    },
+                    "filter": "metric.type=\"logging.googleapis.com/user/retikon_ingest_stage_decode_ms\""
+                  }
+                }
+              },
+              {
+                "legendTemplate": "embed_text_ms",
+                "plotType": "LINE",
+                "targetAxis": "Y1",
+                "timeSeriesQuery": {
+                  "timeSeriesFilter": {
+                    "aggregation": {
+                      "alignmentPeriod": "60s",
+                      "crossSeriesReducer": "REDUCE_MAX",
+                      "perSeriesAligner": "ALIGN_PERCENTILE_95"
+                    },
+                    "filter": "metric.type=\"logging.googleapis.com/user/retikon_ingest_stage_embed_text_ms\""
+                  }
+                }
+              },
+              {
+                "legendTemplate": "embed_image_ms",
+                "plotType": "LINE",
+                "targetAxis": "Y1",
+                "timeSeriesQuery": {
+                  "timeSeriesFilter": {
+                    "aggregation": {
+                      "alignmentPeriod": "60s",
+                      "crossSeriesReducer": "REDUCE_MAX",
+                      "perSeriesAligner": "ALIGN_PERCENTILE_95"
+                    },
+                    "filter": "metric.type=\"logging.googleapis.com/user/retikon_ingest_stage_embed_image_ms\""
+                  }
+                }
+              },
+              {
+                "legendTemplate": "embed_audio_ms",
+                "plotType": "LINE",
+                "targetAxis": "Y1",
+                "timeSeriesQuery": {
+                  "timeSeriesFilter": {
+                    "aggregation": {
+                      "alignmentPeriod": "60s",
+                      "crossSeriesReducer": "REDUCE_MAX",
+                      "perSeriesAligner": "ALIGN_PERCENTILE_95"
+                    },
+                    "filter": "metric.type=\"logging.googleapis.com/user/retikon_ingest_stage_embed_audio_ms\""
+                  }
+                }
+              },
+              {
+                "legendTemplate": "transcribe_ms",
+                "plotType": "LINE",
+                "targetAxis": "Y1",
+                "timeSeriesQuery": {
+                  "timeSeriesFilter": {
+                    "aggregation": {
+                      "alignmentPeriod": "60s",
+                      "crossSeriesReducer": "REDUCE_MAX",
+                      "perSeriesAligner": "ALIGN_PERCENTILE_95"
+                    },
+                    "filter": "metric.type=\"logging.googleapis.com/user/retikon_ingest_stage_transcribe_ms\""
+                  }
+                }
+              },
+              {
+                "legendTemplate": "write_parquet_ms",
+                "plotType": "LINE",
+                "targetAxis": "Y1",
+                "timeSeriesQuery": {
+                  "timeSeriesFilter": {
+                    "aggregation": {
+                      "alignmentPeriod": "60s",
+                      "crossSeriesReducer": "REDUCE_MAX",
+                      "perSeriesAligner": "ALIGN_PERCENTILE_95"
+                    },
+                    "filter": "metric.type=\"logging.googleapis.com/user/retikon_ingest_stage_write_parquet_ms\""
+                  }
+                }
+              },
+              {
+                "legendTemplate": "write_manifest_ms",
+                "plotType": "LINE",
+                "targetAxis": "Y1",
+                "timeSeriesQuery": {
+                  "timeSeriesFilter": {
+                    "aggregation": {
+                      "alignmentPeriod": "60s",
+                      "crossSeriesReducer": "REDUCE_MAX",
+                      "perSeriesAligner": "ALIGN_PERCENTILE_95"
+                    },
+                    "filter": "metric.type=\"logging.googleapis.com/user/retikon_ingest_stage_write_manifest_ms\""
+                  }
+                }
+              }
+            ],
+            "yAxis": {
+              "label": "milliseconds",
+              "scale": "LINEAR"
+            }
+          }
+        },
+        "width": 6,
+        "xPos": 0,
+        "yPos": 8
+      },
+      {
+        "height": 4,
+        "widget": {
+          "title": "Index queue length p95",
+          "xyChart": {
+            "dataSets": [
+              {
+                "plotType": "LINE",
+                "targetAxis": "Y1",
+                "timeSeriesQuery": {
+                  "timeSeriesFilter": {
+                    "aggregation": {
+                      "alignmentPeriod": "60s",
+                      "crossSeriesReducer": "REDUCE_MAX",
+                      "perSeriesAligner": "ALIGN_PERCENTILE_95"
+                    },
+                    "filter": "metric.type=\"logging.googleapis.com/user/retikon_index_queue_length\""
+                  }
+                }
+              }
+            ],
+            "yAxis": {
+              "label": "manifests",
+              "scale": "LINEAR"
+            }
+          }
+        },
+        "width": 6,
+        "xPos": 6,
+        "yPos": 8
       }
     ]
   },

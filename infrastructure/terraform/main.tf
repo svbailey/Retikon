@@ -895,7 +895,7 @@ resource "google_cloud_run_service" "ingestion" {
         }
         env {
           name  = "INGEST_ALLOWED_MODALITIES"
-          value = "document,image"
+          value = "audio,video"
         }
         env {
           name  = "INGEST_MEDIA_URL"
@@ -992,6 +992,18 @@ resource "google_cloud_run_service" "ingestion" {
         env {
           name  = "TRANSCRIBE_MAX_MS"
           value = tostring(var.transcribe_max_ms)
+        }
+        env {
+          name  = "TRANSCRIBE_MAX_MS_BY_ORG"
+          value = var.transcribe_max_ms_by_org
+        }
+        env {
+          name  = "TRANSCRIBE_MAX_MS_BY_PLAN"
+          value = var.transcribe_max_ms_by_plan
+        }
+        env {
+          name  = "TRANSCRIBE_PLAN_METADATA_KEYS"
+          value = var.transcribe_plan_metadata_keys
         }
         env {
           name  = "ENABLE_DEDUPE_CACHE"
@@ -4463,6 +4475,18 @@ resource "google_cloud_run_service" "ingestion_media" {
           value = tostring(var.transcribe_max_ms)
         }
         env {
+          name  = "TRANSCRIBE_MAX_MS_BY_ORG"
+          value = var.transcribe_max_ms_by_org
+        }
+        env {
+          name  = "TRANSCRIBE_MAX_MS_BY_PLAN"
+          value = var.transcribe_max_ms_by_plan
+        }
+        env {
+          name  = "TRANSCRIBE_PLAN_METADATA_KEYS"
+          value = var.transcribe_plan_metadata_keys
+        }
+        env {
           name  = "ENABLE_DEDUPE_CACHE"
           value = var.dedupe_cache_enabled ? "1" : "0"
         }
@@ -4614,8 +4638,8 @@ resource "google_cloud_run_service" "ingestion_embed" {
 
         resources {
           limits = {
-            cpu    = var.ingestion_media_cpu
-            memory = var.ingestion_media_memory
+            cpu    = var.ingestion_embed_cpu
+            memory = var.ingestion_embed_memory
           }
         }
 
@@ -4869,7 +4893,7 @@ resource "google_cloud_run_service" "ingestion_embed" {
         }
         env {
           name  = "INGEST_ALLOWED_MODALITIES"
-          value = "audio,video"
+          value = "document,image"
         }
         env {
           name  = "INTERNAL_AUTH_ALLOWED_SAS"
@@ -4966,6 +4990,18 @@ resource "google_cloud_run_service" "ingestion_embed" {
         env {
           name  = "TRANSCRIBE_MAX_MS"
           value = "0"
+        }
+        env {
+          name  = "TRANSCRIBE_MAX_MS_BY_ORG"
+          value = var.transcribe_max_ms_by_org
+        }
+        env {
+          name  = "TRANSCRIBE_MAX_MS_BY_PLAN"
+          value = var.transcribe_max_ms_by_plan
+        }
+        env {
+          name  = "TRANSCRIBE_PLAN_METADATA_KEYS"
+          value = var.transcribe_plan_metadata_keys
         }
         env {
           name  = "ENABLE_DEDUPE_CACHE"
@@ -5402,6 +5438,14 @@ resource "google_cloud_run_v2_job" "index_builder" {
           name  = "INDEX_BUILDER_MIN_NEW_MANIFESTS"
           value = tostring(var.index_builder_min_new_manifests)
         }
+        env {
+          name  = "HNSW_EF_CONSTRUCTION"
+          value = tostring(var.hnsw_ef_construction)
+        }
+        env {
+          name  = "HNSW_M"
+          value = tostring(var.hnsw_m)
+        }
 
         resources {
           limits = {
@@ -5717,6 +5761,266 @@ resource "google_monitoring_alert_policy" "ingest_p95_latency" {
   notification_channels = local.notification_channels
 }
 
+resource "google_monitoring_alert_policy" "ingest_queue_wait_p95" {
+  display_name = "Retikon ingest queue wait p95"
+  combiner     = "OR"
+
+  conditions {
+    display_name = "Ingest queue wait p95 (ms)"
+
+    condition_threshold {
+      filter          = "resource.type=\"cloud_run_revision\" AND metric.type=\"logging.googleapis.com/user/retikon_ingest_queue_wait_ms\""
+      comparison      = "COMPARISON_GT"
+      threshold_value = var.alert_queue_wait_ms_p95
+      duration        = "300s"
+
+      aggregations {
+        alignment_period     = "60s"
+        per_series_aligner   = "ALIGN_PERCENTILE_95"
+        cross_series_reducer = "REDUCE_NONE"
+        group_by_fields      = ["metric.label.modality"]
+      }
+
+      trigger {
+        count = 1
+      }
+    }
+  }
+
+  notification_channels = local.notification_channels
+}
+
+resource "google_monitoring_alert_policy" "ingest_embed_image_p95" {
+  display_name = "Retikon ingest embed_image_ms p95"
+  combiner     = "OR"
+
+  conditions {
+    display_name = "Embed image p95 (ms)"
+
+    condition_threshold {
+      filter          = "resource.type=\"cloud_run_revision\" AND metric.type=\"logging.googleapis.com/user/retikon_ingest_stage_embed_image_ms\""
+      comparison      = "COMPARISON_GT"
+      threshold_value = var.alert_stage_embed_image_ms_p95
+      duration        = "300s"
+
+      aggregations {
+        alignment_period     = "60s"
+        per_series_aligner   = "ALIGN_PERCENTILE_95"
+        cross_series_reducer = "REDUCE_NONE"
+        group_by_fields      = ["metric.label.modality"]
+      }
+
+      trigger {
+        count = 1
+      }
+    }
+  }
+
+  notification_channels = local.notification_channels
+}
+
+resource "google_monitoring_alert_policy" "ingest_decode_p95" {
+  display_name = "Retikon ingest decode_ms p95"
+  combiner     = "OR"
+
+  conditions {
+    display_name = "Decode p95 (ms)"
+
+    condition_threshold {
+      filter          = "resource.type=\"cloud_run_revision\" AND metric.type=\"logging.googleapis.com/user/retikon_ingest_stage_decode_ms\""
+      comparison      = "COMPARISON_GT"
+      threshold_value = var.alert_stage_decode_ms_p95
+      duration        = "300s"
+
+      aggregations {
+        alignment_period     = "60s"
+        per_series_aligner   = "ALIGN_PERCENTILE_95"
+        cross_series_reducer = "REDUCE_NONE"
+        group_by_fields      = ["metric.label.modality"]
+      }
+
+      trigger {
+        count = 1
+      }
+    }
+  }
+
+  notification_channels = local.notification_channels
+}
+
+resource "google_monitoring_alert_policy" "ingest_embed_text_p95" {
+  display_name = "Retikon ingest embed_text_ms p95"
+  combiner     = "OR"
+
+  conditions {
+    display_name = "Embed text p95 (ms)"
+
+    condition_threshold {
+      filter          = "resource.type=\"cloud_run_revision\" AND metric.type=\"logging.googleapis.com/user/retikon_ingest_stage_embed_text_ms\""
+      comparison      = "COMPARISON_GT"
+      threshold_value = var.alert_stage_embed_text_ms_p95
+      duration        = "300s"
+
+      aggregations {
+        alignment_period     = "60s"
+        per_series_aligner   = "ALIGN_PERCENTILE_95"
+        cross_series_reducer = "REDUCE_NONE"
+        group_by_fields      = ["metric.label.modality"]
+      }
+
+      trigger {
+        count = 1
+      }
+    }
+  }
+
+  notification_channels = local.notification_channels
+}
+
+resource "google_monitoring_alert_policy" "ingest_embed_audio_p95" {
+  display_name = "Retikon ingest embed_audio_ms p95"
+  combiner     = "OR"
+
+  conditions {
+    display_name = "Embed audio p95 (ms)"
+
+    condition_threshold {
+      filter          = "resource.type=\"cloud_run_revision\" AND metric.type=\"logging.googleapis.com/user/retikon_ingest_stage_embed_audio_ms\""
+      comparison      = "COMPARISON_GT"
+      threshold_value = var.alert_stage_embed_audio_ms_p95
+      duration        = "300s"
+
+      aggregations {
+        alignment_period     = "60s"
+        per_series_aligner   = "ALIGN_PERCENTILE_95"
+        cross_series_reducer = "REDUCE_NONE"
+        group_by_fields      = ["metric.label.modality"]
+      }
+
+      trigger {
+        count = 1
+      }
+    }
+  }
+
+  notification_channels = local.notification_channels
+}
+
+resource "google_monitoring_alert_policy" "ingest_transcribe_p95" {
+  display_name = "Retikon ingest transcribe_ms p95"
+  combiner     = "OR"
+
+  conditions {
+    display_name = "Transcribe p95 (ms)"
+
+    condition_threshold {
+      filter          = "resource.type=\"cloud_run_revision\" AND metric.type=\"logging.googleapis.com/user/retikon_ingest_stage_transcribe_ms\""
+      comparison      = "COMPARISON_GT"
+      threshold_value = var.alert_stage_transcribe_ms_p95
+      duration        = "300s"
+
+      aggregations {
+        alignment_period     = "60s"
+        per_series_aligner   = "ALIGN_PERCENTILE_95"
+        cross_series_reducer = "REDUCE_NONE"
+        group_by_fields      = ["metric.label.modality"]
+      }
+
+      trigger {
+        count = 1
+      }
+    }
+  }
+
+  notification_channels = local.notification_channels
+}
+
+resource "google_monitoring_alert_policy" "ingest_write_parquet_p95" {
+  display_name = "Retikon ingest write_parquet_ms p95"
+  combiner     = "OR"
+
+  conditions {
+    display_name = "Write parquet p95 (ms)"
+
+    condition_threshold {
+      filter          = "resource.type=\"cloud_run_revision\" AND metric.type=\"logging.googleapis.com/user/retikon_ingest_stage_write_parquet_ms\""
+      comparison      = "COMPARISON_GT"
+      threshold_value = var.alert_stage_write_parquet_ms_p95
+      duration        = "300s"
+
+      aggregations {
+        alignment_period     = "60s"
+        per_series_aligner   = "ALIGN_PERCENTILE_95"
+        cross_series_reducer = "REDUCE_NONE"
+        group_by_fields      = ["metric.label.modality"]
+      }
+
+      trigger {
+        count = 1
+      }
+    }
+  }
+
+  notification_channels = local.notification_channels
+}
+
+resource "google_monitoring_alert_policy" "ingest_write_manifest_p95" {
+  display_name = "Retikon ingest write_manifest_ms p95"
+  combiner     = "OR"
+
+  conditions {
+    display_name = "Write manifest p95 (ms)"
+
+    condition_threshold {
+      filter          = "resource.type=\"cloud_run_revision\" AND metric.type=\"logging.googleapis.com/user/retikon_ingest_stage_write_manifest_ms\""
+      comparison      = "COMPARISON_GT"
+      threshold_value = var.alert_stage_write_manifest_ms_p95
+      duration        = "300s"
+
+      aggregations {
+        alignment_period     = "60s"
+        per_series_aligner   = "ALIGN_PERCENTILE_95"
+        cross_series_reducer = "REDUCE_NONE"
+        group_by_fields      = ["metric.label.modality"]
+      }
+
+      trigger {
+        count = 1
+      }
+    }
+  }
+
+  notification_channels = local.notification_channels
+}
+
+resource "google_monitoring_alert_policy" "index_queue_length" {
+  display_name = "Retikon index queue length"
+  combiner     = "OR"
+
+  conditions {
+    display_name = "Index queue length p95"
+
+    condition_threshold {
+      filter          = "resource.type=\"cloud_run_revision\" AND metric.type=\"logging.googleapis.com/user/retikon_index_queue_length\""
+      comparison      = "COMPARISON_GT"
+      threshold_value = var.alert_index_queue_length
+      duration        = "900s"
+
+      aggregations {
+        alignment_period     = "60s"
+        per_series_aligner   = "ALIGN_PERCENTILE_95"
+        cross_series_reducer = "REDUCE_MAX"
+      }
+
+      trigger {
+        count = 1
+      }
+    }
+  }
+
+  notification_channels = local.notification_channels
+}
+
 resource "google_monitoring_alert_policy" "dlq_backlog" {
   display_name = "Retikon DLQ backlog"
   combiner     = "OR"
@@ -5785,6 +6089,18 @@ resource "google_monitoring_notification_channel" "email" {
   }
 }
 
+locals {
+  ingest_stage_metric_extractors = {
+    decode_ms         = "EXTRACT(jsonPayload.stage_timings_ms.decode_ms)"
+    embed_text_ms     = "EXTRACT(jsonPayload.stage_timings_ms.embed_text_ms)"
+    embed_image_ms    = "EXTRACT(jsonPayload.stage_timings_ms.embed_image_ms)"
+    embed_audio_ms    = "EXTRACT(jsonPayload.stage_timings_ms.embed_audio_ms)"
+    transcribe_ms     = "EXTRACT(jsonPayload.stage_timings_ms.transcribe_ms)"
+    write_parquet_ms  = "EXTRACT(jsonPayload.stage_timings_ms.write_parquet_ms)"
+    write_manifest_ms = "EXTRACT(jsonPayload.stage_timings_ms.write_manifest_ms)"
+  }
+}
+
 resource "google_logging_metric" "ingest_queue_wait_ms" {
   name   = "retikon_ingest_queue_wait_ms"
   filter = "resource.type=\"cloud_run_revision\" AND jsonPayload.service=\"retikon-ingestion\" AND jsonPayload.queue_wait_ms>0"
@@ -5805,6 +6121,59 @@ resource "google_logging_metric" "ingest_queue_wait_ms" {
   label_extractors = {
     modality = "EXTRACT(jsonPayload.modality)"
   }
+
+  bucket_options {
+    exponential_buckets {
+      num_finite_buckets = 20
+      growth_factor      = 2
+      scale              = 1
+    }
+  }
+}
+
+resource "google_logging_metric" "ingest_stage_timings_ms" {
+  for_each = local.ingest_stage_metric_extractors
+
+  name   = "retikon_ingest_stage_${each.key}"
+  filter = "resource.type=\"cloud_run_revision\" AND jsonPayload.service=\"retikon-ingestion\" AND jsonPayload.stage_timings_ms.${each.key}>=0"
+
+  metric_descriptor {
+    metric_kind = "DELTA"
+    value_type  = "DISTRIBUTION"
+    unit        = "ms"
+
+    labels {
+      key         = "modality"
+      value_type  = "STRING"
+      description = "Ingest modality"
+    }
+  }
+
+  value_extractor = each.value
+  label_extractors = {
+    modality = "EXTRACT(jsonPayload.modality)"
+  }
+
+  bucket_options {
+    exponential_buckets {
+      num_finite_buckets = 20
+      growth_factor      = 2
+      scale              = 1
+    }
+  }
+}
+
+resource "google_logging_metric" "index_queue_length" {
+  name   = "retikon_index_queue_length"
+  filter = "resource.type=\"cloud_run_revision\" AND jsonPayload.service=\"retikon-query\" AND jsonPayload.index_queue_length>=0"
+
+  metric_descriptor {
+    metric_kind = "DELTA"
+    value_type  = "DISTRIBUTION"
+    unit        = "1"
+  }
+
+  value_extractor = "EXTRACT(jsonPayload.index_queue_length)"
 
   bucket_options {
     exponential_buckets {
@@ -6387,6 +6756,151 @@ resource "google_monitoring_dashboard" "ops" {
                 ]
                 yAxis = {
                   label = "messages"
+                  scale = "LINEAR"
+                }
+              }
+            }
+          },
+          {
+            xPos   = 0
+            yPos   = 24
+            width  = 6
+            height = 4
+            widget = {
+              title = "Ingest stage timings p95 (ms)"
+              xyChart = {
+                dataSets = [
+                  {
+                    plotType = "LINE"
+                    legendTemplate = "decode_ms"
+                    timeSeriesQuery = {
+                      timeSeriesFilter = {
+                        filter = "metric.type=\"logging.googleapis.com/user/retikon_ingest_stage_decode_ms\""
+                        aggregation = {
+                          alignmentPeriod    = "60s"
+                          perSeriesAligner   = "ALIGN_PERCENTILE_95"
+                          crossSeriesReducer = "REDUCE_MAX"
+                        }
+                      }
+                    }
+                  },
+                  {
+                    plotType = "LINE"
+                    legendTemplate = "embed_text_ms"
+                    timeSeriesQuery = {
+                      timeSeriesFilter = {
+                        filter = "metric.type=\"logging.googleapis.com/user/retikon_ingest_stage_embed_text_ms\""
+                        aggregation = {
+                          alignmentPeriod    = "60s"
+                          perSeriesAligner   = "ALIGN_PERCENTILE_95"
+                          crossSeriesReducer = "REDUCE_MAX"
+                        }
+                      }
+                    }
+                  },
+                  {
+                    plotType = "LINE"
+                    legendTemplate = "embed_image_ms"
+                    timeSeriesQuery = {
+                      timeSeriesFilter = {
+                        filter = "metric.type=\"logging.googleapis.com/user/retikon_ingest_stage_embed_image_ms\""
+                        aggregation = {
+                          alignmentPeriod    = "60s"
+                          perSeriesAligner   = "ALIGN_PERCENTILE_95"
+                          crossSeriesReducer = "REDUCE_MAX"
+                        }
+                      }
+                    }
+                  },
+                  {
+                    plotType = "LINE"
+                    legendTemplate = "embed_audio_ms"
+                    timeSeriesQuery = {
+                      timeSeriesFilter = {
+                        filter = "metric.type=\"logging.googleapis.com/user/retikon_ingest_stage_embed_audio_ms\""
+                        aggregation = {
+                          alignmentPeriod    = "60s"
+                          perSeriesAligner   = "ALIGN_PERCENTILE_95"
+                          crossSeriesReducer = "REDUCE_MAX"
+                        }
+                      }
+                    }
+                  },
+                  {
+                    plotType = "LINE"
+                    legendTemplate = "transcribe_ms"
+                    timeSeriesQuery = {
+                      timeSeriesFilter = {
+                        filter = "metric.type=\"logging.googleapis.com/user/retikon_ingest_stage_transcribe_ms\""
+                        aggregation = {
+                          alignmentPeriod    = "60s"
+                          perSeriesAligner   = "ALIGN_PERCENTILE_95"
+                          crossSeriesReducer = "REDUCE_MAX"
+                        }
+                      }
+                    }
+                  },
+                  {
+                    plotType = "LINE"
+                    legendTemplate = "write_parquet_ms"
+                    timeSeriesQuery = {
+                      timeSeriesFilter = {
+                        filter = "metric.type=\"logging.googleapis.com/user/retikon_ingest_stage_write_parquet_ms\""
+                        aggregation = {
+                          alignmentPeriod    = "60s"
+                          perSeriesAligner   = "ALIGN_PERCENTILE_95"
+                          crossSeriesReducer = "REDUCE_MAX"
+                        }
+                      }
+                    }
+                  },
+                  {
+                    plotType = "LINE"
+                    legendTemplate = "write_manifest_ms"
+                    timeSeriesQuery = {
+                      timeSeriesFilter = {
+                        filter = "metric.type=\"logging.googleapis.com/user/retikon_ingest_stage_write_manifest_ms\""
+                        aggregation = {
+                          alignmentPeriod    = "60s"
+                          perSeriesAligner   = "ALIGN_PERCENTILE_95"
+                          crossSeriesReducer = "REDUCE_MAX"
+                        }
+                      }
+                    }
+                  }
+                ]
+                yAxis = {
+                  label = "milliseconds"
+                  scale = "LINEAR"
+                }
+              }
+            }
+          },
+          {
+            xPos   = 6
+            yPos   = 24
+            width  = 6
+            height = 4
+            widget = {
+              title = "Index queue length p95"
+              xyChart = {
+                dataSets = [
+                  {
+                    plotType = "LINE"
+                    timeSeriesQuery = {
+                      timeSeriesFilter = {
+                        filter = "metric.type=\"logging.googleapis.com/user/retikon_index_queue_length\""
+                        aggregation = {
+                          alignmentPeriod    = "60s"
+                          perSeriesAligner   = "ALIGN_PERCENTILE_95"
+                          crossSeriesReducer = "REDUCE_MAX"
+                        }
+                      }
+                    }
+                  }
+                ]
+                yAxis = {
+                  label = "manifests"
                   scale = "LINEAR"
                 }
               }

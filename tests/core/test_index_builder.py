@@ -20,6 +20,36 @@ def _vector(dim: int, seed: float) -> list[float]:
     return [seed] + [0.0] * (dim - 1)
 
 
+def _assert_index_timing_sum(report_payload: dict[str, object]) -> None:
+    duration = report_payload.get("duration_seconds")
+    assert isinstance(duration, (int, float))
+    required_fields = (
+        "apply_deltas_seconds",
+        "build_vectors_seconds",
+        "write_snapshot_seconds",
+    )
+    for key in required_fields:
+        value = report_payload.get(key)
+        assert isinstance(value, (int, float))
+    timing_fields = (
+        "snapshot_download_seconds",
+        "load_snapshot_seconds",
+        "apply_deltas_seconds",
+        "build_vectors_seconds",
+        "write_snapshot_seconds",
+    )
+    timed_total = 0.0
+    for key in timing_fields:
+        value = report_payload.get(key)
+        if value is None:
+            continue
+        assert isinstance(value, (int, float))
+        timed_total += float(value)
+    assert timed_total > 0
+    tolerance = max(2.0, duration * 0.2)
+    assert abs(duration - timed_total) <= tolerance
+
+
 def _media_row(
     *,
     media_id: str,
@@ -350,6 +380,18 @@ def test_index_builder_creates_snapshot(tmp_path):
     assert report_payload["tables"]["audio_clips"]["rows"] == 1
     assert report_payload["manifest_count"] > 0
     assert report_payload["manifest_fingerprint"]
+    _assert_index_timing_sum(report_payload)
+    index_dims = {
+        "doc_chunks_text_vector": 768,
+        "transcripts_text_embedding": 768,
+        "image_assets_clip_vector": 512,
+        "audio_clips_clap_embedding": 512,
+    }
+    for index_name, dim in index_dims.items():
+        info = report_payload["indexes"][index_name]
+        assert info["dim"] == dim
+        assert info["ef_construction"] == 200
+        assert info["m"] == 16
 
     conn = duckdb.connect(snapshot_uri, read_only=True)
     try:

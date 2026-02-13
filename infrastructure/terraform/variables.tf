@@ -304,6 +304,16 @@ variable "ingestion_embed_concurrency" {
   default = 1
 }
 
+variable "ingestion_embed_cpu" {
+  type    = string
+  default = "1000m"
+}
+
+variable "ingestion_embed_memory" {
+  type    = string
+  default = "4Gi"
+}
+
 variable "ingestion_embed_min_scale" {
   type    = number
   default = 0
@@ -342,6 +352,21 @@ variable "transcribe_enabled" {
 variable "transcribe_max_ms" {
   type    = number
   default = 0
+}
+
+variable "transcribe_max_ms_by_org" {
+  type    = string
+  default = ""
+}
+
+variable "transcribe_max_ms_by_plan" {
+  type    = string
+  default = ""
+}
+
+variable "transcribe_plan_metadata_keys" {
+  type    = string
+  default = "plan,plan_id,tier"
 }
 
 variable "dedupe_cache_enabled" {
@@ -986,12 +1011,22 @@ variable "index_builder_incremental" {
 
 variable "index_builder_incremental_max_new_manifests" {
   type    = number
-  default = 0
+  default = 50
 }
 
 variable "index_builder_min_new_manifests" {
   type    = number
-  default = 0
+  default = 5
+}
+
+variable "hnsw_ef_construction" {
+  type    = number
+  default = 200
+}
+
+variable "hnsw_m" {
+  type    = number
+  default = 16
 }
 
 variable "index_builder_reload_snapshot" {
@@ -1001,7 +1036,7 @@ variable "index_builder_reload_snapshot" {
 
 variable "index_schedule" {
   type    = string
-  default = "0 * * * *"
+  default = "*/15 * * * *"
 }
 
 variable "index_schedule_timezone" {
@@ -1746,6 +1781,51 @@ variable "alert_query_p95_seconds" {
 variable "alert_ingest_p95_seconds" {
   type    = number
   default = 3.0
+}
+
+variable "alert_queue_wait_ms_p95" {
+  type    = number
+  default = 10000
+}
+
+variable "alert_index_queue_length" {
+  type    = number
+  default = 200
+}
+
+variable "alert_stage_embed_image_ms_p95" {
+  type    = number
+  default = 12000
+}
+
+variable "alert_stage_decode_ms_p95" {
+  type    = number
+  default = 2000
+}
+
+variable "alert_stage_embed_text_ms_p95" {
+  type    = number
+  default = 2000
+}
+
+variable "alert_stage_embed_audio_ms_p95" {
+  type    = number
+  default = 2000
+}
+
+variable "alert_stage_transcribe_ms_p95" {
+  type    = number
+  default = 45000
+}
+
+variable "alert_stage_write_parquet_ms_p95" {
+  type    = number
+  default = 1500
+}
+
+variable "alert_stage_write_manifest_ms_p95" {
+  type    = number
+  default = 500
 }
 
 variable "alert_dlq_backlog" {

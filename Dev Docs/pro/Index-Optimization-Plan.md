@@ -1,8 +1,8 @@
 # Retikon Ingest + Index Optimization Plan (Execution Ready)
 
-Status: Draft
+Status: P0 complete; P1 in progress
 Owner: Product + Eng
-Last Updated: 2026-02-10
+Last Updated: 2026-02-13
 
 ## Goals (what "better" means)
 
@@ -18,10 +18,10 @@ Primary outcomes:
 Use these as acceptance thresholds so "done" is unambiguous.
 
 Ingest SLOs (per modality):
-- Docs: wall_s p95 <= 2s
-- Images: wall_s p95 <= 10s
-- Audio: wall_s p95 <= 30s for speech clips; silent/no-speech assets p95 <= 2s
-- Video: queue_s p95 <= 5s; wall_s p95 <= 60s for short clips; no-speech/no-audio p95 <= 5s
+- Docs: wall_ms p95 <= 2000
+- Images: wall_ms p95 <= 10000
+- Audio: wall_ms p95 <= 30000 for speech clips; silent/no-speech assets p95 <= 2000
+- Video: queue_wait_ms p95 <= 5000; wall_ms p95 <= 60000 for short clips; no-speech/no-audio p95 <= 5000
 
 Index SLOs:
 - Index build: duration_s p95 <= 60s for micro-batch size N (define N)
@@ -44,6 +44,33 @@ Images p95 (baseline):
 - queue_wait_ms: 12756
 - pipe_ms: 10887
 - stage p95: embed_image_ms 9998, write_parquet_ms 559, write_blobs_ms 152, write_manifest_ms 144, decode_ms 78
+
+Latest SLA run (staging): 2026-02-13
+- Run id: sla-20260213-113957 (15 min loop, 29 batches x 60 uploads; quality checks passed)
+
+Docs p95 (latest):
+- wall_ms: 1423.8
+- queue_wait_ms: 13656.36
+- pipe_ms: 813.97
+- stage p95: embed_text_ms 358.43, write_parquet_ms 360.47, write_manifest_ms 147.58, finalize_ms 0.92, decode_ms 18.07
+
+Images p95 (latest):
+- wall_ms: 1442.0
+- queue_wait_ms: 14663.62
+- pipe_ms: 837.76
+- stage p95: embed_image_ms 389.48, write_parquet_ms 230.13, write_blobs_ms 167.83, write_manifest_ms 148.02, decode_ms 2.43
+
+Audio p95 (latest):
+- wall_ms: 3697.15
+- queue_wait_ms: 4511.69
+- pipe_ms: 2216.93
+- stage p95: decode_ms 1122.5, embed_audio_ms 586.69, write_parquet_ms 587.87, write_manifest_ms 147.9
+
+Videos p95 (latest):
+- wall_ms: 13389.7
+- queue_wait_ms: 3409.62
+- pipe_ms: 2782.19
+- stage p95: decode_ms 445.8, extract_frames_ms 744.46, embed_image_ms 943.72, write_parquet_ms 585.88, write_manifest_ms 141.14
 
 Stage SLO targets (p95, staging)
 Docs:
@@ -68,7 +95,7 @@ Accuracy regression suite (docs/images)
 - Spec: Dev Docs/pro/Doc-Image-Accuracy-Regression.md
 - Run: `python scripts/load_test_ingest.py --source tests/fixtures --count 5 --poll`
 - Validate: `python scripts/report_ingest_baseline.py --project simitor --bucket retikon-raw-simitor-staging --raw-prefix raw_clean --run-id <run-id> --quality-check`
- - Latest run (staging): acc-docimg-20260211-143101 (quality checks passed)
+- Latest run (staging): sla-20260213-113957 (quality checks passed)
 
 Cost baseline capture + guardrails
 - Tooling: `python scripts/report_ingest_baseline.py --project simitor --bucket retikon-raw-simitor-staging --raw-prefix raw_clean --run-id <run-id>`
@@ -94,9 +121,12 @@ Emit the same schema to:
 - Manifest JSON (subset for lineage + debugging)
 - Structured logs (for debugging and quick queries)
 
-### Firestore ingest record fields (top-level)
+### Firestore ingest record fields (metrics.* unless noted)
 
-Identity:
+Note: metric fields below are stored under `metrics` in Firestore (e.g., `metrics.queue_wait_ms`).
+Identity fields remain top-level.
+
+Identity (top-level):
 - ingest_id (string)
 - org_id (string)
 - asset_uri (string)
@@ -107,13 +137,15 @@ Identity:
 
 Timing:
 - queue_enqueued_at, queue_dequeued_at (timestamps)
-- queue_s (float)
+- queue_wait_ms (float)
 - started_at, updated_at (timestamps)
-- wall_s (float)
-- pipe_s (float) (compute-only time; excludes queue wait)
-- cpu_s (float)
-- cold_start (bool, best-effort)
-- instance_id (string, best-effort)
+- wall_ms (float)
+- pipe_ms (float) (compute-only time; excludes queue wait)
+- system.cpu_user_s (float)
+- system.cpu_sys_s (float)
+- system.memory_peak_kb (int)
+- system.cold_start (bool, best-effort)
+- system.instance_id (string, best-effort)
 
 Bytes:
 - raw_b (int)
@@ -186,7 +218,7 @@ Dependencies: A -> (B,D), E -> (G), K -> (L,M), S supports all timing claims.
 A) VAD / no-speech / no-audio early exit  
 Where: audio.py, video.py  
 Adds: vad_ms, transcript_status=no_speech|no_audio_track, transcribe_ms=0, transcript_word_count=0  
-Acceptance: silent audio/video completes with pipe_s <= 2s p95 and no transcribe model call.
+Acceptance: silent audio/video completes with pipe_ms <= 2000 p95 and no transcribe model call.
 
 C) Log audio duration + coverage fields  
 Where: media.py + pipeline wrappers  
@@ -195,7 +227,7 @@ Acceptance: 0 <= transcribed_ms <= extracted_audio_duration_ms <= audio_duration
 
 E) Split modality queues/services  
 Where: main.tf (Pub/Sub topics + Cloud Run services), ingestion_service.py routing  
-Acceptance: docs/images ingest continues normally while a video backlog exists (no correlated increase in docs/images queue_s).
+Acceptance: docs/images ingest continues normally while a video backlog exists (no correlated increase in docs/images queue_wait_ms).
 Verification: run a video-heavy load test (`python scripts/load_test_ingest.py --mix videos=0.6,images=0.2,docs=0.2 ...`)
 and compare docs/images `queue_wait_ms` p95 to a baseline run via `scripts/report_ingest_baseline.py`.
 Latest run (staging, 2026-02-11, --unique uploads to avoid dedupe):
@@ -209,7 +241,7 @@ Notes: docs/images queue_wait_ms did not increase under video backlog; sample si
 
 F) Queue depth + wait time metrics per modality  
 Where: ingestion_service.py (emit queue wait per message + periodic queue depth poll)  
-Acceptance: dashboard shows queue_depth and queue_s p50/p95 by modality.
+Acceptance: dashboard shows queue_depth and queue_wait_ms p50/p95 by modality.
 Verification: Ops dashboard panels show `retikon_ingest_queue_wait_ms` and `retikon_ingest_queue_depth_backlog`.
 
 H) Lazy-load models by modality  
@@ -223,12 +255,12 @@ Latest run (staging, 2026-02-11, --unique uploads): queue-baseline-20260211-2031
 
 K) Indexer timing breakdown  
 Where: index_builder.py  
-New fields in snapshot report: load_snapshot_s, apply_deltas_s, build_vectors_s, write_snapshot_s, upload_s, total_s  
+New fields in snapshot report: snapshot_download_seconds, load_snapshot_seconds, apply_deltas_seconds, build_vectors_seconds, write_snapshot_seconds, upload_seconds, duration_seconds  
 Acceptance: snapshot report includes timings and sums ~ duration.
 
 S) Standard stage timing map + cold_start flag  
 Where: all pipelines  
-Acceptance: 100% of ingests have stage_timings_ms; cold start flagged best-effort; stage sum matches pipe_s.
+Acceptance: 100% of ingests have stage_timings_ms; cold start flagged best-effort; stage sum matches pipe_ms.
 
 P1 (cost control + tail latency + scalability)
 Dependencies: A before B/D; E before G; K before L/M.
@@ -237,27 +269,41 @@ B) Transcription tiering (fast vs accurate)
 Where: config.py env + audio.py, video.py selection logic  
 Adds: transcript_model_tier, model_calls[].tier  
 Acceptance: staging defaults to fast and audio/video transcribe_ms p95 improves vs baseline.
+Latest run (staging, fast): transcribe-fast-20260213-102253 (audio n=10, videos n=9; 1 video DLQ).
+- Audio p95: wall_ms 60778, queue_wait_ms 98987, transcribe_ms 38571.
+- Video p95: wall_ms 49583, queue_wait_ms 83937, transcribe_ms 33350.
+Notes: queue_wait_ms elevated; see G.
 
 D) Hard transcription caps (asset + org plan)  
 Where: config.py, audio.py, video.py  
 Status: skipped_too_long or skipped_by_policy  
 Acceptance: assets over limit do not call transcribe; fields still emitted; user-visible behavior defined.
+Status: per-org/plan limits wired via TRANSCRIBE_MAX_MS_BY_*; staging values are empty defaults.
 
 G) Increase concurrency/autoscale on heavy services  
 Where: main.tf (Cloud Run concurrency, max instances, CPU/mem)  
-Acceptance: video queue_s p95 <= target under load test.
+Acceptance: video queue_wait_ms p95 <= target under load test.
+Latest run (staging): video-queue-20260213-111323 (videos n=20).
+- queue_wait_ms p95 17,157.70 (improved; still above target).
+- wall_ms p95 15,586.45.
+Notes: ingestion_media concurrency=1, min_scale=4; queue wait still above target.
 
 I) Keep-warm instances for heavy services  
 Where: main.tf min instances; app caches  
-Acceptance: cold_start contribution to wall_s p95 decreases for audio/video.
+Acceptance: cold_start contribution to wall_ms p95 decreases for audio/video.
+Latest cold_start_rate (staging, transcribe-fast-20260213-102253): audio 0.50, video 0.22 (delta vs baseline TBD).
 
 J) Split embed-only vs transcribe-capable services (if needed)  
 Note: optional if E already isolates modalities  
 Acceptance: embed-only service has lower memory footprint and can scale differently.
+Embed-only baseline (staging): embed-baseline-20260213-103820.
+- Docs memory_peak_kb p95 2,283,992 (~2.18 GiB).
+- Images memory_peak_kb p95 2,240,309 (~2.14 GiB).
 
 L) Micro-batch indexing schedule + queue metric  
 Where: scheduler + index_builder.py output + query readiness metric  
 Acceptance: index_queue_length is tracked; schedule configurable by N manifests or T minutes.
+Defaults (staging): N=5 manifests, T=15 minutes (index_schedule=*/15 * * * *), max_new_manifests=50.
 
 M) Track HNSW build time + index size delta  
 Where: index_builder.py  
@@ -266,7 +312,7 @@ Acceptance: fields present; can correlate build time to vectors added.
 
 T) Dedupe/caching via hashes  
 Where: ingest pipeline store (hash lookup table)  
-Acceptance: re-ingesting same asset yields cache_hit=true and cuts pipe_s by >80%.
+Acceptance: re-ingesting same asset yields cache_hit=true and cuts pipe_ms by >80%.
 
 P2 (ops + economics + lifecycle + quality safety net)
 
@@ -302,7 +348,7 @@ Load test definition (minimum):
 - 10 minutes
 - Mix: 40% images, 30% docs, 20% audio, 10% video
 - Concurrency: 20 in-flight ingests (increase to 50 for stress)
-- Collect: queue_s, wall_s, pipe_s, stage timings, error rates
+- Collect: queue_wait_ms, wall_ms, pipe_ms, stage timings, error rates
   - Use `--mix` on `scripts/load_test_ingest.py` to enforce the ratio.
 
 Acceptance harness output:
@@ -333,7 +379,7 @@ SLA verification workflow (staging):
    - Verify cache_hit metrics when dedupe is enabled.
 5. Index SLO check (staging)
    - Trigger the scheduled index build (or manual run if needed).
-   - Capture snapshot report fields (load_snapshot_s/apply_deltas_s/build_vectors_s/write_snapshot_s/upload_s/total_s).
+   - Capture snapshot report fields (snapshot_download_seconds/load_snapshot_seconds/apply_deltas_seconds/build_vectors_seconds/write_snapshot_seconds/upload_seconds/duration_seconds).
    - Verify index build duration p95 and index_queue_length p95 are within targets.
 6. Record artifacts
    - Update this doc with the new run id + deltas summary.
@@ -349,14 +395,15 @@ Pass/Fail checks:
 ## Dashboards + alerts
 
 Dashboards (by modality):
-- queue_depth + queue_s p50/p95
-- wall_s p50/p95, pipe_s p50/p95
+- queue_depth + queue_wait_ms p50/p95
+- wall_ms p50/p95, pipe_ms p50/p95
 - stage p95s (especially transcribe_ms, embed_image_ms)
 - error rate + transcript_status distribution
 - memory peak (if available) and cold_start rate
 
 Alerts (examples):
-- video queue_s p95 > 10s for 5m
+- video queue_wait_ms p95 > 10000 for 5m
+- embed_image_ms p95 > 12000 for 5m
 - audio/video failed rate > 1% for 10m
 - index_queue_length > 200 for 15m
 - derived bytes spike: embeddings_b or thumbnails_b > 2x 7-day baseline

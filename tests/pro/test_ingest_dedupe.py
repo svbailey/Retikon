@@ -10,6 +10,7 @@ os.environ.setdefault("STREAM_INGEST_TOPIC", "projects/test/topics/stream")
 from gcp_adapter import idempotency_firestore as idem
 from gcp_adapter import ingestion_service as ingest
 from gcp_adapter import stream_ingest_service as stream
+from retikon_core.ingestion.pipelines.metrics import CANONICAL_STAGE_KEYS
 
 
 class _QuerySnapshot:
@@ -118,3 +119,62 @@ def test_checksum_dedupe_updates_signature_metadata(dedupe_func):
     assert updated["object_size_bytes"] == 42
     assert updated["object_content_type"] == "video/mp4"
     assert updated["object_duration_ms"] == 1200
+
+
+@pytest.mark.parametrize(
+    "dedupe_func",
+    [ingest._apply_checksum_dedupe, stream._apply_checksum_dedupe],
+)
+def test_dedupe_cache_hit_reduces_pipe_ms(dedupe_func):
+    client = _Client()
+    scope_key = idem.resolve_scope_key("org", "site", "stream")
+    checksum = "md5:abc"
+    checksum_scope = idem.resolve_checksum_scope(checksum, scope_key)
+    match_pipe_ms = 1000.0
+    client.store["existing"] = {
+        "status": "COMPLETED",
+        "checksum_scope": checksum_scope,
+        "scope_key": scope_key,
+        "object_checksum": checksum,
+        "object_size_bytes": 42,
+        "object_content_type": "video/mp4",
+        "object_duration_ms": 1200,
+        "manifest_uri": "gs://example/manifest.json",
+        "media_asset_id": "media-1",
+        "metrics": {
+            "stage_timings_ms": {"decode_ms": match_pipe_ms},
+            "pipe_ms": match_pipe_ms,
+            "pipeline": {
+                "stage_timings_ms": {"decode_ms": match_pipe_ms},
+                "pipe_ms": match_pipe_ms,
+            },
+        },
+    }
+    client.store["new"] = {
+        "status": "PROCESSING",
+        "updated_at": datetime.now(timezone.utc),
+    }
+
+    result = dedupe_func(
+        client=client,
+        collection="events",
+        doc_id="new",
+        bucket="raw-bucket",
+        name="raw/other.mp4",
+        scope_key=scope_key,
+        checksum=checksum,
+        size_bytes=42,
+        content_type="video/mp4",
+        duration_ms=None,
+        queue_wait_ms=10.0,
+        wall_ms=100.0,
+    )
+
+    assert result is True
+    updated = client.store["new"]
+    assert updated["cache_hit"] is True
+    metrics = updated["metrics"]
+    assert metrics["pipe_ms"] <= match_pipe_ms * 0.2
+    stage_timings = metrics["stage_timings_ms"]
+    assert set(stage_timings.keys()) == set(CANONICAL_STAGE_KEYS)
+    assert round(sum(stage_timings.values()), 2) == metrics["pipe_ms"]

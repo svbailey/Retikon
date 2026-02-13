@@ -113,3 +113,9 @@ def build_stage_timings(
             continue
         result[canonical] += duration_ms
     return {key: round(value, 2) for key, value in result.items()}
+
+
+def build_dedupe_stage_timings(pipe_ms: float) -> dict[str, float]:
+    result = {key: 0.0 for key in CANONICAL_STAGE_KEYS}
+    result["finalize_ms"] = round(max(0.0, float(pipe_ms)), 2)
+    return result
