@@ -554,6 +554,71 @@ variable "query_trace_hitlist_size" {
   default = 5
 }
 
+variable "rerank_enabled" {
+  type    = bool
+  default = true
+}
+
+variable "rerank_model_name" {
+  type    = string
+  default = "BAAI/bge-reranker-large"
+}
+
+variable "rerank_backend" {
+  type    = string
+  default = "hf"
+}
+
+variable "rerank_top_n" {
+  type    = number
+  default = 100
+}
+
+variable "rerank_batch_size" {
+  type    = number
+  default = 16
+}
+
+variable "rerank_query_max_tokens" {
+  type    = number
+  default = 64
+}
+
+variable "rerank_doc_max_tokens" {
+  type    = number
+  default = 256
+}
+
+variable "rerank_timeout_s" {
+  type    = number
+  default = 2.0
+}
+
+variable "search_group_by_enabled" {
+  type    = bool
+  default = true
+}
+
+variable "search_pagination_enabled" {
+  type    = bool
+  default = true
+}
+
+variable "search_filters_v1_enabled" {
+  type    = bool
+  default = true
+}
+
+variable "search_why_enabled" {
+  type    = bool
+  default = true
+}
+
+variable "search_typed_errors_enabled" {
+  type    = bool
+  default = true
+}
+
 variable "query_default_modalities" {
   type    = string
   default = "document,transcript,image,audio"

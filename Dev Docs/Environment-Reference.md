@@ -58,6 +58,19 @@ Defaults shown match current code where applicable.
 - `QUERY_WARMUP_STEPS=text,image_text,audio_text,image`
 - `QUERY_TRACE_HITLISTS=0|1` (defaults to `1`)
 - `QUERY_TRACE_HITLIST_SIZE` (defaults to `5`)
+- `RERANK_ENABLED=0|1` (defaults to `1`)
+- `RERANK_MODEL_NAME` (defaults to `BAAI/bge-reranker-large`)
+- `RERANK_BACKEND=hf|onnx|quantized` (defaults to `hf`)
+- `RERANK_TOP_N` (defaults to `100`)
+- `RERANK_BATCH_SIZE` (defaults to `16`)
+- `RERANK_QUERY_MAX_TOKENS` (defaults to `64`)
+- `RERANK_DOC_MAX_TOKENS` (defaults to `256`)
+- `RERANK_TIMEOUT_S` (defaults to `2.0`)
+- `SEARCH_GROUP_BY_ENABLED=0|1` (defaults to `1`)
+- `SEARCH_PAGINATION_ENABLED=0|1` (defaults to `1`)
+- `SEARCH_FILTERS_V1_ENABLED=0|1` (defaults to `1`)
+- `SEARCH_WHY_ENABLED=0|1` (defaults to `1`)
+- `SEARCH_TYPED_ERRORS_ENABLED=0|1` (defaults to `1`)
 - `QUERY_DEFAULT_MODALITIES`
 - `QUERY_MODALITY_BOOSTS`
 - `QUERY_MODALITY_HINT_BOOST`

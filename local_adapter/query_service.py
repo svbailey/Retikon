@@ -76,6 +76,27 @@ app = FastAPI(lifespan=lifespan)
 QUERY_CONFIG = QueryServiceConfig.from_env()
 os.environ["QUERY_TRACE_HITLISTS"] = "1" if QUERY_CONFIG.query_trace_hitlists else "0"
 os.environ["QUERY_TRACE_HITLIST_SIZE"] = str(QUERY_CONFIG.query_trace_hitlist_size)
+os.environ["RERANK_ENABLED"] = "1" if QUERY_CONFIG.rerank_enabled else "0"
+os.environ["RERANK_MODEL_NAME"] = QUERY_CONFIG.rerank_model_name
+os.environ["RERANK_BACKEND"] = QUERY_CONFIG.rerank_backend
+os.environ["RERANK_TOP_N"] = str(QUERY_CONFIG.rerank_top_n)
+os.environ["RERANK_BATCH_SIZE"] = str(QUERY_CONFIG.rerank_batch_size)
+os.environ["RERANK_QUERY_MAX_TOKENS"] = str(QUERY_CONFIG.rerank_query_max_tokens)
+os.environ["RERANK_DOC_MAX_TOKENS"] = str(QUERY_CONFIG.rerank_doc_max_tokens)
+os.environ["RERANK_TIMEOUT_S"] = str(QUERY_CONFIG.rerank_timeout_s)
+os.environ["SEARCH_GROUP_BY_ENABLED"] = (
+    "1" if QUERY_CONFIG.search_group_by_enabled else "0"
+)
+os.environ["SEARCH_PAGINATION_ENABLED"] = (
+    "1" if QUERY_CONFIG.search_pagination_enabled else "0"
+)
+os.environ["SEARCH_FILTERS_V1_ENABLED"] = (
+    "1" if QUERY_CONFIG.search_filters_v1_enabled else "0"
+)
+os.environ["SEARCH_WHY_ENABLED"] = "1" if QUERY_CONFIG.search_why_enabled else "0"
+os.environ["SEARCH_TYPED_ERRORS_ENABLED"] = (
+    "1" if QUERY_CONFIG.search_typed_errors_enabled else "0"
+)
 
 
 @dataclass

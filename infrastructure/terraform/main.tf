@@ -1563,6 +1563,58 @@ resource "google_cloud_run_service" "query" {
           value = tostring(var.query_trace_hitlist_size)
         }
         env {
+          name  = "RERANK_ENABLED"
+          value = var.rerank_enabled ? "1" : "0"
+        }
+        env {
+          name  = "RERANK_MODEL_NAME"
+          value = var.rerank_model_name
+        }
+        env {
+          name  = "RERANK_BACKEND"
+          value = var.rerank_backend
+        }
+        env {
+          name  = "RERANK_TOP_N"
+          value = tostring(var.rerank_top_n)
+        }
+        env {
+          name  = "RERANK_BATCH_SIZE"
+          value = tostring(var.rerank_batch_size)
+        }
+        env {
+          name  = "RERANK_QUERY_MAX_TOKENS"
+          value = tostring(var.rerank_query_max_tokens)
+        }
+        env {
+          name  = "RERANK_DOC_MAX_TOKENS"
+          value = tostring(var.rerank_doc_max_tokens)
+        }
+        env {
+          name  = "RERANK_TIMEOUT_S"
+          value = tostring(var.rerank_timeout_s)
+        }
+        env {
+          name  = "SEARCH_GROUP_BY_ENABLED"
+          value = var.search_group_by_enabled ? "1" : "0"
+        }
+        env {
+          name  = "SEARCH_PAGINATION_ENABLED"
+          value = var.search_pagination_enabled ? "1" : "0"
+        }
+        env {
+          name  = "SEARCH_FILTERS_V1_ENABLED"
+          value = var.search_filters_v1_enabled ? "1" : "0"
+        }
+        env {
+          name  = "SEARCH_WHY_ENABLED"
+          value = var.search_why_enabled ? "1" : "0"
+        }
+        env {
+          name  = "SEARCH_TYPED_ERRORS_ENABLED"
+          value = var.search_typed_errors_enabled ? "1" : "0"
+        }
+        env {
           name  = "QUERY_DEFAULT_MODALITIES"
           value = var.query_default_modalities
         }
@@ -1965,6 +2017,58 @@ resource "google_cloud_run_service" "query_gpu" {
         env {
           name  = "QUERY_TRACE_HITLIST_SIZE"
           value = tostring(var.query_trace_hitlist_size)
+        }
+        env {
+          name  = "RERANK_ENABLED"
+          value = var.rerank_enabled ? "1" : "0"
+        }
+        env {
+          name  = "RERANK_MODEL_NAME"
+          value = var.rerank_model_name
+        }
+        env {
+          name  = "RERANK_BACKEND"
+          value = var.rerank_backend
+        }
+        env {
+          name  = "RERANK_TOP_N"
+          value = tostring(var.rerank_top_n)
+        }
+        env {
+          name  = "RERANK_BATCH_SIZE"
+          value = tostring(var.rerank_batch_size)
+        }
+        env {
+          name  = "RERANK_QUERY_MAX_TOKENS"
+          value = tostring(var.rerank_query_max_tokens)
+        }
+        env {
+          name  = "RERANK_DOC_MAX_TOKENS"
+          value = tostring(var.rerank_doc_max_tokens)
+        }
+        env {
+          name  = "RERANK_TIMEOUT_S"
+          value = tostring(var.rerank_timeout_s)
+        }
+        env {
+          name  = "SEARCH_GROUP_BY_ENABLED"
+          value = var.search_group_by_enabled ? "1" : "0"
+        }
+        env {
+          name  = "SEARCH_PAGINATION_ENABLED"
+          value = var.search_pagination_enabled ? "1" : "0"
+        }
+        env {
+          name  = "SEARCH_FILTERS_V1_ENABLED"
+          value = var.search_filters_v1_enabled ? "1" : "0"
+        }
+        env {
+          name  = "SEARCH_WHY_ENABLED"
+          value = var.search_why_enabled ? "1" : "0"
+        }
+        env {
+          name  = "SEARCH_TYPED_ERRORS_ENABLED"
+          value = var.search_typed_errors_enabled ? "1" : "0"
         }
         env {
           name  = "QUERY_DEFAULT_MODALITIES"
