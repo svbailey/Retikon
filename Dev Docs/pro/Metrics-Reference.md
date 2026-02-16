@@ -87,6 +87,11 @@ Common call names:
 - `bytes_parquet`: Total parquet bytes written.
 - `bytes_thumbnails`: Total thumbnail bytes written.
 - `bytes_derived`: Total derived bytes (parquet + thumbnails).
+- `bytes_manifest`: Manifest JSON bytes written.
+- `derived_b_total`: Total derived bytes including manifest.
+- `derived_b_breakdown`: Map of component bytes:
+  - `manifest_b`, `parquet_b`, `thumbnails_b`, `frames_b`, `transcript_b`,
+    `embeddings_b`, `other_b`.
 
 ### `pipeline.quality`
 
@@ -171,3 +176,13 @@ Existing fields (still present):
 - `manifest_count`: Number of manifests used.
 - `new_manifest_count`: Number of new manifests since last build.
 - `manifest_fingerprint`: Hash of manifest set used.
+
+## Cost Rollup (Daily JSONL)
+
+Output fields (see `scripts/cost_aggregator.py`):
+
+- `cost_cpu_seconds`
+- `cost_model_seconds`
+- `cost_raw_bytes`
+- `cost_derived_bytes`
+- `cost_index_seconds_est`

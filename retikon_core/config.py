@@ -178,7 +178,7 @@ class Config:
             os.getenv("TRANSCRIBE_ENABLED"),
             True,
         )
-        transcribe_tier = os.getenv("TRANSCRIBE_TIER", "accurate").strip().lower()
+        transcribe_tier = os.getenv("TRANSCRIBE_TIER", "fast").strip().lower()
         if not transcribe_enabled:
             audio_transcribe = False
             transcribe_tier = "off"

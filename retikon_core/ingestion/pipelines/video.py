@@ -34,8 +34,9 @@ from retikon_core.ingestion.pipelines.metrics import (
 )
 from retikon_core.ingestion.pipelines.embedding_utils import (
     image_embed_batch_size,
-    image_embed_max_dim,
-    prepare_image_for_embed,
+    prepare_video_image_for_embed,
+    thumbnail_jpeg_quality,
+    video_embed_max_dim,
 )
 from retikon_core.ingestion.pipelines.types import PipelineResult
 from retikon_core.ingestion.transcription_policy import (
@@ -49,6 +50,7 @@ from retikon_core.ingestion.transcribe import (
 from retikon_core.ingestion.types import IngestSource
 from retikon_core.storage.manifest import (
     build_manifest,
+    manifest_bytes,
     manifest_metrics_subset,
     write_manifest,
 )
@@ -116,7 +118,7 @@ def _write_thumbnail(
     with tempfile.NamedTemporaryFile(suffix=".jpg", delete=False) as tmp:
         tmp_path = tmp.name
     try:
-        thumb.save(tmp_path, format="JPEG", quality=85)
+        thumb.save(tmp_path, format="JPEG", quality=thumbnail_jpeg_quality())
         bytes_written = os.path.getsize(tmp_path)
         fs, path = fsspec.core.url_to_fs(uri)
         fs.makedirs(os.path.dirname(path), exist_ok=True)
@@ -213,7 +215,7 @@ def ingest_video(
             {
                 "batch_size": batch_size,
                 "backend": get_embedding_backend("image"),
-                "max_dim": image_embed_max_dim(),
+                "max_dim": video_embed_max_dim(),
             },
         )
 
@@ -226,7 +228,7 @@ def ingest_video(
                 with Image.open(frame_info.path) as img:
                     rgb = img.convert("RGB")
                     width, height = rgb.size
-                    embed_image = prepare_image_for_embed(rgb)
+                    embed_image = prepare_video_image_for_embed(rgb)
                     thumb_source = rgb if config.video_thumbnail_width > 0 else None
                     batch_images.append(embed_image)
                     batch_meta.append((idx, frame_info, width, height, thumb_source))
@@ -645,6 +647,7 @@ def ingest_video(
                 completed_at=completed_at,
                 metrics=manifest_metrics,
             )
+            manifest_size = manifest_bytes(manifest, compact=False)
             manifest_path = manifest_uri(output_root, run_id)
             write_manifest(manifest, manifest_path)
 
@@ -673,6 +676,16 @@ def ingest_video(
                 "write_manifest": "write_manifest_ms",
             },
         )
+        derived_breakdown = {
+            "manifest_b": manifest_size,
+            "parquet_b": parquet_bytes,
+            "thumbnails_b": thumbnail_bytes,
+            "frames_b": 0,
+            "transcript_b": 0,
+            "embeddings_b": 0,
+            "other_b": 0,
+        }
+        derived_total = sum(derived_breakdown.values())
         metrics = {
             "timings_ms": raw_timings,
             "stage_timings_ms": stage_timings_ms,
@@ -683,6 +696,9 @@ def ingest_video(
                 "bytes_parquet": parquet_bytes,
                 "bytes_thumbnails": thumbnail_bytes,
                 "bytes_derived": parquet_bytes + thumbnail_bytes,
+                "bytes_manifest": manifest_size,
+                "derived_b_total": derived_total,
+                "derived_b_breakdown": derived_breakdown,
             },
             "quality": {
                 "transcript_status": transcript_status,

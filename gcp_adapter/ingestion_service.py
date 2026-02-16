@@ -412,8 +412,8 @@ def _consume_cold_start() -> bool:
 
 def _instance_id() -> str:
     return (
-        os.getenv("K_REVISION")
-        or os.getenv("HOSTNAME")
+        os.getenv("HOSTNAME")
+        or os.getenv("K_REVISION")
         or os.getenv("CLOUD_RUN_EXECUTION")
         or "unknown"
     )

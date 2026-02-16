@@ -101,6 +101,15 @@ def _apply_duckdb_settings(conn: duckdb.DuckDBPyConnection) -> dict[str, str]:
     if temp_dir:
         conn.execute(f"PRAGMA temp_directory='{temp_dir}'")
         settings["duckdb_temp_directory"] = temp_dir
+    hnsw_ef_search = os.getenv("HNSW_EF_SEARCH")
+    if hnsw_ef_search:
+        try:
+            value = int(hnsw_ef_search)
+        except ValueError:
+            value = None
+        if value is not None and value > 0:
+            conn.execute(f"SET hnsw_ef_search={value}")
+            settings["hnsw_ef_search"] = str(value)
     return settings
 
 

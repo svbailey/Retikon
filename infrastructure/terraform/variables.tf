@@ -1029,9 +1029,19 @@ variable "hnsw_m" {
   default = 16
 }
 
+variable "hnsw_ef_search" {
+  type    = number
+  default = 0
+}
+
 variable "index_builder_reload_snapshot" {
   type    = bool
   default = false
+}
+
+variable "index_builder_signed_url_ttl_sec" {
+  type    = number
+  default = 900
 }
 
 variable "index_schedule" {
@@ -1070,6 +1080,66 @@ variable "workflow_schedule" {
 }
 
 variable "workflow_schedule_timezone" {
+  type    = string
+  default = "Etc/UTC"
+}
+
+variable "ops_run_id" {
+  type    = string
+  default = "latest"
+}
+
+variable "ops_guardrails_enabled" {
+  type    = bool
+  default = false
+}
+
+variable "ops_guardrails_schedule" {
+  type    = string
+  default = "15 3 * * *"
+}
+
+variable "ops_guardrails_schedule_timezone" {
+  type    = string
+  default = "Etc/UTC"
+}
+
+variable "ops_guardrails_multiplier" {
+  type    = number
+  default = 2.0
+}
+
+variable "ops_cost_rollup_enabled" {
+  type    = bool
+  default = false
+}
+
+variable "ops_cost_rollup_schedule" {
+  type    = string
+  default = "30 3 * * *"
+}
+
+variable "ops_cost_rollup_schedule_timezone" {
+  type    = string
+  default = "Etc/UTC"
+}
+
+variable "ops_cost_rollup_index_seconds_per_vector" {
+  type    = number
+  default = 0.0
+}
+
+variable "ops_gc_audit_enabled" {
+  type    = bool
+  default = false
+}
+
+variable "ops_gc_audit_schedule" {
+  type    = string
+  default = "45 3 * * *"
+}
+
+variable "ops_gc_audit_schedule_timezone" {
   type    = string
   default = "Etc/UTC"
 }
@@ -1271,6 +1341,11 @@ variable "video_scene_min_frames" {
 variable "video_thumbnail_width" {
   type    = number
   default = 320
+}
+
+variable "thumbnail_jpeg_quality" {
+  type    = number
+  default = 85
 }
 
 variable "chunk_target_tokens" {
@@ -1684,6 +1759,11 @@ variable "image_embed_batch_size" {
 }
 
 variable "image_embed_max_dim" {
+  type    = number
+  default = 0
+}
+
+variable "video_embed_max_dim" {
   type    = number
   default = 0
 }

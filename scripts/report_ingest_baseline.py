@@ -56,6 +56,7 @@ def collect_metrics(
     cold_start_flags: List[bool] = []
     cold_wall_ms: List[float] = []
     warm_wall_ms: List[float] = []
+    instance_ids: List[str] = []
     quality_failures: List[Dict[str, str]] = []
 
     for doc in docs:
@@ -81,6 +82,9 @@ def collect_metrics(
         mem_kb = coerce_float(system.get("memory_peak_kb"))
         if mem_kb is not None:
             memory_peak_kb.append(mem_kb)
+        instance_id = system.get("instance_id")
+        if isinstance(instance_id, str) and instance_id:
+            instance_ids.append(instance_id)
         cold_start = system.get("cold_start")
         if isinstance(cold_start, bool):
             cold_start_flags.append(cold_start)
@@ -162,6 +166,13 @@ def collect_metrics(
         cold_start_rate = sum(1 for item in cold_start_flags if item) / len(
             cold_start_flags
         )
+    instance_unique_count = None
+    instance_sample_count = None
+    instance_unique_rate = None
+    if instance_ids:
+        instance_sample_count = len(instance_ids)
+        instance_unique_count = len(set(instance_ids))
+        instance_unique_rate = instance_unique_count / instance_sample_count
     return {
         "wall_ms": summarize(wall_ms),
         "queue_wait_ms": summarize(queue_wait_ms),
@@ -173,6 +184,9 @@ def collect_metrics(
         "cold_start_rate": cold_start_rate,
         "cold_start_wall_ms": summarize(cold_wall_ms),
         "warm_wall_ms": summarize(warm_wall_ms),
+        "instance_sample_count": instance_sample_count,
+        "instance_unique_count": instance_unique_count,
+        "instance_unique_rate": instance_unique_rate,
         "quality_failures": quality_failures,
     }
 
@@ -258,6 +272,15 @@ def write_markdown(path: str, summary: Dict[str, Any]) -> None:
                     f"| {metric} | {values.get('p50')} | {values.get('p95')} | {values.get('p99')} | {values.get('count')} |\n"
                 )
             lines.append("\n")
+        instance_unique = stats.get("instance_unique_count")
+        instance_samples = stats.get("instance_sample_count")
+        instance_rate = stats.get("instance_unique_rate")
+        if instance_unique is not None and instance_samples is not None:
+            rate_pct = round(instance_rate * 100.0, 2) if isinstance(instance_rate, float) else None
+            rate_text = f"{rate_pct}%" if rate_pct is not None else "n/a"
+            lines.append(
+                f"Instance churn: {instance_unique}/{instance_samples} unique ({rate_text})\n\n"
+            )
         lines.append("Stage timings p95 (ms):\n\n")
         lines.append("```\n")
         for key, value in sorted((stats.get("stage_timings_p95") or {}).items()):

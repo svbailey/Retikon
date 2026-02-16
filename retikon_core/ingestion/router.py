@@ -7,6 +7,7 @@ from retikon_core.config import Config
 from retikon_core.errors import PermanentError
 from retikon_core.ingestion.download import DownloadResult, cleanup_tmp, download_to_tmp
 from retikon_core.ingestion.pipelines import audio, document, image, video
+from retikon_core.ingestion.pipelines.metrics import StageTimer
 from retikon_core.ingestion.rate_limit import enforce_rate_limit
 from retikon_core.ingestion.storage_event import StorageEvent
 from retikon_core.ingestion.types import IngestSource
@@ -32,6 +33,30 @@ def pipeline_version() -> str:
 
 def _schema_version() -> str:
     return "1"
+
+
+def _merge_download_timing(
+    metrics: dict[str, object] | None,
+    download_ms: float | None,
+) -> None:
+    if not metrics or download_ms is None:
+        return
+    download_ms = round(float(download_ms), 2)
+    timings = metrics.get("timings_ms")
+    if isinstance(timings, dict):
+        timings = dict(timings)
+        timings["download"] = download_ms
+        metrics["timings_ms"] = timings
+    stage_timings = metrics.get("stage_timings_ms")
+    if isinstance(stage_timings, dict):
+        stage_timings = dict(stage_timings)
+        stage_timings["download_ms"] = download_ms
+        metrics["stage_timings_ms"] = stage_timings
+        pipe_total = 0.0
+        for value in stage_timings.values():
+            if isinstance(value, (int, float)):
+                pipe_total += float(value)
+        metrics["pipe_ms"] = round(pipe_total, 2)
 
 
 def _modality_for_name(name: str, raw_prefix: str | None = None) -> str:
@@ -282,6 +307,8 @@ def process_event(
     output_uri = config.graph_root_uri()
     pipeline_version_value = pipeline_version()
     schema_version = _schema_version()
+    download_timer = StageTimer()
+    download_ms: float | None = None
 
     try:
         if config.storage_backend == "local":
@@ -291,7 +318,9 @@ def process_event(
     except ValueError as exc:
         raise PermanentError(str(exc)) from exc
     if download is None:
-        download = download_to_tmp(object_uri, config.max_raw_bytes)
+        with download_timer.track("download"):
+            download = download_to_tmp(object_uri, config.max_raw_bytes)
+        download_ms = download_timer.summary().get("download")
     try:
         source = _make_source(event, download, config)
         outcome = _run_pipeline(
@@ -302,6 +331,8 @@ def process_event(
             pipeline_version_value=pipeline_version_value,
             schema_version=schema_version,
         )
+        if isinstance(outcome.metrics, dict):
+            _merge_download_timing(outcome.metrics, download_ms)
         return outcome
     finally:
         cleanup_tmp(download.path)

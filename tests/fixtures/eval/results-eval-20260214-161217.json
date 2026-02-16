@@ -1,0 +1,154 @@
+{
+  "eval_run_id": "eval-20260214-161217",
+  "overall": {
+    "count": 10,
+    "latency_ms": {
+      "mean": 1427.088,
+      "p50": 796.82,
+      "p95": 4682.3525
+    },
+    "mrr_10": 0.0,
+    "recall_10": 0.0,
+    "recall_50": 0.0
+  },
+  "per_modality": {
+    "audio": {
+      "count": 1,
+      "latency_ms": {
+        "mean": 549.57,
+        "p50": 549.57,
+        "p95": 549.57
+      },
+      "mrr_10": 0.0,
+      "recall_10": 0.0,
+      "recall_50": 0.0
+    },
+    "docs": {
+      "count": 6,
+      "latency_ms": {
+        "mean": 750.86,
+        "p50": 796.82,
+        "p95": 839.315
+      },
+      "mrr_10": 0.0,
+      "recall_10": 0.0,
+      "recall_50": 0.0
+    },
+    "images": {
+      "count": 2,
+      "latency_ms": {
+        "mean": 4332.275,
+        "p50": 4332.275,
+        "p95": 7472.9285
+      },
+      "mrr_10": 0.0,
+      "recall_10": 0.0,
+      "recall_50": 0.0
+    },
+    "videos": {
+      "count": 1,
+      "latency_ms": {
+        "mean": 551.6,
+        "p50": 551.6,
+        "p95": 551.6
+      },
+      "mrr_10": 0.0,
+      "recall_10": 0.0,
+      "recall_50": 0.0
+    }
+  },
+  "queries": [
+    {
+      "id": "docs-csv-1",
+      "latency_ms": 821.84,
+      "modality": "docs",
+      "mrr_10": 0.0,
+      "rank": null,
+      "recall_10": 0.0,
+      "recall_50": 0.0
+    },
+    {
+      "id": "docs-docx-1",
+      "latency_ms": 808.5,
+      "modality": "docs",
+      "mrr_10": 0.0,
+      "rank": null,
+      "recall_10": 0.0,
+      "recall_50": 0.0
+    },
+    {
+      "id": "docs-pptx-1",
+      "latency_ms": 785.14,
+      "modality": "docs",
+      "mrr_10": 0.0,
+      "rank": null,
+      "recall_10": 0.0,
+      "recall_50": 0.0
+    },
+    {
+      "id": "docs-tsv-1",
+      "latency_ms": 845.14,
+      "modality": "docs",
+      "mrr_10": 0.0,
+      "rank": null,
+      "recall_10": 0.0,
+      "recall_50": 0.0
+    },
+    {
+      "id": "docs-pdf-meta-1",
+      "latency_ms": 632.89,
+      "modality": "docs",
+      "mrr_10": 0.0,
+      "rank": null,
+      "recall_10": 0.0,
+      "recall_50": 0.0
+    },
+    {
+      "id": "docs-xlsx-meta-1",
+      "latency_ms": 611.65,
+      "modality": "docs",
+      "mrr_10": 0.0,
+      "rank": null,
+      "recall_10": 0.0,
+      "recall_50": 0.0
+    },
+    {
+      "id": "images-jpg-1",
+      "latency_ms": 7821.89,
+      "modality": "images",
+      "mrr_10": 0.0,
+      "rank": null,
+      "recall_10": 0.0,
+      "recall_50": 0.0
+    },
+    {
+      "id": "images-png-1",
+      "latency_ms": 842.66,
+      "modality": "images",
+      "mrr_10": 0.0,
+      "rank": null,
+      "recall_10": 0.0,
+      "recall_50": 0.0
+    },
+    {
+      "id": "audio-wav-meta-1",
+      "latency_ms": 549.57,
+      "modality": "audio",
+      "mrr_10": 0.0,
+      "rank": null,
+      "recall_10": 0.0,
+      "recall_50": 0.0
+    },
+    {
+      "id": "video-mp4-meta-1",
+      "latency_ms": 551.6,
+      "modality": "videos",
+      "mrr_10": 0.0,
+      "rank": null,
+      "recall_10": 0.0,
+      "recall_50": 0.0
+    }
+  ],
+  "query_url": "https://retikon-query-staging-yt27ougp4q-uc.a.run.app/query",
+  "top_k": 50
+}

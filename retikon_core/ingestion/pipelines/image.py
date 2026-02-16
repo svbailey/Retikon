@@ -24,11 +24,13 @@ from retikon_core.ingestion.pipelines.embedding_utils import (
     image_embed_batch_size,
     image_embed_max_dim,
     prepare_image_for_embed,
+    thumbnail_jpeg_quality,
 )
 from retikon_core.ingestion.pipelines.types import PipelineResult
 from retikon_core.ingestion.types import IngestSource
 from retikon_core.storage.manifest import (
     build_manifest,
+    manifest_bytes,
     manifest_metrics_subset,
     write_manifest,
 )
@@ -119,7 +121,7 @@ def _write_thumbnail(image: Image.Image, uri: str, width: int) -> int:
     with tempfile.NamedTemporaryFile(suffix=".jpg", delete=False) as tmp:
         tmp_path = tmp.name
     try:
-        thumb.save(tmp_path, format="JPEG", quality=85)
+        thumb.save(tmp_path, format="JPEG", quality=thumbnail_jpeg_quality())
         bytes_written = os.path.getsize(tmp_path)
         fs, path = fsspec.core.url_to_fs(uri)
         fs.makedirs(os.path.dirname(path), exist_ok=True)
@@ -355,6 +357,7 @@ def ingest_image(
             completed_at=completed_at,
             metrics=manifest_metrics,
         )
+        manifest_size = manifest_bytes(manifest, compact=True)
         manifest_path = manifest_uri(output_root, run_id)
         write_manifest(manifest, manifest_path, compact=True)
     raw_timings = timer.summary()
@@ -368,6 +371,16 @@ def ingest_image(
             "write_manifest": "write_manifest_ms",
         },
     )
+    derived_breakdown = {
+        "manifest_b": manifest_size,
+        "parquet_b": parquet_bytes,
+        "thumbnails_b": thumb_bytes,
+        "frames_b": 0,
+        "transcript_b": 0,
+        "embeddings_b": 0,
+        "other_b": 0,
+    }
+    derived_total = sum(derived_breakdown.values())
     metrics = {
         "timings_ms": raw_timings,
         "stage_timings_ms": stage_timings_ms,
@@ -378,6 +391,9 @@ def ingest_image(
             "bytes_parquet": parquet_bytes,
             "bytes_thumbnails": thumb_bytes,
             "bytes_derived": parquet_bytes + thumb_bytes,
+            "bytes_manifest": manifest_size,
+            "derived_b_total": derived_total,
+            "derived_b_breakdown": derived_breakdown,
         },
         "quality": {
             "width_px": width,

@@ -418,6 +418,12 @@ resource "google_project_iam_member" "compaction_run_invoker" {
   member  = "serviceAccount:${google_service_account.compaction.email}"
 }
 
+resource "google_project_iam_member" "ingestion_run_invoker" {
+  project = var.project_id
+  role    = "roles/run.invoker"
+  member  = "serviceAccount:${google_service_account.ingestion.email}"
+}
+
 resource "google_pubsub_topic_iam_member" "ingest_dlq_publisher" {
   topic  = google_pubsub_topic.ingest_dlq.name
   role   = "roles/pubsub.publisher"
@@ -601,6 +607,10 @@ resource "google_firestore_database" "default" {
 }
 
 locals {
+  ops_report_root = "gs://${google_storage_bucket.graph.name}/${var.graph_prefix}/audit/ops"
+  ops_guardrails_output = "${local.ops_report_root}/derived-bytes/latest.json"
+  ops_guardrails_baseline = "${local.ops_report_root}/derived-bytes/baseline.json"
+  ops_cost_rollup_output = "${local.ops_report_root}/cost-rollups/latest.jsonl"
   notification_channels = concat(
     var.alert_notification_channels,
     [for channel in google_monitoring_notification_channel.email : channel.name]
@@ -820,6 +830,10 @@ resource "google_cloud_run_service" "ingestion" {
         env {
           name  = "IMAGE_EMBED_MAX_DIM"
           value = tostring(var.image_embed_max_dim)
+        }
+        env {
+          name  = "VIDEO_EMBED_MAX_DIM"
+          value = tostring(var.video_embed_max_dim)
         }
         env {
           name  = "TEXT_EMBED_BACKEND"
@@ -1154,6 +1168,10 @@ resource "google_cloud_run_service" "ingestion" {
         env {
           name  = "VIDEO_THUMBNAIL_WIDTH"
           value = tostring(var.video_thumbnail_width)
+        }
+        env {
+          name  = "THUMBNAIL_JPEG_QUALITY"
+          value = tostring(var.thumbnail_jpeg_quality)
         }
       }
     }
@@ -1565,6 +1583,10 @@ resource "google_cloud_run_service" "query" {
           value = var.duckdb_temp_directory
         }
         env {
+          name  = "HNSW_EF_SEARCH"
+          value = tostring(var.hnsw_ef_search)
+        }
+        env {
           name  = "DUCKDB_ALLOW_INSTALL"
           value = var.duckdb_allow_install ? "1" : "0"
         }
@@ -1955,6 +1977,10 @@ resource "google_cloud_run_service" "query_gpu" {
         env {
           name  = "DUCKDB_TEMP_DIRECTORY"
           value = var.duckdb_temp_directory
+        }
+        env {
+          name  = "HNSW_EF_SEARCH"
+          value = tostring(var.hnsw_ef_search)
         }
         env {
           name  = "DUCKDB_ALLOW_INSTALL"
@@ -4043,6 +4069,10 @@ resource "google_cloud_run_service" "stream_ingest" {
           value = tostring(var.video_thumbnail_width)
         }
         env {
+          name  = "THUMBNAIL_JPEG_QUALITY"
+          value = tostring(var.thumbnail_jpeg_quality)
+        }
+        env {
           name  = "STREAM_INGEST_TOPIC"
           value = "projects/${var.project_id}/topics/${var.stream_ingest_topic_name}"
         }
@@ -4303,6 +4333,10 @@ resource "google_cloud_run_service" "ingestion_media" {
           value = tostring(var.image_embed_max_dim)
         }
         env {
+          name  = "VIDEO_EMBED_MAX_DIM"
+          value = tostring(var.video_embed_max_dim)
+        }
+        env {
           name  = "TEXT_EMBED_BACKEND"
           value = var.text_embed_backend
         }
@@ -4437,6 +4471,10 @@ resource "google_cloud_run_service" "ingestion_media" {
         env {
           name  = "VIDEO_THUMBNAIL_WIDTH"
           value = tostring(var.video_thumbnail_width)
+        }
+        env {
+          name  = "THUMBNAIL_JPEG_QUALITY"
+          value = tostring(var.thumbnail_jpeg_quality)
         }
         env {
           name  = "VIDEO_SAMPLE_FPS"
@@ -4896,6 +4934,10 @@ resource "google_cloud_run_service" "ingestion_embed" {
           value = "document,image"
         }
         env {
+          name  = "VIDEO_EMBED_MAX_DIM"
+          value = tostring(var.video_embed_max_dim)
+        }
+        env {
           name  = "INTERNAL_AUTH_ALLOWED_SAS"
           value = google_service_account.ingestion.email
         }
@@ -4954,6 +4996,10 @@ resource "google_cloud_run_service" "ingestion_embed" {
         env {
           name  = "VIDEO_THUMBNAIL_WIDTH"
           value = tostring(var.video_thumbnail_width)
+        }
+        env {
+          name  = "THUMBNAIL_JPEG_QUALITY"
+          value = tostring(var.thumbnail_jpeg_quality)
         }
         env {
           name  = "VIDEO_SAMPLE_FPS"
@@ -5399,6 +5445,10 @@ resource "google_cloud_run_v2_job" "index_builder" {
           value = "gcp_adapter.duckdb_uri_signer:sign_gcs_uri"
         }
         env {
+          name  = "RETIKON_DUCKDB_SIGNED_URL_TTL_SEC"
+          value = tostring(var.index_builder_signed_url_ttl_sec)
+        }
+        env {
           name  = "GOOGLE_SERVICE_ACCOUNT_EMAIL"
           value = google_service_account.index_builder.email
         }
@@ -5595,6 +5645,122 @@ resource "google_cloud_run_v2_job" "compaction" {
   }
 }
 
+resource "google_cloud_run_v2_job" "ops_guardrails" {
+  provider = google-beta
+  count    = var.ops_guardrails_enabled ? 1 : 0
+
+  name     = "retikon-ops-guardrails-${var.env}"
+  location = var.region
+
+  template {
+    template {
+      service_account = google_service_account.ingestion.email
+      max_retries     = 0
+      timeout         = "900s"
+
+      containers {
+        image   = var.ingestion_image
+        command = ["python"]
+        args = [
+          "scripts/derived_bytes_guardrails.py",
+          "--project",
+          var.project_id,
+          "--bucket",
+          google_storage_bucket.raw.name,
+          "--raw-prefix",
+          var.raw_prefix,
+          "--run-id",
+          var.ops_run_id,
+          "--output",
+          local.ops_guardrails_output,
+          "--baseline",
+          local.ops_guardrails_baseline,
+          "--multiplier",
+          tostring(var.ops_guardrails_multiplier),
+        ]
+
+        env {
+          name  = "LOG_LEVEL"
+          value = var.log_level
+        }
+      }
+    }
+  }
+}
+
+resource "google_cloud_run_v2_job" "ops_cost_rollup" {
+  provider = google-beta
+  count    = var.ops_cost_rollup_enabled ? 1 : 0
+
+  name     = "retikon-ops-cost-rollup-${var.env}"
+  location = var.region
+
+  template {
+    template {
+      service_account = google_service_account.ingestion.email
+      max_retries     = 0
+      timeout         = "900s"
+
+      containers {
+        image   = var.ingestion_image
+        command = ["python"]
+        args = [
+          "scripts/cost_aggregator.py",
+          "--project",
+          var.project_id,
+          "--bucket",
+          google_storage_bucket.raw.name,
+          "--raw-prefix",
+          var.raw_prefix,
+          "--run-id",
+          var.ops_run_id,
+          "--output",
+          local.ops_cost_rollup_output,
+          "--index-seconds-per-vector",
+          tostring(var.ops_cost_rollup_index_seconds_per_vector),
+        ]
+
+        env {
+          name  = "LOG_LEVEL"
+          value = var.log_level
+        }
+      }
+    }
+  }
+}
+
+resource "google_cloud_run_v2_job" "ops_gc_audit" {
+  provider = google-beta
+  count    = var.ops_gc_audit_enabled ? 1 : 0
+
+  name     = "retikon-ops-gc-audit-${var.env}"
+  location = var.region
+
+  template {
+    template {
+      service_account = google_service_account.ingestion.email
+      max_retries     = 0
+      timeout         = "900s"
+
+      containers {
+        image   = var.ingestion_image
+        command = ["python"]
+        args = [
+          "scripts/graph_gc.py",
+          "--graph-root",
+          "gs://${google_storage_bucket.graph.name}/${var.graph_prefix}",
+          "--include-sizes",
+        ]
+
+        env {
+          name  = "LOG_LEVEL"
+          value = var.log_level
+        }
+      }
+    }
+  }
+}
+
 resource "google_cloud_scheduler_job" "index_builder" {
   count     = var.index_schedule_enabled ? 1 : 0
   name      = "${var.index_job_name}-${var.env}"
@@ -5623,6 +5789,54 @@ resource "google_cloud_scheduler_job" "compaction" {
 
     oauth_token {
       service_account_email = google_service_account.compaction.email
+    }
+  }
+}
+
+resource "google_cloud_scheduler_job" "ops_guardrails" {
+  count     = var.ops_guardrails_enabled ? 1 : 0
+  name      = "retikon-ops-guardrails-${var.env}"
+  schedule  = var.ops_guardrails_schedule
+  time_zone = var.ops_guardrails_schedule_timezone
+
+  http_target {
+    http_method = "POST"
+    uri         = "https://run.googleapis.com/v2/projects/${var.project_id}/locations/${var.region}/jobs/${google_cloud_run_v2_job.ops_guardrails[0].name}:run"
+
+    oauth_token {
+      service_account_email = google_service_account.ingestion.email
+    }
+  }
+}
+
+resource "google_cloud_scheduler_job" "ops_cost_rollup" {
+  count     = var.ops_cost_rollup_enabled ? 1 : 0
+  name      = "retikon-ops-cost-rollup-${var.env}"
+  schedule  = var.ops_cost_rollup_schedule
+  time_zone = var.ops_cost_rollup_schedule_timezone
+
+  http_target {
+    http_method = "POST"
+    uri         = "https://run.googleapis.com/v2/projects/${var.project_id}/locations/${var.region}/jobs/${google_cloud_run_v2_job.ops_cost_rollup[0].name}:run"
+
+    oauth_token {
+      service_account_email = google_service_account.ingestion.email
+    }
+  }
+}
+
+resource "google_cloud_scheduler_job" "ops_gc_audit" {
+  count     = var.ops_gc_audit_enabled ? 1 : 0
+  name      = "retikon-ops-gc-audit-${var.env}"
+  schedule  = var.ops_gc_audit_schedule
+  time_zone = var.ops_gc_audit_schedule_timezone
+
+  http_target {
+    http_method = "POST"
+    uri         = "https://run.googleapis.com/v2/projects/${var.project_id}/locations/${var.region}/jobs/${google_cloud_run_v2_job.ops_gc_audit[0].name}:run"
+
+    oauth_token {
+      service_account_email = google_service_account.ingestion.email
     }
   }
 }
@@ -6091,6 +6305,7 @@ resource "google_monitoring_notification_channel" "email" {
 
 locals {
   ingest_stage_metric_extractors = {
+    download_ms       = "EXTRACT(jsonPayload.stage_timings_ms.download_ms)"
     decode_ms         = "EXTRACT(jsonPayload.stage_timings_ms.decode_ms)"
     embed_text_ms     = "EXTRACT(jsonPayload.stage_timings_ms.embed_text_ms)"
     embed_image_ms    = "EXTRACT(jsonPayload.stage_timings_ms.embed_image_ms)"

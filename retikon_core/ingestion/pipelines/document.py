@@ -30,6 +30,7 @@ from retikon_core.ingestion.pipelines.types import PipelineResult
 from retikon_core.ingestion.types import IngestSource
 from retikon_core.storage.manifest import (
     build_manifest,
+    manifest_bytes,
     manifest_metrics_subset,
     write_manifest,
 )
@@ -505,6 +506,7 @@ def ingest_document(
             completed_at=completed_at,
             metrics=manifest_metrics,
         )
+        manifest_size = manifest_bytes(manifest, compact=True)
         manifest_path = manifest_uri(output_root, run_id)
         write_manifest(manifest, manifest_path, compact=True)
     raw_timings = timer.summary()
@@ -519,6 +521,16 @@ def ingest_document(
             "write_manifest": "write_manifest_ms",
         },
     )
+    derived_breakdown = {
+        "manifest_b": manifest_size,
+        "parquet_b": parquet_bytes,
+        "thumbnails_b": 0,
+        "frames_b": 0,
+        "transcript_b": 0,
+        "embeddings_b": 0,
+        "other_b": 0,
+    }
+    derived_total = sum(derived_breakdown.values())
     metrics = {
         "timings_ms": raw_timings,
         "stage_timings_ms": stage_timings_ms,
@@ -528,6 +540,9 @@ def ingest_document(
             "bytes_raw": bytes_raw,
             "bytes_parquet": parquet_bytes,
             "bytes_derived": parquet_bytes,
+            "bytes_manifest": manifest_size,
+            "derived_b_total": derived_total,
+            "derived_b_breakdown": derived_breakdown,
         },
         "quality": {
             "word_count": word_count,

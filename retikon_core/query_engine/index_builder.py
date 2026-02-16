@@ -1610,6 +1610,8 @@ def build_snapshot(
                 for table in vector_tables
             )
         compaction_count, latest_compaction_duration = _compaction_metrics(manifest_uris)
+        snapshot_manifest_count = manifest_count
+        index_queue_length = 0
 
         report = IndexBuildReport(
             graph_uri=base_uri,
@@ -1667,6 +1669,8 @@ def build_snapshot(
             )
             local_graph_uri = _copy_graph_to_local(graph_uri, work_dir)
             cleanup_dir = Path(local_graph_uri)
+            if db_path.exists():
+                db_path.unlink()
             report, extensions = build_with_base(
                 local_graph_uri,
                 source_uri=graph_uri,

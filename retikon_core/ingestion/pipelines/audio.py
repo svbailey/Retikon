@@ -30,6 +30,7 @@ from retikon_core.ingestion.types import IngestSource
 from retikon_core.logging import get_logger
 from retikon_core.storage.manifest import (
     build_manifest,
+    manifest_bytes,
     manifest_metrics_subset,
     write_manifest,
 )
@@ -434,6 +435,7 @@ def ingest_audio(
                 completed_at=completed_at,
                 metrics=manifest_metrics,
             )
+            manifest_size = manifest_bytes(manifest, compact=False)
             manifest_path = manifest_uri(output_root, run_id)
             write_manifest(manifest, manifest_path)
 
@@ -460,6 +462,16 @@ def ingest_audio(
                 "write_manifest": "write_manifest_ms",
             },
         )
+        derived_breakdown = {
+            "manifest_b": manifest_size,
+            "parquet_b": parquet_bytes,
+            "thumbnails_b": 0,
+            "frames_b": 0,
+            "transcript_b": 0,
+            "embeddings_b": 0,
+            "other_b": 0,
+        }
+        derived_total = sum(derived_breakdown.values())
         metrics = {
             "timings_ms": raw_timings,
             "stage_timings_ms": stage_timings_ms,
@@ -469,6 +481,9 @@ def ingest_audio(
                 "bytes_raw": bytes_raw,
                 "bytes_parquet": parquet_bytes,
                 "bytes_derived": parquet_bytes,
+                "bytes_manifest": manifest_size,
+                "derived_b_total": derived_total,
+                "derived_b_breakdown": derived_breakdown,
             },
             "quality": {
                 "transcript_status": transcript_status,
@@ -478,10 +493,10 @@ def ingest_audio(
                 "normalize_skipped": normalize_skipped,
                 "audio_duration_ms": audio_duration_ms,
                 "extracted_audio_duration_ms": extracted_audio_duration_ms,
-            "trimmed_silence_ms": trimmed_silence_ms,
-            "transcribed_ms": transcribed_ms,
-            "transcript_language": transcript_language,
-            "transcript_error_reason": transcript_error_reason,
+                "trimmed_silence_ms": trimmed_silence_ms,
+                "transcribed_ms": transcribed_ms,
+                "transcript_language": transcript_language,
+                "transcript_error_reason": transcript_error_reason,
             },
             "hashes": hashes,
             "embeddings": {

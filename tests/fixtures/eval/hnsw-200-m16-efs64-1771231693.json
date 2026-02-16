@@ -1,0 +1,127 @@
+{
+  "eval_run_id": "hnsw-200-m16-efs64-1771231693",
+  "overall": {
+    "count": 7,
+    "latency_ms": {
+      "mean": 749.7357,
+      "p50": 704.97,
+      "p95": 1146.868
+    },
+    "mrr_10": 0.0,
+    "recall_10": 0.0,
+    "recall_50": 0.0
+  },
+  "per_modality": {
+    "audio": {
+      "count": 1,
+      "latency_ms": {
+        "mean": 1303.54,
+        "p50": 1303.54,
+        "p95": 1303.54
+      },
+      "mrr_10": 0.0,
+      "recall_10": 0.0,
+      "recall_50": 0.0
+    },
+    "docs": {
+      "count": 3,
+      "latency_ms": {
+        "mean": 564.85,
+        "p50": 565.26,
+        "p95": 567.627
+      },
+      "mrr_10": 0.0,
+      "recall_10": 0.0,
+      "recall_50": 0.0
+    },
+    "images": {
+      "count": 2,
+      "latency_ms": {
+        "mean": 743.135,
+        "p50": 743.135,
+        "p95": 777.4835
+      },
+      "mrr_10": 0.0,
+      "recall_10": 0.0,
+      "recall_50": 0.0
+    },
+    "videos": {
+      "count": 1,
+      "latency_ms": {
+        "mean": 763.79,
+        "p50": 763.79,
+        "p95": 763.79
+      },
+      "mrr_10": 0.0,
+      "recall_10": 0.0,
+      "recall_50": 0.0
+    }
+  },
+  "queries": [
+    {
+      "id": "video-mp4-1",
+      "latency_ms": 763.79,
+      "modality": "videos",
+      "mrr_10": 0.0,
+      "rank": null,
+      "recall_10": 0.0,
+      "recall_50": 0.0
+    },
+    {
+      "id": "docs-txt-1",
+      "latency_ms": 565.26,
+      "modality": "docs",
+      "mrr_10": 0.0,
+      "rank": null,
+      "recall_10": 0.0,
+      "recall_50": 0.0
+    },
+    {
+      "id": "images-jpg-1",
+      "latency_ms": 781.3,
+      "modality": "images",
+      "mrr_10": 0.0,
+      "rank": null,
+      "recall_10": 0.0,
+      "recall_50": 0.0
+    },
+    {
+      "id": "images-png-1",
+      "latency_ms": 704.97,
+      "modality": "images",
+      "mrr_10": 0.0,
+      "rank": null,
+      "recall_10": 0.0,
+      "recall_50": 0.0
+    },
+    {
+      "id": "docs-tsv-1",
+      "latency_ms": 561.4,
+      "modality": "docs",
+      "mrr_10": 0.0,
+      "rank": null,
+      "recall_10": 0.0,
+      "recall_50": 0.0
+    },
+    {
+      "id": "docs-csv-1",
+      "latency_ms": 567.89,
+      "modality": "docs",
+      "mrr_10": 0.0,
+      "rank": null,
+      "recall_10": 0.0,
+      "recall_50": 0.0
+    },
+    {
+      "id": "audio-wav-1",
+      "latency_ms": 1303.54,
+      "modality": "audio",
+      "mrr_10": 0.0,
+      "rank": null,
+      "recall_10": 0.0,
+      "recall_50": 0.0
+    }
+  ],
+  "query_url": "https://retikon-query-staging-yt27ougp4q-uc.a.run.app/query",
+  "top_k": 50
+}

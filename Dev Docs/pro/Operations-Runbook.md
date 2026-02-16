@@ -19,6 +19,10 @@ This runbook covers routine checks and incident response for Retikon services.
   - Ensure DLQ subscription is near zero.
 - Snapshot freshness:
   - Review snapshot sidecar timestamp logged on query startup.
+- Ops rollups:
+  - Guardrails job: `retikon-ops-guardrails-staging` (writes `gs://retikon-graph-simitor-staging/retikon_v2_demo_20260209_clean/audit/ops/derived-bytes/latest.json`).
+  - Cost rollup job: `retikon-ops-cost-rollup-staging` (writes `gs://retikon-graph-simitor-staging/retikon_v2_demo_20260209_clean/audit/ops/cost-rollups/latest.jsonl`).
+  - GC audit report: `gs://retikon-graph-simitor-staging/retikon_v2_demo_20260209_clean/audit/ops/gc-audit/latest.json`.
 
 ## DLQ handling
 

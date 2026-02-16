@@ -74,6 +74,16 @@ def write_manifest(
         handle.write(payload)
 
 
+def manifest_bytes(manifest: dict[str, object], *, compact: bool = False) -> int:
+    if compact:
+        payload = json.dumps(manifest, separators=(",", ":"), sort_keys=False).encode(
+            "utf-8"
+        )
+    else:
+        payload = json.dumps(manifest, indent=2, sort_keys=True).encode("utf-8")
+    return len(payload)
+
+
 def manifest_metrics_subset(metrics: dict[str, object] | None) -> dict[str, object]:
     if not metrics:
         return {}

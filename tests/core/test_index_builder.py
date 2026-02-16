@@ -379,6 +379,8 @@ def test_index_builder_creates_snapshot(tmp_path):
     assert report_payload["tables"]["image_assets"]["rows"] == 1
     assert report_payload["tables"]["audio_clips"]["rows"] == 1
     assert report_payload["manifest_count"] > 0
+    assert report_payload["snapshot_manifest_count"] == report_payload["manifest_count"]
+    assert report_payload["index_queue_length"] == 0
     assert report_payload["manifest_fingerprint"]
     _assert_index_timing_sum(report_payload)
     index_dims = {
@@ -539,6 +541,8 @@ def test_index_builder_incremental_appends(tmp_path):
 
     assert report.new_manifest_count == 1
     assert report.tables["doc_chunks"]["rows"] == 2
+    assert report.snapshot_manifest_count == report.manifest_count
+    assert report.index_queue_length == 0
 
 
 def test_index_builder_uses_latest_compaction(tmp_path):

@@ -1,0 +1,1172 @@
+[
+  {
+    "eval_run_id": "hnsw-100-m8-efs32-1771160663",
+    "hnsw_ef_construction": 100,
+    "hnsw_ef_search": 32,
+    "hnsw_m": 8,
+    "overall": {
+      "count": 7,
+      "latency_ms": {
+        "mean": 1626.8914,
+        "p50": 837.87,
+        "p95": 4441.516
+      },
+      "mrr_10": 1.0,
+      "recall_10": 1.0,
+      "recall_50": 1.0
+    },
+    "per_modality": {
+      "audio": {
+        "count": 1,
+        "latency_ms": {
+          "mean": 544.51,
+          "p50": 544.51,
+          "p95": 544.51
+        },
+        "mrr_10": 1.0,
+        "recall_10": 1.0,
+        "recall_50": 1.0
+      },
+      "docs": {
+        "count": 3,
+        "latency_ms": {
+          "mean": 1011.1533,
+          "p50": 837.87,
+          "p95": 1384.386
+        },
+        "mrr_10": 1.0,
+        "recall_10": 1.0,
+        "recall_50": 1.0
+      },
+      "images": {
+        "count": 2,
+        "latency_ms": {
+          "mean": 3270.59,
+          "p50": 3270.59,
+          "p95": 5480.18
+        },
+        "mrr_10": 1.0,
+        "recall_10": 1.0,
+        "recall_50": 1.0
+      },
+      "videos": {
+        "count": 1,
+        "latency_ms": {
+          "mean": 1269.09,
+          "p50": 1269.09,
+          "p95": 1269.09
+        },
+        "mrr_10": 1.0,
+        "recall_10": 1.0,
+        "recall_50": 1.0
+      }
+    },
+    "queries": [
+      {
+        "id": "video-mp4-1",
+        "latency_ms": 1269.09,
+        "modality": "videos",
+        "mrr_10": 1.0,
+        "rank": 1,
+        "recall_10": 1.0,
+        "recall_50": 1.0
+      },
+      {
+        "id": "docs-txt-1",
+        "latency_ms": 1445.11,
+        "modality": "docs",
+        "mrr_10": 1.0,
+        "rank": 1,
+        "recall_10": 1.0,
+        "recall_50": 1.0
+      },
+      {
+        "id": "images-jpg-1",
+        "latency_ms": 5725.69,
+        "modality": "images",
+        "mrr_10": 1.0,
+        "rank": 1,
+        "recall_10": 1.0,
+        "recall_50": 1.0
+      },
+      {
+        "id": "images-png-1",
+        "latency_ms": 815.49,
+        "modality": "images",
+        "mrr_10": 1.0,
+        "rank": 1,
+        "recall_10": 1.0,
+        "recall_50": 1.0
+      },
+      {
+        "id": "docs-tsv-1",
+        "latency_ms": 837.87,
+        "modality": "docs",
+        "mrr_10": 1.0,
+        "rank": 1,
+        "recall_10": 1.0,
+        "recall_50": 1.0
+      },
+      {
+        "id": "docs-csv-1",
+        "latency_ms": 750.48,
+        "modality": "docs",
+        "mrr_10": 1.0,
+        "rank": 1,
+        "recall_10": 1.0,
+        "recall_50": 1.0
+      },
+      {
+        "id": "audio-wav-1",
+        "latency_ms": 544.51,
+        "modality": "audio",
+        "mrr_10": 1.0,
+        "rank": 1,
+        "recall_10": 1.0,
+        "recall_50": 1.0
+      }
+    ],
+    "query_url": "https://retikon-query-staging-yt27ougp4q-uc.a.run.app/query",
+    "top_k": 50
+  },
+  {
+    "eval_run_id": "hnsw-100-m12-efs32-1771162885",
+    "hnsw_ef_construction": 100,
+    "hnsw_ef_search": 32,
+    "hnsw_m": 12,
+    "overall": {
+      "count": 7,
+      "latency_ms": {
+        "mean": 805.1071,
+        "p50": 805.38,
+        "p95": 1013.573
+      },
+      "mrr_10": 1.0,
+      "recall_10": 1.0,
+      "recall_50": 1.0
+    },
+    "per_modality": {
+      "audio": {
+        "count": 1,
+        "latency_ms": {
+          "mean": 546.78,
+          "p50": 546.78,
+          "p95": 546.78
+        },
+        "mrr_10": 1.0,
+        "recall_10": 1.0,
+        "recall_50": 1.0
+      },
+      "docs": {
+        "count": 3,
+        "latency_ms": {
+          "mean": 760.78,
+          "p50": 745.6,
+          "p95": 799.402
+        },
+        "mrr_10": 1.0,
+        "recall_10": 1.0,
+        "recall_50": 1.0
+      },
+      "images": {
+        "count": 2,
+        "latency_ms": {
+          "mean": 930.755,
+          "p50": 930.755,
+          "p95": 1031.6945
+        },
+        "mrr_10": 1.0,
+        "recall_10": 1.0,
+        "recall_50": 1.0
+      },
+      "videos": {
+        "count": 1,
+        "latency_ms": {
+          "mean": 945.12,
+          "p50": 945.12,
+          "p95": 945.12
+        },
+        "mrr_10": 1.0,
+        "recall_10": 1.0,
+        "recall_50": 1.0
+      }
+    },
+    "queries": [
+      {
+        "id": "video-mp4-1",
+        "latency_ms": 945.12,
+        "modality": "videos",
+        "mrr_10": 1.0,
+        "rank": 1,
+        "recall_10": 1.0,
+        "recall_50": 1.0
+      },
+      {
+        "id": "docs-txt-1",
+        "latency_ms": 805.38,
+        "modality": "docs",
+        "mrr_10": 1.0,
+        "rank": 1,
+        "recall_10": 1.0,
+        "recall_50": 1.0
+      },
+      {
+        "id": "images-jpg-1",
+        "latency_ms": 1042.91,
+        "modality": "images",
+        "mrr_10": 1.0,
+        "rank": 1,
+        "recall_10": 1.0,
+        "recall_50": 1.0
+      },
+      {
+        "id": "images-png-1",
+        "latency_ms": 818.6,
+        "modality": "images",
+        "mrr_10": 1.0,
+        "rank": 1,
+        "recall_10": 1.0,
+        "recall_50": 1.0
+      },
+      {
+        "id": "docs-tsv-1",
+        "latency_ms": 745.6,
+        "modality": "docs",
+        "mrr_10": 1.0,
+        "rank": 1,
+        "recall_10": 1.0,
+        "recall_50": 1.0
+      },
+      {
+        "id": "docs-csv-1",
+        "latency_ms": 731.36,
+        "modality": "docs",
+        "mrr_10": 1.0,
+        "rank": 1,
+        "recall_10": 1.0,
+        "recall_50": 1.0
+      },
+      {
+        "id": "audio-wav-1",
+        "latency_ms": 546.78,
+        "modality": "audio",
+        "mrr_10": 1.0,
+        "rank": 1,
+        "recall_10": 1.0,
+        "recall_50": 1.0
+      }
+    ],
+    "query_url": "https://retikon-query-staging-yt27ougp4q-uc.a.run.app/query",
+    "top_k": 50
+  },
+  {
+    "eval_run_id": "hnsw-100-m16-efs32-1771165138",
+    "hnsw_ef_construction": 100,
+    "hnsw_ef_search": 32,
+    "hnsw_m": 16,
+    "overall": {
+      "count": 7,
+      "latency_ms": {
+        "mean": 732.8686,
+        "p50": 716.52,
+        "p95": 843.804
+      },
+      "mrr_10": 1.0,
+      "recall_10": 1.0,
+      "recall_50": 1.0
+    },
+    "per_modality": {
+      "audio": {
+        "count": 1,
+        "latency_ms": {
+          "mean": 562.65,
+          "p50": 562.65,
+          "p95": 562.65
+        },
+        "mrr_10": 1.0,
+        "recall_10": 1.0,
+        "recall_50": 1.0
+      },
+      "docs": {
+        "count": 3,
+        "latency_ms": {
+          "mean": 703.1933,
+          "p50": 704.78,
+          "p95": 715.346
+        },
+        "mrr_10": 1.0,
+        "recall_10": 1.0,
+        "recall_50": 1.0
+      },
+      "images": {
+        "count": 2,
+        "latency_ms": {
+          "mean": 840.04,
+          "p50": 840.04,
+          "p95": 848.509
+        },
+        "mrr_10": 1.0,
+        "recall_10": 1.0,
+        "recall_50": 1.0
+      },
+      "videos": {
+        "count": 1,
+        "latency_ms": {
+          "mean": 777.77,
+          "p50": 777.77,
+          "p95": 777.77
+        },
+        "mrr_10": 1.0,
+        "recall_10": 1.0,
+        "recall_50": 1.0
+      }
+    },
+    "queries": [
+      {
+        "id": "video-mp4-1",
+        "latency_ms": 777.77,
+        "modality": "videos",
+        "mrr_10": 1.0,
+        "rank": 1,
+        "recall_10": 1.0,
+        "recall_50": 1.0
+      },
+      {
+        "id": "docs-txt-1",
+        "latency_ms": 704.78,
+        "modality": "docs",
+        "mrr_10": 1.0,
+        "rank": 1,
+        "recall_10": 1.0,
+        "recall_50": 1.0
+      },
+      {
+        "id": "images-jpg-1",
+        "latency_ms": 830.63,
+        "modality": "images",
+        "mrr_10": 1.0,
+        "rank": 1,
+        "recall_10": 1.0,
+        "recall_50": 1.0
+      },
+      {
+        "id": "images-png-1",
+        "latency_ms": 849.45,
+        "modality": "images",
+        "mrr_10": 1.0,
+        "rank": 1,
+        "recall_10": 1.0,
+        "recall_50": 1.0
+      },
+      {
+        "id": "docs-tsv-1",
+        "latency_ms": 688.28,
+        "modality": "docs",
+        "mrr_10": 1.0,
+        "rank": 1,
+        "recall_10": 1.0,
+        "recall_50": 1.0
+      },
+      {
+        "id": "docs-csv-1",
+        "latency_ms": 716.52,
+        "modality": "docs",
+        "mrr_10": 1.0,
+        "rank": 1,
+        "recall_10": 1.0,
+        "recall_50": 1.0
+      },
+      {
+        "id": "audio-wav-1",
+        "latency_ms": 562.65,
+        "modality": "audio",
+        "mrr_10": 1.0,
+        "rank": 1,
+        "recall_10": 1.0,
+        "recall_50": 1.0
+      }
+    ],
+    "query_url": "https://retikon-query-staging-yt27ougp4q-uc.a.run.app/query",
+    "top_k": 50
+  },
+  {
+    "eval_run_id": "hnsw-100-m24-efs32-1771167273",
+    "hnsw_ef_construction": 100,
+    "hnsw_ef_search": 32,
+    "hnsw_m": 24,
+    "overall": {
+      "count": 7,
+      "latency_ms": {
+        "mean": 834.49,
+        "p50": 825.58,
+        "p95": 996.658
+      },
+      "mrr_10": 1.0,
+      "recall_10": 1.0,
+      "recall_50": 1.0
+    },
+    "per_modality": {
+      "audio": {
+        "count": 1,
+        "latency_ms": {
+          "mean": 652.61,
+          "p50": 652.61,
+          "p95": 652.61
+        },
+        "mrr_10": 1.0,
+        "recall_10": 1.0,
+        "recall_50": 1.0
+      },
+      "docs": {
+        "count": 3,
+        "latency_ms": {
+          "mean": 771.9367,
+          "p50": 785.24,
+          "p95": 821.546
+        },
+        "mrr_10": 1.0,
+        "recall_10": 1.0,
+        "recall_50": 1.0
+      },
+      "images": {
+        "count": 2,
+        "latency_ms": {
+          "mean": 940.99,
+          "p50": 940.99,
+          "p95": 993.262
+        },
+        "mrr_10": 1.0,
+        "recall_10": 1.0,
+        "recall_50": 1.0
+      },
+      "videos": {
+        "count": 1,
+        "latency_ms": {
+          "mean": 991.03,
+          "p50": 991.03,
+          "p95": 991.03
+        },
+        "mrr_10": 1.0,
+        "recall_10": 1.0,
+        "recall_50": 1.0
+      }
+    },
+    "queries": [
+      {
+        "id": "video-mp4-1",
+        "latency_ms": 991.03,
+        "modality": "videos",
+        "mrr_10": 1.0,
+        "rank": 1,
+        "recall_10": 1.0,
+        "recall_50": 1.0
+      },
+      {
+        "id": "docs-txt-1",
+        "latency_ms": 825.58,
+        "modality": "docs",
+        "mrr_10": 1.0,
+        "rank": 1,
+        "recall_10": 1.0,
+        "recall_50": 1.0
+      },
+      {
+        "id": "images-jpg-1",
+        "latency_ms": 999.07,
+        "modality": "images",
+        "mrr_10": 1.0,
+        "rank": 1,
+        "recall_10": 1.0,
+        "recall_50": 1.0
+      },
+      {
+        "id": "images-png-1",
+        "latency_ms": 882.91,
+        "modality": "images",
+        "mrr_10": 1.0,
+        "rank": 1,
+        "recall_10": 1.0,
+        "recall_50": 1.0
+      },
+      {
+        "id": "docs-tsv-1",
+        "latency_ms": 785.24,
+        "modality": "docs",
+        "mrr_10": 1.0,
+        "rank": 1,
+        "recall_10": 1.0,
+        "recall_50": 1.0
+      },
+      {
+        "id": "docs-csv-1",
+        "latency_ms": 704.99,
+        "modality": "docs",
+        "mrr_10": 1.0,
+        "rank": 1,
+        "recall_10": 1.0,
+        "recall_50": 1.0
+      },
+      {
+        "id": "audio-wav-1",
+        "latency_ms": 652.61,
+        "modality": "audio",
+        "mrr_10": 1.0,
+        "rank": 1,
+        "recall_10": 1.0,
+        "recall_50": 1.0
+      }
+    ],
+    "query_url": "https://retikon-query-staging-yt27ougp4q-uc.a.run.app/query",
+    "top_k": 50
+  },
+  {
+    "eval_run_id": "hnsw-150-m8-efs32-1771169792",
+    "hnsw_ef_construction": 150,
+    "hnsw_ef_search": 32,
+    "hnsw_m": 8,
+    "overall": {
+      "count": 7,
+      "latency_ms": {
+        "mean": 751.3671,
+        "p50": 758.17,
+        "p95": 900.513
+      },
+      "mrr_10": 1.0,
+      "recall_10": 1.0,
+      "recall_50": 1.0
+    },
+    "per_modality": {
+      "audio": {
+        "count": 1,
+        "latency_ms": {
+          "mean": 551.84,
+          "p50": 551.84,
+          "p95": 551.84
+        },
+        "mrr_10": 1.0,
+        "recall_10": 1.0,
+        "recall_50": 1.0
+      },
+      "docs": {
+        "count": 3,
+        "latency_ms": {
+          "mean": 692.1667,
+          "p50": 685.71,
+          "p95": 750.924
+        },
+        "mrr_10": 1.0,
+        "recall_10": 1.0,
+        "recall_50": 1.0
+      },
+      "images": {
+        "count": 2,
+        "latency_ms": {
+          "mean": 865.705,
+          "p50": 865.705,
+          "p95": 897.2995
+        },
+        "mrr_10": 1.0,
+        "recall_10": 1.0,
+        "recall_50": 1.0
+      },
+      "videos": {
+        "count": 1,
+        "latency_ms": {
+          "mean": 899.82,
+          "p50": 899.82,
+          "p95": 899.82
+        },
+        "mrr_10": 1.0,
+        "recall_10": 1.0,
+        "recall_50": 1.0
+      }
+    },
+    "queries": [
+      {
+        "id": "video-mp4-1",
+        "latency_ms": 899.82,
+        "modality": "videos",
+        "mrr_10": 1.0,
+        "rank": 1,
+        "recall_10": 1.0,
+        "recall_50": 1.0
+      },
+      {
+        "id": "docs-txt-1",
+        "latency_ms": 758.17,
+        "modality": "docs",
+        "mrr_10": 1.0,
+        "rank": 1,
+        "recall_10": 1.0,
+        "recall_50": 1.0
+      },
+      {
+        "id": "images-jpg-1",
+        "latency_ms": 830.6,
+        "modality": "images",
+        "mrr_10": 1.0,
+        "rank": 1,
+        "recall_10": 1.0,
+        "recall_50": 1.0
+      },
+      {
+        "id": "images-png-1",
+        "latency_ms": 900.81,
+        "modality": "images",
+        "mrr_10": 1.0,
+        "rank": 1,
+        "recall_10": 1.0,
+        "recall_50": 1.0
+      },
+      {
+        "id": "docs-tsv-1",
+        "latency_ms": 632.62,
+        "modality": "docs",
+        "mrr_10": 1.0,
+        "rank": 1,
+        "recall_10": 1.0,
+        "recall_50": 1.0
+      },
+      {
+        "id": "docs-csv-1",
+        "latency_ms": 685.71,
+        "modality": "docs",
+        "mrr_10": 1.0,
+        "rank": 1,
+        "recall_10": 1.0,
+        "recall_50": 1.0
+      },
+      {
+        "id": "audio-wav-1",
+        "latency_ms": 551.84,
+        "modality": "audio",
+        "mrr_10": 1.0,
+        "rank": 1,
+        "recall_10": 1.0,
+        "recall_50": 1.0
+      }
+    ],
+    "query_url": "https://retikon-query-staging-yt27ougp4q-uc.a.run.app/query",
+    "top_k": 50
+  },
+  {
+    "eval_run_id": "hnsw-150-m12-efs32-1771172047",
+    "hnsw_ef_construction": 150,
+    "hnsw_ef_search": 32,
+    "hnsw_m": 12,
+    "overall": {
+      "count": 7,
+      "latency_ms": {
+        "mean": 819.4214,
+        "p50": 844.92,
+        "p95": 985.086
+      },
+      "mrr_10": 1.0,
+      "recall_10": 1.0,
+      "recall_50": 1.0
+    },
+    "per_modality": {
+      "audio": {
+        "count": 1,
+        "latency_ms": {
+          "mean": 659.48,
+          "p50": 659.48,
+          "p95": 659.48
+        },
+        "mrr_10": 1.0,
+        "recall_10": 1.0,
+        "recall_50": 1.0
+      },
+      "docs": {
+        "count": 3,
+        "latency_ms": {
+          "mean": 761.3033,
+          "p50": 734.34,
+          "p95": 833.862
+        },
+        "mrr_10": 1.0,
+        "recall_10": 1.0,
+        "recall_50": 1.0
+      },
+      "images": {
+        "count": 2,
+        "latency_ms": {
+          "mean": 939.15,
+          "p50": 939.15,
+          "p95": 1007.811
+        },
+        "mrr_10": 1.0,
+        "recall_10": 1.0,
+        "recall_50": 1.0
+      },
+      "videos": {
+        "count": 1,
+        "latency_ms": {
+          "mean": 914.26,
+          "p50": 914.26,
+          "p95": 914.26
+        },
+        "mrr_10": 1.0,
+        "recall_10": 1.0,
+        "recall_50": 1.0
+      }
+    },
+    "queries": [
+      {
+        "id": "video-mp4-1",
+        "latency_ms": 914.26,
+        "modality": "videos",
+        "mrr_10": 1.0,
+        "rank": 1,
+        "recall_10": 1.0,
+        "recall_50": 1.0
+      },
+      {
+        "id": "docs-txt-1",
+        "latency_ms": 844.92,
+        "modality": "docs",
+        "mrr_10": 1.0,
+        "rank": 1,
+        "recall_10": 1.0,
+        "recall_50": 1.0
+      },
+      {
+        "id": "images-jpg-1",
+        "latency_ms": 1015.44,
+        "modality": "images",
+        "mrr_10": 1.0,
+        "rank": 1,
+        "recall_10": 1.0,
+        "recall_50": 1.0
+      },
+      {
+        "id": "images-png-1",
+        "latency_ms": 862.86,
+        "modality": "images",
+        "mrr_10": 1.0,
+        "rank": 1,
+        "recall_10": 1.0,
+        "recall_50": 1.0
+      },
+      {
+        "id": "docs-tsv-1",
+        "latency_ms": 704.65,
+        "modality": "docs",
+        "mrr_10": 1.0,
+        "rank": 1,
+        "recall_10": 1.0,
+        "recall_50": 1.0
+      },
+      {
+        "id": "docs-csv-1",
+        "latency_ms": 734.34,
+        "modality": "docs",
+        "mrr_10": 1.0,
+        "rank": 1,
+        "recall_10": 1.0,
+        "recall_50": 1.0
+      },
+      {
+        "id": "audio-wav-1",
+        "latency_ms": 659.48,
+        "modality": "audio",
+        "mrr_10": 1.0,
+        "rank": 1,
+        "recall_10": 1.0,
+        "recall_50": 1.0
+      }
+    ],
+    "query_url": "https://retikon-query-staging-yt27ougp4q-uc.a.run.app/query",
+    "top_k": 50
+  },
+  {
+    "eval_run_id": "hnsw-150-m16-efs32-1771175443",
+    "hnsw_ef_construction": 150,
+    "hnsw_ef_search": 32,
+    "hnsw_m": 16,
+    "overall": {
+      "count": 7,
+      "latency_ms": {
+        "mean": 746.1429,
+        "p50": 745.68,
+        "p95": 886.716
+      },
+      "mrr_10": 1.0,
+      "recall_10": 1.0,
+      "recall_50": 1.0
+    },
+    "per_modality": {
+      "audio": {
+        "count": 1,
+        "latency_ms": {
+          "mean": 537.12,
+          "p50": 537.12,
+          "p95": 537.12
+        },
+        "mrr_10": 1.0,
+        "recall_10": 1.0,
+        "recall_50": 1.0
+      },
+      "docs": {
+        "count": 3,
+        "latency_ms": {
+          "mean": 726.5733,
+          "p50": 716.73,
+          "p95": 775.581
+        },
+        "mrr_10": 1.0,
+        "recall_10": 1.0,
+        "recall_50": 1.0
+      },
+      "images": {
+        "count": 2,
+        "latency_ms": {
+          "mean": 804.865,
+          "p50": 804.865,
+          "p95": 858.1315
+        },
+        "mrr_10": 1.0,
+        "recall_10": 1.0,
+        "recall_50": 1.0
+      },
+      "videos": {
+        "count": 1,
+        "latency_ms": {
+          "mean": 896.43,
+          "p50": 896.43,
+          "p95": 896.43
+        },
+        "mrr_10": 1.0,
+        "recall_10": 1.0,
+        "recall_50": 1.0
+      }
+    },
+    "queries": [
+      {
+        "id": "video-mp4-1",
+        "latency_ms": 896.43,
+        "modality": "videos",
+        "mrr_10": 1.0,
+        "rank": 1,
+        "recall_10": 1.0,
+        "recall_50": 1.0
+      },
+      {
+        "id": "docs-txt-1",
+        "latency_ms": 782.12,
+        "modality": "docs",
+        "mrr_10": 1.0,
+        "rank": 1,
+        "recall_10": 1.0,
+        "recall_50": 1.0
+      },
+      {
+        "id": "images-jpg-1",
+        "latency_ms": 864.05,
+        "modality": "images",
+        "mrr_10": 1.0,
+        "rank": 1,
+        "recall_10": 1.0,
+        "recall_50": 1.0
+      },
+      {
+        "id": "images-png-1",
+        "latency_ms": 745.68,
+        "modality": "images",
+        "mrr_10": 1.0,
+        "rank": 1,
+        "recall_10": 1.0,
+        "recall_50": 1.0
+      },
+      {
+        "id": "docs-tsv-1",
+        "latency_ms": 680.87,
+        "modality": "docs",
+        "mrr_10": 1.0,
+        "rank": 1,
+        "recall_10": 1.0,
+        "recall_50": 1.0
+      },
+      {
+        "id": "docs-csv-1",
+        "latency_ms": 716.73,
+        "modality": "docs",
+        "mrr_10": 1.0,
+        "rank": 1,
+        "recall_10": 1.0,
+        "recall_50": 1.0
+      },
+      {
+        "id": "audio-wav-1",
+        "latency_ms": 537.12,
+        "modality": "audio",
+        "mrr_10": 1.0,
+        "rank": 1,
+        "recall_10": 1.0,
+        "recall_50": 1.0
+      }
+    ],
+    "query_url": "https://retikon-query-staging-yt27ougp4q-uc.a.run.app/query",
+    "top_k": 50
+  },
+  {
+    "eval_run_id": "hnsw-150-m24-efs32-1771177820",
+    "hnsw_ef_construction": 150,
+    "hnsw_ef_search": 32,
+    "hnsw_m": 24,
+    "overall": {
+      "count": 7,
+      "latency_ms": {
+        "mean": 747.4786,
+        "p50": 753.29,
+        "p95": 846.901
+      },
+      "mrr_10": 1.0,
+      "recall_10": 1.0,
+      "recall_50": 1.0
+    },
+    "per_modality": {
+      "audio": {
+        "count": 1,
+        "latency_ms": {
+          "mean": 548.19,
+          "p50": 548.19,
+          "p95": 548.19
+        },
+        "mrr_10": 1.0,
+        "recall_10": 1.0,
+        "recall_50": 1.0
+      },
+      "docs": {
+        "count": 3,
+        "latency_ms": {
+          "mean": 746.1433,
+          "p50": 750.81,
+          "p95": 753.042
+        },
+        "mrr_10": 1.0,
+        "recall_10": 1.0,
+        "recall_50": 1.0
+      },
+      "images": {
+        "count": 2,
+        "latency_ms": {
+          "mean": 807.3,
+          "p50": 807.3,
+          "p95": 849.024
+        },
+        "mrr_10": 1.0,
+        "recall_10": 1.0,
+        "recall_50": 1.0
+      },
+      "videos": {
+        "count": 1,
+        "latency_ms": {
+          "mean": 831.13,
+          "p50": 831.13,
+          "p95": 831.13
+        },
+        "mrr_10": 1.0,
+        "recall_10": 1.0,
+        "recall_50": 1.0
+      }
+    },
+    "queries": [
+      {
+        "id": "video-mp4-1",
+        "latency_ms": 831.13,
+        "modality": "videos",
+        "mrr_10": 1.0,
+        "rank": 1,
+        "recall_10": 1.0,
+        "recall_50": 1.0
+      },
+      {
+        "id": "docs-txt-1",
+        "latency_ms": 750.81,
+        "modality": "docs",
+        "mrr_10": 1.0,
+        "rank": 1,
+        "recall_10": 1.0,
+        "recall_50": 1.0
+      },
+      {
+        "id": "images-jpg-1",
+        "latency_ms": 760.94,
+        "modality": "images",
+        "mrr_10": 1.0,
+        "rank": 1,
+        "recall_10": 1.0,
+        "recall_50": 1.0
+      },
+      {
+        "id": "images-png-1",
+        "latency_ms": 853.66,
+        "modality": "images",
+        "mrr_10": 1.0,
+        "rank": 1,
+        "recall_10": 1.0,
+        "recall_50": 1.0
+      },
+      {
+        "id": "docs-tsv-1",
+        "latency_ms": 753.29,
+        "modality": "docs",
+        "mrr_10": 1.0,
+        "rank": 1,
+        "recall_10": 1.0,
+        "recall_50": 1.0
+      },
+      {
+        "id": "docs-csv-1",
+        "latency_ms": 734.33,
+        "modality": "docs",
+        "mrr_10": 1.0,
+        "rank": 1,
+        "recall_10": 1.0,
+        "recall_50": 1.0
+      },
+      {
+        "id": "audio-wav-1",
+        "latency_ms": 548.19,
+        "modality": "audio",
+        "mrr_10": 1.0,
+        "rank": 1,
+        "recall_10": 1.0,
+        "recall_50": 1.0
+      }
+    ],
+    "query_url": "https://retikon-query-staging-yt27ougp4q-uc.a.run.app/query",
+    "top_k": 50
+  },
+  {
+    "eval_run_id": "hnsw-200-m8-efs32-1771179891",
+    "hnsw_ef_construction": 200,
+    "hnsw_ef_search": 32,
+    "hnsw_m": 8,
+    "overall": {
+      "count": 7,
+      "latency_ms": {
+        "mean": 914.6529,
+        "p50": 853.41,
+        "p95": 1245.914
+      },
+      "mrr_10": 1.0,
+      "recall_10": 1.0,
+      "recall_50": 1.0
+    },
+    "per_modality": {
+      "audio": {
+        "count": 1,
+        "latency_ms": {
+          "mean": 697.63,
+          "p50": 697.63,
+          "p95": 697.63
+        },
+        "mrr_10": 1.0,
+        "recall_10": 1.0,
+        "recall_50": 1.0
+      },
+      "docs": {
+        "count": 3,
+        "latency_ms": {
+          "mean": 765.3033,
+          "p50": 744.87,
+          "p95": 842.556
+        },
+        "mrr_10": 1.0,
+        "recall_10": 1.0,
+        "recall_50": 1.0
+      },
+      "images": {
+        "count": 2,
+        "latency_ms": {
+          "mean": 1060.765,
+          "p50": 1060.765,
+          "p95": 1140.0685
+        },
+        "mrr_10": 1.0,
+        "recall_10": 1.0,
+        "recall_50": 1.0
+      },
+      "videos": {
+        "count": 1,
+        "latency_ms": {
+          "mean": 1287.5,
+          "p50": 1287.5,
+          "p95": 1287.5
+        },
+        "mrr_10": 1.0,
+        "recall_10": 1.0,
+        "recall_50": 1.0
+      }
+    },
+    "queries": [
+      {
+        "id": "video-mp4-1",
+        "latency_ms": 1287.5,
+        "modality": "videos",
+        "mrr_10": 1.0,
+        "rank": 1,
+        "recall_10": 1.0,
+        "recall_50": 1.0
+      },
+      {
+        "id": "docs-txt-1",
+        "latency_ms": 853.41,
+        "modality": "docs",
+        "mrr_10": 1.0,
+        "rank": 1,
+        "recall_10": 1.0,
+        "recall_50": 1.0
+      },
+      {
+        "id": "images-jpg-1",
+        "latency_ms": 972.65,
+        "modality": "images",
+        "mrr_10": 1.0,
+        "rank": 1,
+        "recall_10": 1.0,
+        "recall_50": 1.0
+      },
+      {
+        "id": "images-png-1",
+        "latency_ms": 1148.88,
+        "modality": "images",
+        "mrr_10": 1.0,
+        "rank": 1,
+        "recall_10": 1.0,
+        "recall_50": 1.0
+      },
+      {
+        "id": "docs-tsv-1",
+        "latency_ms": 744.87,
+        "modality": "docs",
+        "mrr_10": 1.0,
+        "rank": 1,
+        "recall_10": 1.0,
+        "recall_50": 1.0
+      },
+      {
+        "id": "docs-csv-1",
+        "latency_ms": 697.63,
+        "modality": "docs",
+        "mrr_10": 1.0,
+        "rank": 1,
+        "recall_10": 1.0,
+        "recall_50": 1.0
+      },
+      {
+        "id": "audio-wav-1",
+        "latency_ms": 697.63,
+        "modality": "audio",
+        "mrr_10": 1.0,
+        "rank": 1,
+        "recall_10": 1.0,
+        "recall_50": 1.0
+      }
+    ],
+    "query_url": "https://retikon-query-staging-yt27ougp4q-uc.a.run.app/query",
+    "top_k": 50
+  }
+]
