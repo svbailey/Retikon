@@ -872,6 +872,10 @@ resource "google_cloud_run_service" "ingestion" {
           value = var.whisper_model_name
         }
         env {
+          name  = "WHISPER_MODEL_NAME_FAST"
+          value = var.whisper_model_name_fast
+        }
+        env {
           name  = "WHISPER_LANGUAGE"
           value = var.whisper_language
         }
@@ -3909,6 +3913,10 @@ resource "google_cloud_run_service" "stream_ingest" {
           value = var.whisper_model_name
         }
         env {
+          name  = "WHISPER_MODEL_NAME_FAST"
+          value = var.whisper_model_name_fast
+        }
+        env {
           name  = "WHISPER_LANGUAGE"
           value = var.whisper_language
         }
@@ -4371,6 +4379,10 @@ resource "google_cloud_run_service" "ingestion_media" {
         env {
           name  = "WHISPER_MODEL_NAME"
           value = var.whisper_model_name
+        }
+        env {
+          name  = "WHISPER_MODEL_NAME_FAST"
+          value = var.whisper_model_name_fast
         }
         env {
           name  = "WHISPER_LANGUAGE"
@@ -4892,6 +4904,10 @@ resource "google_cloud_run_service" "ingestion_embed" {
         env {
           name  = "WHISPER_MODEL_NAME"
           value = var.whisper_model_name
+        }
+        env {
+          name  = "WHISPER_MODEL_NAME_FAST"
+          value = var.whisper_model_name_fast
         }
         env {
           name  = "WHISPER_LANGUAGE"

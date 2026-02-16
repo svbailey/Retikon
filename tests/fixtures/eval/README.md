@@ -7,8 +7,8 @@ This eval set targets the staging graph built from unique eval assets.
 - run_id: `eval-20260214-164126`
 - bucket: `retikon-raw-simitor-staging`
 - prefix: `raw_clean`
-- latest eval run: `eval-20260216-110825`
-- newest eval run: `eval-20260216-110825`
+- latest eval run: `eval-20260216-114441`
+- newest eval run: `eval-20260216-114441`
 
 Queries live in `tests/fixtures/eval/queries.jsonl` and reference the ingested
 URIs from the run above.

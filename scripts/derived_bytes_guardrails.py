@@ -5,7 +5,7 @@ import argparse
 import json
 import os
 from datetime import datetime, timezone
-from typing import Any, Dict, Iterable, List, Optional
+from typing import Any, Dict, Iterable, List, Optional, Tuple
 
 import fsspec
 from google.cloud import firestore
@@ -52,6 +52,19 @@ def coerce_float(value: Any) -> Optional[float]:
     if isinstance(value, (int, float)):
         return float(value)
     return None
+
+
+def _manifest_size_bytes(uri: str, cache: Dict[str, Optional[float]]) -> Optional[float]:
+    if uri in cache:
+        return cache[uri]
+    try:
+        fs, path = fsspec.core.url_to_fs(uri)
+        info = fs.info(path)
+        size = info.get("size")
+        cache[uri] = float(size) if isinstance(size, (int, float)) else None
+    except Exception:
+        cache[uri] = None
+    return cache[uri]
 
 
 def fetch_docs(
@@ -118,11 +131,42 @@ def _resolve_breakdown(io_payload: dict) -> dict[str, float]:
     return breakdown
 
 
-def collect_metrics(
-    docs: Iterable[firestore.DocumentSnapshot],
-) -> dict[str, Any]:
+def _resolved_components(
+    payload: dict[str, Any],
+    io_payload: dict[str, Any],
+    *,
+    manifest_size_cache: Dict[str, Optional[float]],
+) -> Tuple[dict[str, float], Optional[float]]:
+    breakdown = _resolve_breakdown(io_payload)
+    manifest_uri = payload.get("manifest_uri")
+    if "manifest_b" not in breakdown and isinstance(manifest_uri, str) and manifest_uri:
+        manifest_b = _manifest_size_bytes(manifest_uri, manifest_size_cache)
+        if manifest_b is not None:
+            breakdown["manifest_b"] = manifest_b
+
+    derived_total = coerce_float(io_payload.get("derived_b_total"))
+    if derived_total is None:
+        derived_total = coerce_float(io_payload.get("bytes_derived"))
+    if derived_total is None and breakdown:
+        derived_total = sum(
+            value for key, value in breakdown.items() if key != "manifest_b"
+        )
+
+    if "other_b" not in breakdown and isinstance(derived_total, (int, float)):
+        known = sum(
+            breakdown.get(key, 0.0)
+            for key in ("parquet_b", "thumbnails_b", "frames_b", "transcript_b", "embeddings_b")
+        )
+        residual = max(0.0, float(derived_total) - float(known))
+        breakdown["other_b"] = residual
+
+    return breakdown, derived_total
+
+
+def collect_metrics(docs: Iterable[firestore.DocumentSnapshot]) -> dict[str, Any]:
     totals: List[float] = []
     per_component: Dict[str, List[float]] = {key: [] for key in COMPONENT_KEYS}
+    manifest_size_cache: Dict[str, Optional[float]] = {}
 
     for doc in docs:
         payload = doc.to_dict() or {}
@@ -130,12 +174,11 @@ def collect_metrics(
         pipeline = metrics.get("pipeline") or {}
         io_payload = pipeline.get("io") or {}
 
-        breakdown = _resolve_breakdown(io_payload)
-        derived_total = coerce_float(io_payload.get("derived_b_total"))
-        if derived_total is None and breakdown:
-            derived_total = sum(breakdown.values())
-        if derived_total is None:
-            derived_total = coerce_float(io_payload.get("bytes_derived"))
+        breakdown, derived_total = _resolved_components(
+            payload,
+            io_payload,
+            manifest_size_cache=manifest_size_cache,
+        )
         if derived_total is None:
             continue
         totals.append(derived_total)

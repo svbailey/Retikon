@@ -1,6 +1,6 @@
 # Retikon Ingest + Index Optimization Plan (Execution Ready)
 
-Status: P0 complete; P1 in progress
+Status: P0/P1 complete in staging; prod rollout pending
 Owner: Product + Eng
 Last Updated: 2026-02-14
 
@@ -45,7 +45,7 @@ Index quality baseline (staging):
 | video | 1.0 | 1.0 | 1.0 | 762.21 | eval-20260214-171409 |
 
 - Note: warm run is eval-20260214-171409 (min_scale=1 on query service). Cold-start outlier eval-20260214-164126 had video p95 22329.18ms.
-- Latest eval run: eval-20260216-110825 (docs p95 749.29ms, images p95 831.91ms, audio p95 565.29ms, video p95 661.40ms). All modalities are within warm targets.
+- Latest eval run: eval-20260216-114441 (docs p95 602.04ms, images p95 823.49ms, audio p95 613.24ms, video p95 627.73ms). All modalities are within warm targets.
 
 HNSW sweep plan (staging):
 - Fix dataset + eval set + query mix for all runs.
@@ -371,7 +371,7 @@ Where: `scripts/derived_bytes_guardrails.py` + scheduled job + alerting
 Acceptance: alert if component bytes spike beyond thresholds.  
 Verification: run `python scripts/derived_bytes_guardrails.py --project simitor --bucket retikon-raw-simitor-staging --raw-prefix raw_clean --run-id <run-id>`.
 Latest outputs (staging):
-- Baseline: `gs://retikon-graph-simitor-staging/retikon_v2_demo_20260209_clean/audit/ops/derived-bytes/baseline.json` (run id sla-20260214-123316).
+- Baseline: `gs://retikon-graph-simitor-staging/retikon_v2_demo_20260209_clean/audit/ops/derived-bytes/baseline.json` (run id canary4-20260216-114401).
 - Latest guardrails: `gs://retikon-graph-simitor-staging/retikon_v2_demo_20260209_clean/audit/ops/derived-bytes/latest.json`.
 
 O) TTL/GC audit script + retention reporting  
@@ -379,7 +379,7 @@ Where: `scripts/graph_gc.py` + `scripts/gc_audit_report.py`
 Acceptance: monthly report proves lifecycle rules executed (counts removed, bytes reclaimed).  
 Verification: run `python scripts/graph_gc.py --graph-root <graph-root> --include-sizes` (dry run) and `python scripts/gc_audit_report.py --graph-root <graph-root> --limit 1` after an `--execute` run.
 Latest audit summary (staging):
-- `gs://retikon-graph-simitor-staging/retikon_v2_demo_20260209_clean/audit/ops/gc-audit/latest.json` (source `gc-20260216-105918.json`, candidate_count=61,366, candidate_bytes=320,396,441, dry_run=true).
+- `gs://retikon-graph-simitor-staging/retikon_v2_demo_20260209_clean/audit/ops/gc-audit/latest.json` (source `gc-20260216-113036.json`, candidate_count=61,848, candidate_bytes=322,922,714, deleted_count=61,848, dry_run=false).
 
 P) Downsample policy with quality checks  
 Where: image.py, video.py (preprocess)  
@@ -392,7 +392,7 @@ Fields: cost_cpu_seconds, cost_model_seconds, cost_raw_bytes, cost_derived_bytes
 Acceptance: report generated daily and used for pricing inputs.  
 Verification: run `python scripts/cost_aggregator.py --project simitor --bucket retikon-raw-simitor-staging --raw-prefix raw_clean --run-id <run-id> --output gs://<bucket>/cost-rollups/<run-id>.jsonl`.
 Latest outputs (staging):
-- `gs://retikon-graph-simitor-staging/retikon_v2_demo_20260209_clean/audit/ops/cost-rollups/sla-20260214-123316.jsonl`
+- `gs://retikon-graph-simitor-staging/retikon_v2_demo_20260209_clean/audit/ops/cost-rollups/canary4-20260216-114401.jsonl`
 - Latest pointer: `gs://retikon-graph-simitor-staging/retikon_v2_demo_20260209_clean/audit/ops/cost-rollups/latest.jsonl`
 
 R) Publish SLAs + alerts per modality  
@@ -413,8 +413,8 @@ Alert policy IDs (staging):
 - Retikon ingest write_manifest_ms p95: `projects/simitor/alertPolicies/4660847698023695515`
 - Retikon index queue length: `projects/simitor/alertPolicies/1782690081396754189`
 - Retikon DLQ backlog: `projects/simitor/alertPolicies/8198575263140174886`
-Latest eval latency check (staging): eval-20260216-110825
-- docs p95 749.29ms (<=1500), images p95 831.91ms (<=5000), audio p95 565.29ms (<=4000), video p95 661.40ms (<=6000).
+Latest eval latency check (staging): eval-20260216-114441
+- docs p95 602.04ms (<=1500), images p95 823.49ms (<=5000), audio p95 613.24ms (<=4000), video p95 627.73ms (<=6000).
 
 ## Test plan
 
@@ -471,6 +471,13 @@ Pass/Fail checks:
 - queue_wait_ms p95 does not regress beyond baseline unless explained (e.g., known backlog).
 - Accuracy regression suite passes (no quality_check failures).
 - Cost guardrails pass (p95 cpu_s <= 1.5x baseline, p95 bytes_derived <= 2.0x baseline).
+
+Latest canary acceptance runs (staging):
+- canary-20260216-112452 (n=40, mixed load): completed all modalities, but queue_wait_ms p95 failed for docs/images/audio/video due concurrent backlog.
+- canary2-20260216-112912 (n=12, quick canary): docs wall_ms p95 1766 (pass), images wall_ms p95 10816 (slight fail vs 10000), audio wall_ms p95 33624 (fail vs 30000), video queue_wait_ms p95 1852 (pass).
+- canary3-20260216-114015 (n=24, after routing to fast tier revision): docs/images/video passed; audio still failed due fast tier mapping to `small`.
+- canary4-20260216-114401 (n=24, fast tier mapped to `tiny` on media service revision `retikon-ingestion-media-staging-00020-bbl`): all ingest SLO checks passed; service later promoted to latest traffic (current latest ready revision `retikon-ingestion-media-staging-00021-ppx`).
+- quality_check failures: none across canary1-canary4.
 
 ## Dashboards + alerts
 

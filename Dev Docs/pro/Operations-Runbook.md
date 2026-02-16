@@ -23,6 +23,8 @@ This runbook covers routine checks and incident response for Retikon services.
   - Guardrails job: `retikon-ops-guardrails-staging` (writes `gs://retikon-graph-simitor-staging/retikon_v2_demo_20260209_clean/audit/ops/derived-bytes/latest.json`).
   - Cost rollup job: `retikon-ops-cost-rollup-staging` (writes `gs://retikon-graph-simitor-staging/retikon_v2_demo_20260209_clean/audit/ops/cost-rollups/latest.jsonl`).
   - GC audit report: `gs://retikon-graph-simitor-staging/retikon_v2_demo_20260209_clean/audit/ops/gc-audit/latest.json`.
+  - Latest manual GC execute evidence (staging): `gc-20260216-113036.json` with `deleted_count=61848`; scheduled job has been reset to dry-run args.
+  - Media transcribe fast tier verification: validated on revision `retikon-ingestion-media-staging-00020-bbl`, then promoted to latest traffic (currently `retikon-ingestion-media-staging-00021-ppx`) with `TRANSCRIBE_TIER=fast` and `WHISPER_MODEL_NAME_FAST=tiny`.
 
 ## DLQ handling
 

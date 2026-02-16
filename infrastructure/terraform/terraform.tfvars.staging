@@ -232,6 +232,7 @@ image_embed_batch_size = 8
 text_embed_backend     = "hf"
 image_embed_backend    = "hf"
 whisper_model_name = "small"
+whisper_model_name_fast = "tiny"
 whisper_language_default = "en"
 whisper_language_auto    = true
 whisper_min_confidence   = 0.6

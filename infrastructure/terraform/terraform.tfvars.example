@@ -219,6 +219,7 @@ image_model_name = "openai/clip-vit-base-patch32"
 audio_model_name = "laion/clap-htsat-fused"
 query_embedding_backend = ""
 whisper_model_name = "small"
+whisper_model_name_fast = "tiny"
 whisper_language_default = ""
 whisper_language_auto = false
 whisper_min_confidence = 0.6

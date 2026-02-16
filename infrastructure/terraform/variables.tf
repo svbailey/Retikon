@@ -1798,6 +1798,11 @@ variable "whisper_model_name" {
   default = "small"
 }
 
+variable "whisper_model_name_fast" {
+  type    = string
+  default = ""
+}
+
 variable "whisper_language" {
   type    = string
   default = ""

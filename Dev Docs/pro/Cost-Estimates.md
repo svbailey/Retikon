@@ -18,8 +18,8 @@ Baseline (gateway, 5 qps, 60s, timeout=60s):
 - p95 1.050s → 4.20 vCPU-s, 8.40 GiB-s
 - p99 1.127s → 4.51 vCPU-s, 9.02 GiB-s
 
-Latest eval latency check (staging): eval-20260216-110825
-- docs p95 749.29ms, images p95 831.91ms, audio p95 565.29ms, video p95 661.40ms
+Latest eval latency check (staging): eval-20260216-114441
+- docs p95 602.04ms, images p95 823.49ms, audio p95 613.24ms, video p95 627.73ms
 
 ## Ingest cost per object (completion envelope)
 
@@ -88,15 +88,15 @@ Latest embed-only run (staging, 2026-02-16, doc/image only):
 
 Populate using `scripts/derived_bytes_guardrails.py` and record p95 per component.
 
-- Run id: sla-20260214-123316
-- manifest_b p95: TBD (requires new pipeline metrics deployment)
-- parquet_b p95: 21216
-- thumbnails_b p95: 3128
-- frames_b p95: TBD (requires new pipeline metrics deployment)
-- transcript_b p95: TBD (requires new pipeline metrics deployment)
-- embeddings_b p95: TBD (requires new pipeline metrics deployment)
-- other_b p95: TBD (requires new pipeline metrics deployment)
-- derived_b_total p95: 22115
+- Run id: canary4-20260216-114401
+- manifest_b p95: 2906.5
+- parquet_b p95: 21675.2
+- thumbnails_b p95: 12560.0
+- frames_b p95: not emitted (current pipeline metrics)
+- transcript_b p95: not emitted (current pipeline metrics)
+- embeddings_b p95: not emitted (current pipeline metrics)
+- other_b p95: 0.0
+- derived_b_total p95: 31869.6
 - Baseline file: `gs://retikon-graph-simitor-staging/retikon_v2_demo_20260209_clean/audit/ops/derived-bytes/baseline.json`
 - Latest guardrails output: `gs://retikon-graph-simitor-staging/retikon_v2_demo_20260209_clean/audit/ops/derived-bytes/latest.json`
 
@@ -104,12 +104,12 @@ Populate using `scripts/derived_bytes_guardrails.py` and record p95 per componen
 
 Generate daily JSONL with `scripts/cost_aggregator.py` and load into analytics.
 
-Latest rollup (staging, 2026-02-14):
-- Run id: sla-20260214-123316
-- cpu_seconds p50 0.67, p95 1.1605
-- model_seconds p50 0.3061, p95 0.4976
-- derived_bytes p50 21087, p95 22115
-- Output: `gs://retikon-graph-simitor-staging/retikon_v2_demo_20260209_clean/audit/ops/cost-rollups/sla-20260214-123316.jsonl`
+Latest rollup (staging, 2026-02-16):
+- Run id: canary4-20260216-114401
+- cpu_seconds p50 0.83, p95 9.1370
+- model_seconds p50 0.3930, p95 8.1008
+- derived_bytes p50 21346, p95 31868.9
+- Output: `gs://retikon-graph-simitor-staging/retikon_v2_demo_20260209_clean/audit/ops/cost-rollups/canary4-20260216-114401.jsonl`
 - Latest pointer: `gs://retikon-graph-simitor-staging/retikon_v2_demo_20260209_clean/audit/ops/cost-rollups/latest.jsonl`
 
 ## Pricing formula (plug in current rates)
