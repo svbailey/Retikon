@@ -44,6 +44,12 @@ fields:
   - name: embedding_model
     type: string
     nullable: false
+  - name: embedding_backend
+    type: string
+    nullable: true
+  - name: embedding_artifact
+    type: string
+    nullable: true
   - name: pipeline_version
     type: string
     nullable: false

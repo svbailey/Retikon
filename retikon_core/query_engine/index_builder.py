@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import hashlib
+import importlib
 import json
 import os
 import shutil
@@ -1794,8 +1795,8 @@ def _reload_snapshot_if_requested(report: IndexBuildReport) -> None:
         logger.warning("Snapshot reload skipped; QUERY_SERVICE_URL not set.")
         return
     try:
-        from google.auth.transport import requests as google_requests
-        from google.oauth2 import id_token as google_id_token
+        google_requests = importlib.import_module("google.auth.transport.requests")
+        google_id_token = importlib.import_module("google.oauth2.id_token")
     except Exception as exc:
         logger.warning(
             "Snapshot reload skipped; google-auth unavailable.",

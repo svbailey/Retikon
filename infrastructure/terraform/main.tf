@@ -856,6 +856,10 @@ resource "google_cloud_run_service" "ingestion" {
           value = var.audio_text_embed_backend
         }
         env {
+          name  = "EMBEDDING_METADATA_ENABLED"
+          value = var.embedding_metadata_enabled ? "1" : "0"
+        }
+        env {
           name  = "INGEST_WARMUP"
           value = var.ingest_warmup ? "1" : "0"
         }
@@ -1551,6 +1555,14 @@ resource "google_cloud_run_service" "query" {
           value = var.query_warmup_steps
         }
         env {
+          name  = "QUERY_TRACE_HITLISTS"
+          value = var.query_trace_hitlists ? "1" : "0"
+        }
+        env {
+          name  = "QUERY_TRACE_HITLIST_SIZE"
+          value = tostring(var.query_trace_hitlist_size)
+        }
+        env {
           name  = "QUERY_DEFAULT_MODALITIES"
           value = var.query_default_modalities
         }
@@ -1945,6 +1957,14 @@ resource "google_cloud_run_service" "query_gpu" {
         env {
           name  = "QUERY_WARMUP_STEPS"
           value = var.query_warmup_steps
+        }
+        env {
+          name  = "QUERY_TRACE_HITLISTS"
+          value = var.query_trace_hitlists ? "1" : "0"
+        }
+        env {
+          name  = "QUERY_TRACE_HITLIST_SIZE"
+          value = tostring(var.query_trace_hitlist_size)
         }
         env {
           name  = "QUERY_DEFAULT_MODALITIES"
@@ -4365,6 +4385,10 @@ resource "google_cloud_run_service" "ingestion_media" {
           value = var.audio_text_embed_backend
         }
         env {
+          name  = "EMBEDDING_METADATA_ENABLED"
+          value = var.embedding_metadata_enabled ? "1" : "0"
+        }
+        env {
           name  = "INGEST_WARMUP"
           value = var.ingest_media_warmup ? "1" : "0"
         }
@@ -4888,6 +4912,10 @@ resource "google_cloud_run_service" "ingestion_embed" {
         env {
           name  = "AUDIO_TEXT_EMBED_BACKEND"
           value = var.audio_text_embed_backend
+        }
+        env {
+          name  = "EMBEDDING_METADATA_ENABLED"
+          value = var.embedding_metadata_enabled ? "1" : "0"
         }
         env {
           name  = "INGEST_WARMUP"

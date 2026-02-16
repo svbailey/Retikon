@@ -1,4 +1,5 @@
 import base64
+import json
 import os
 from pathlib import Path
 
@@ -153,3 +154,37 @@ def test_search_by_text_applies_modality_boosts(monkeypatch):
         modalities=["document", "image"],
     )
     assert results[0].modality == "image"
+
+
+def test_search_by_text_emits_hitlists(monkeypatch):
+    class DummyConn:
+        def close(self) -> None:
+            return None
+
+    def fake_query_rows(_conn, sql, _params):
+        if "FROM doc_chunks" in sql:
+            return [
+                ("gs://doc-1", "document", "doc-1", "one", 0.1),
+                ("gs://doc-2", "document", "doc-2", "two", 0.2),
+                ("gs://doc-3", "document", "doc-3", "three", 0.3),
+            ]
+        return []
+
+    monkeypatch.setenv("QUERY_TRACE_HITLISTS", "1")
+    monkeypatch.setenv("QUERY_TRACE_HITLIST_SIZE", "2")
+    monkeypatch.setattr(query_runner, "_connect", lambda snapshot_path: DummyConn())
+    monkeypatch.setattr(query_runner, "_table_has_column", lambda *args, **kwargs: False)
+    monkeypatch.setattr(query_runner, "_query_rows", fake_query_rows)
+    monkeypatch.setattr(query_runner, "_cached_text_vector", lambda text: [0.0])
+
+    trace: dict[str, float | int | str] = {}
+    query_runner.search_by_text(
+        snapshot_path="/tmp/retikon-test.duckdb",
+        query_text="hello",
+        top_k=3,
+        modalities=["document"],
+        trace=trace,
+    )
+    payload = json.loads(str(trace["document_hitlist"]))
+    assert len(payload) == 2
+    assert payload[0]["uri"] == "gs://doc-1"

@@ -11,6 +11,8 @@ from typing import Any
 
 import httpx
 
+from retikon_core.query_engine.query_runner import rank_of_expected, top_k_overlap
+
 
 def _percentile(values: list[float], pct: float) -> float:
     if not values:
@@ -31,6 +33,14 @@ def _load_image_base64(path: str) -> str:
 
 
 def _load_queries(path: Path) -> list[dict[str, Any]]:
+    if path.suffix.lower() == ".json":
+        payload = json.loads(path.read_text(encoding="ascii"))
+        if not isinstance(payload, dict):
+            raise ValueError("Eval JSON must be an object")
+        items = payload.get("queries")
+        if not isinstance(items, list):
+            raise ValueError("Eval JSON must include a queries list")
+        return [item for item in items if isinstance(item, dict)]
     queries: list[dict[str, Any]] = []
     with path.open("r", encoding="ascii") as handle:
         for line in handle:
@@ -58,14 +68,6 @@ def _build_payload(entry: dict[str, Any], top_k: int) -> dict[str, Any]:
     return payload
 
 
-def _rank_of_expected(results: list[str], expected: list[str]) -> int | None:
-    expected_set = set(expected)
-    for idx, uri in enumerate(results, start=1):
-        if uri in expected_set:
-            return idx
-    return None
-
-
 def _summarize_metric(values: list[float]) -> dict[str, float]:
     return {
         "mean": round(sum(values) / len(values), 4) if values else 0.0,
@@ -78,19 +80,25 @@ def _aggregate(entries: list[dict[str, Any]]) -> dict[str, Any]:
     recall_10 = [entry["recall_10"] for entry in entries]
     recall_50 = [entry["recall_50"] for entry in entries]
     mrr_10 = [entry["mrr_10"] for entry in entries]
+    overlap = [entry["top_k_overlap"] for entry in entries]
     latencies = [entry["latency_ms"] for entry in entries]
     return {
         "count": len(entries),
         "recall_10": round(sum(recall_10) / len(recall_10), 4) if recall_10 else 0.0,
         "recall_50": round(sum(recall_50) / len(recall_50), 4) if recall_50 else 0.0,
         "mrr_10": round(sum(mrr_10) / len(mrr_10), 4) if mrr_10 else 0.0,
+        "top_k_overlap": round(sum(overlap) / len(overlap), 4) if overlap else 0.0,
         "latency_ms": _summarize_metric(latencies),
     }
 
 
 def main() -> int:
     parser = argparse.ArgumentParser(description="Run retrieval eval against query service.")
-    parser.add_argument("--eval-file", required=True, help="Path to queries.jsonl")
+    parser.add_argument(
+        "--eval-file",
+        required=True,
+        help="Path to queries.jsonl or golden_queries.json",
+    )
     parser.add_argument("--query-url", help="Query endpoint URL")
     parser.add_argument("--auth-token", help="Bearer token for query endpoint")
     parser.add_argument("--top-k", type=int, default=50)
@@ -134,10 +142,11 @@ def main() -> int:
             data = response.json()
             results = [item.get("uri") for item in data.get("results", []) if item.get("uri")]
             expected = entry.get("expected_uris") or []
-            rank = _rank_of_expected(results[:top_k], expected)
+            rank = rank_of_expected(results[:top_k], expected)
             recall_10 = 1.0 if rank and rank <= 10 else 0.0
             recall_50 = 1.0 if rank and rank <= 50 else 0.0
             mrr_10 = round(1.0 / rank, 6) if rank and rank <= 10 else 0.0
+            overlap = round(top_k_overlap(results, expected, top_k), 6)
 
             record = {
                 "id": entry.get("id"),
@@ -146,6 +155,7 @@ def main() -> int:
                 "recall_10": recall_10,
                 "recall_50": recall_50,
                 "mrr_10": mrr_10,
+                "top_k_overlap": overlap,
                 "latency_ms": latency_ms,
             }
             per_query.append(record)

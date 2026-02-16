@@ -73,6 +73,7 @@ class Config:
     redis_ssl: bool
     redis_password: str | None
     dlq_topic: str | None
+    embedding_metadata_enabled: bool
     enable_ocr: bool
     ocr_max_pages: int
     default_org_id: str | None
@@ -262,6 +263,10 @@ class Config:
         redis_ssl = os.getenv("REDIS_SSL", "0") == "1"
         redis_password = os.getenv("REDIS_PASSWORD")
         dlq_topic = os.getenv("DLQ_TOPIC")
+        embedding_metadata_enabled = _parse_bool(
+            os.getenv("EMBEDDING_METADATA_ENABLED"),
+            True,
+        )
         enable_ocr = os.getenv("ENABLE_OCR", "0") == "1"
         ocr_max_pages = int(os.getenv("OCR_MAX_PAGES", "5"))
         default_org_id = os.getenv("DEFAULT_ORG_ID")
@@ -349,6 +354,7 @@ class Config:
             redis_ssl=redis_ssl,
             redis_password=redis_password,
             dlq_topic=dlq_topic,
+            embedding_metadata_enabled=embedding_metadata_enabled,
             enable_ocr=enable_ocr,
             ocr_max_pages=ocr_max_pages,
             default_org_id=default_org_id,

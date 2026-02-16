@@ -13,9 +13,18 @@ class QueryServiceConfig:
     query_warmup: bool
     query_warmup_text: str
     query_warmup_steps: set[str]
+    query_trace_hitlists: bool
+    query_trace_hitlist_size: int
 
     @classmethod
     def from_env(cls) -> "QueryServiceConfig":
+        trace_size_raw = os.getenv("QUERY_TRACE_HITLIST_SIZE", "5")
+        try:
+            trace_size = int(trace_size_raw)
+        except ValueError:
+            trace_size = 5
+        if trace_size < 1:
+            trace_size = 1
         return cls(
             max_query_bytes=int(os.getenv("MAX_QUERY_BYTES", "4000000")),
             max_image_base64_bytes=int(os.getenv("MAX_IMAGE_BASE64_BYTES", "2000000")),
@@ -31,4 +40,6 @@ class QueryServiceConfig:
                 ).split(",")
                 if step.strip()
             },
+            query_trace_hitlists=os.getenv("QUERY_TRACE_HITLISTS", "1") == "1",
+            query_trace_hitlist_size=trace_size,
         )

@@ -6,7 +6,12 @@ import uuid
 from datetime import datetime, timezone
 
 from retikon_core.config import Config
-from retikon_core.embeddings import get_audio_embedder, get_text_embedder
+from retikon_core.embeddings import (
+    get_audio_embedder,
+    get_embedding_artifact,
+    get_runtime_embedding_backend,
+    get_text_embedder,
+)
 from retikon_core.embeddings.timeout import run_inference
 from retikon_core.errors import PermanentError
 from retikon_core.ingestion.download import cleanup_tmp
@@ -190,6 +195,15 @@ def ingest_audio(
         media_asset_id = str(uuid.uuid4())
         now = datetime.now(timezone.utc)
         duration_ms = int(probe.duration_seconds * 1000.0)
+        audio_embedding_backend = None
+        audio_embedding_artifact = None
+        text_embedding_backend = None
+        text_embedding_artifact = None
+        if config.embedding_metadata_enabled:
+            audio_embedding_backend = get_runtime_embedding_backend("audio")
+            audio_embedding_artifact = get_embedding_artifact("audio")
+            text_embedding_backend = get_runtime_embedding_backend("text")
+            text_embedding_artifact = get_embedding_artifact("text")
 
         media_row = {
             "id": media_asset_id,
@@ -226,6 +240,8 @@ def ingest_audio(
             "sample_rate_hz": probe.audio_sample_rate or 48000,
             "channels": probe.audio_channels or 1,
             "embedding_model": _audio_model(),
+            "embedding_backend": audio_embedding_backend,
+            "embedding_artifact": audio_embedding_artifact,
             **tenancy_fields(
                 org_id=source.org_id,
                 site_id=source.site_id,
@@ -260,6 +276,8 @@ def ingest_audio(
                     "end_ms": segment.end_ms,
                     "language": segment.language,
                     "embedding_model": _text_model(),
+                    "embedding_backend": text_embedding_backend,
+                    "embedding_artifact": text_embedding_artifact,
                     **tenancy_fields(
                         org_id=source.org_id,
                         site_id=source.site_id,

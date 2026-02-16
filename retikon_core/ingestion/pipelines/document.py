@@ -15,7 +15,11 @@ from docx import Document
 from pptx import Presentation
 
 from retikon_core.config import Config
-from retikon_core.embeddings import get_embedding_backend, get_text_embedder
+from retikon_core.embeddings import (
+    get_embedding_artifact,
+    get_runtime_embedding_backend,
+    get_text_embedder,
+)
 from retikon_core.embeddings.timeout import run_inference
 from retikon_core.errors import PermanentError
 from retikon_core.ingestion.ocr import ocr_text_from_pdf
@@ -270,7 +274,7 @@ def _embed_chunks(
             "text_embed",
             {
                 "batch_size": batch_size,
-                "backend": get_embedding_backend("text"),
+                "backend": get_runtime_embedding_backend("text"),
             },
         )
     embeddings: list[list[float]] = []
@@ -334,6 +338,12 @@ def ingest_document(
     with timer.track("embed"):
         embeddings = _embed_chunks(chunks, calls)
 
+    embedding_backend = None
+    embedding_artifact = None
+    if config.embedding_metadata_enabled:
+        embedding_backend = get_runtime_embedding_backend("text")
+        embedding_artifact = get_embedding_artifact("text")
+
     output_root = output_uri or config.graph_root_uri()
     media_asset_id = str(uuid.uuid4())
     now = datetime.now(timezone.utc)
@@ -382,6 +392,8 @@ def ingest_document(
                 "token_end": chunk.token_end,
                 "token_count": chunk.token_count,
                 "embedding_model": _pipeline_model(),
+                "embedding_backend": embedding_backend,
+                "embedding_artifact": embedding_artifact,
                 **tenancy_fields(
                     org_id=source.org_id,
                     site_id=source.site_id,

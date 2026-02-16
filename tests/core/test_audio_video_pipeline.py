@@ -105,10 +105,18 @@ def test_audio_pipeline_writes_graphar(tmp_path, monkeypatch):
         assert _is_uuid4(value)
     for value in transcript_table.column("media_asset_id").to_pylist():
         assert _is_uuid4(value)
+    assert set(transcript_table.column("embedding_backend").to_pylist()) == {"stub"}
+    assert set(transcript_table.column("embedding_artifact").to_pylist()) == {
+        "stub:deterministic"
+    }
     for value in audio_table.column("id").to_pylist():
         assert _is_uuid4(value)
     for value in audio_table.column("media_asset_id").to_pylist():
         assert _is_uuid4(value)
+    assert set(audio_table.column("embedding_backend").to_pylist()) == {"stub"}
+    assert set(audio_table.column("embedding_artifact").to_pylist()) == {
+        "stub:deterministic"
+    }
     for value in edge_table.column("src_id").to_pylist():
         assert _is_uuid4(value)
     for value in edge_table.column("dst_id").to_pylist():
@@ -691,14 +699,26 @@ def test_video_pipeline_writes_graphar(tmp_path, monkeypatch):
         assert _is_uuid4(value)
     for value in image_table.column("media_asset_id").to_pylist():
         assert _is_uuid4(value)
+    assert set(image_table.column("embedding_backend").to_pylist()) == {"stub"}
+    assert set(image_table.column("embedding_artifact").to_pylist()) == {
+        "stub:deterministic"
+    }
     for value in transcript_table.column("id").to_pylist():
         assert _is_uuid4(value)
     for value in transcript_table.column("media_asset_id").to_pylist():
         assert _is_uuid4(value)
+    assert set(transcript_table.column("embedding_backend").to_pylist()) == {"stub"}
+    assert set(transcript_table.column("embedding_artifact").to_pylist()) == {
+        "stub:deterministic"
+    }
     for value in audio_table.column("id").to_pylist():
         assert _is_uuid4(value)
     for value in audio_table.column("media_asset_id").to_pylist():
         assert _is_uuid4(value)
+    assert set(audio_table.column("embedding_backend").to_pylist()) == {"stub"}
+    assert set(audio_table.column("embedding_artifact").to_pylist()) == {
+        "stub:deterministic"
+    }
     for value in edge_table.column("src_id").to_pylist():
         assert _is_uuid4(value)
     for value in edge_table.column("dst_id").to_pylist():

@@ -18,6 +18,8 @@ def test_docchunk_schema_split():
         "token_end",
         "token_count",
         "embedding_model",
+        "embedding_backend",
+        "embedding_artifact",
         "pipeline_version",
         "schema_version",
     ]
@@ -31,6 +33,18 @@ def test_docchunk_schema_split():
 
 
 def test_vector_lengths():
+    transcript_core = schema_for("Transcript", "core")
+    assert "embedding_backend" in transcript_core.names
+    assert "embedding_artifact" in transcript_core.names
+
+    image_core = schema_for("ImageAsset", "core")
+    assert "embedding_backend" in image_core.names
+    assert "embedding_artifact" in image_core.names
+
+    audio_core = schema_for("AudioClip", "core")
+    assert "embedding_backend" in audio_core.names
+    assert "embedding_artifact" in audio_core.names
+
     clip_vector = schema_for("ImageAsset", "vector").field("clip_vector")
     assert clip_vector.type.list_size == 512
 

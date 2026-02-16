@@ -81,6 +81,8 @@ def test_document_pipeline_writes_graphar(tmp_path):
     core_rows = chunk_core_table.to_pydict()
     text_rows = chunk_text_table.to_pydict()
     assert len(core_rows["id"]) == len(text_rows["content"])
+    assert set(core_rows["embedding_backend"]) == {"stub"}
+    assert set(core_rows["embedding_artifact"]) == {"stub:deterministic"}
     for idx in range(len(core_rows["id"])):
         char_start = core_rows["char_start"][idx]
         char_end = core_rows["char_end"][idx]

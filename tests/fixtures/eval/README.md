@@ -10,8 +10,11 @@ This eval set targets the staging graph built from unique eval assets.
 - latest eval run: `eval-20260216-114441`
 - newest eval run: `eval-20260216-114441`
 
-Queries live in `tests/fixtures/eval/queries.jsonl` and reference the ingested
-URIs from the run above.
+Queries live in:
+- `tests/fixtures/eval/golden_queries.json` (preferred golden pack)
+- `tests/fixtures/eval/queries.jsonl` (line-delimited format)
+
+Both reference ingested URIs from the run above.
 
 ## Regenerate the eval set
 
@@ -35,8 +38,18 @@ python scripts/load_test_ingest.py --project simitor --bucket retikon-raw-simito
 gcloud run jobs execute retikon-index-builder-staging --region us-central1 --project simitor --wait
 ```
 
+4) Run retrieval eval against staging:
+```
+python scripts/run_retrieval_eval.py \
+  --query-url "https://<query-service>/query" \
+  --auth-token "$RETIKON_AUTH_TOKEN" \
+  --eval-file tests/fixtures/eval/golden_queries.json \
+  --output tests/fixtures/eval/results-$(date +%Y%m%d-%H%M%S).json
+```
+
 ## Notes
 
 - Docs use vector queries derived from unique text content.
 - Images use image queries (`image_path`).
 - Audio/video use metadata queries for deterministic matches.
+- Eval output includes MRR, recall, per-modality latency, and top-k overlap.

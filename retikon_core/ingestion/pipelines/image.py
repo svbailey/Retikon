@@ -11,7 +11,11 @@ import fsspec
 from PIL import Image, ImageOps
 
 from retikon_core.config import Config
-from retikon_core.embeddings import get_embedding_backend, get_image_embedder
+from retikon_core.embeddings import (
+    get_embedding_artifact,
+    get_image_embedder,
+    get_runtime_embedding_backend,
+)
 from retikon_core.embeddings.timeout import run_inference
 from retikon_core.errors import PermanentError
 from retikon_core.ingestion.pipelines.metrics import (
@@ -146,7 +150,7 @@ def _embed_images(
             "image_embed",
             {
                 "batch_size": batch_size,
-                "backend": get_embedding_backend("image"),
+                "backend": get_runtime_embedding_backend("image"),
                 "max_dim": image_embed_max_dim(),
             },
         )
@@ -202,6 +206,11 @@ def ingest_image(
     media_asset_id = str(uuid.uuid4())
     image_asset_id = str(uuid.uuid4())
     now = datetime.now(timezone.utc)
+    embedding_backend = None
+    embedding_artifact = None
+    if config.embedding_metadata_enabled:
+        embedding_backend = get_runtime_embedding_backend("image")
+        embedding_artifact = get_embedding_artifact("image")
     thumb_uri = None
     thumb_bytes = 0
     if config.video_thumbnail_width > 0:
@@ -244,6 +253,8 @@ def ingest_image(
         "height_px": height,
         "thumbnail_uri": thumb_uri,
         "embedding_model": _pipeline_model(),
+        "embedding_backend": embedding_backend,
+        "embedding_artifact": embedding_artifact,
         **tenancy_fields(
             org_id=source.org_id,
             site_id=source.site_id,

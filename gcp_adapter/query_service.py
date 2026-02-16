@@ -101,6 +101,8 @@ async def lifespan(app: FastAPI):
 app = FastAPI(lifespan=lifespan)
 
 QUERY_CONFIG = QueryServiceConfig.from_env()
+os.environ["QUERY_TRACE_HITLISTS"] = "1" if QUERY_CONFIG.query_trace_hitlists else "0"
+os.environ["QUERY_TRACE_HITLIST_SIZE"] = str(QUERY_CONFIG.query_trace_hitlist_size)
 
 
 @dataclass

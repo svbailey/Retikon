@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import hashlib
 import io
+import math
 import os
 import random
 from typing import Any, Callable, Iterable, Protocol, TypeVar
@@ -91,6 +92,19 @@ def _embedding_backend_for(kind: str, fallback_kind: str | None = None) -> str:
     return _embedding_backend()
 
 
+def _normalize_kind(kind: str | None) -> str | None:
+    if kind is None:
+        return None
+    cleaned = kind.strip().lower()
+    if not cleaned:
+        return None
+    if cleaned in {"clip_text", "image_text"}:
+        return "image_text"
+    if cleaned in {"clap_text", "audio_text"}:
+        return "audio_text"
+    return cleaned
+
+
 def _model_dir() -> str:
     return os.getenv("MODEL_DIR", "/app/models")
 
@@ -165,7 +179,11 @@ def _seed_from_bytes(payload: bytes) -> int:
 
 def _deterministic_vector(seed: int, dim: int) -> list[float]:
     rng = random.Random(seed)
-    return [rng.uniform(-1.0, 1.0) for _ in range(dim)]
+    vector = [rng.uniform(-1.0, 1.0) for _ in range(dim)]
+    norm = math.sqrt(sum(value * value for value in vector))
+    if norm <= 0:
+        return [0.0 for _ in range(dim)]
+    return [value / norm for value in vector]
 
 
 class StubTextEmbedder:
@@ -600,14 +618,50 @@ def get_audio_text_embedder(dim: int) -> TextEmbedder:
 
 
 def get_embedding_backend(kind: str | None = None) -> str:
-    if kind is None:
+    normalized = _normalize_kind(kind)
+    if normalized is None:
         return _embedding_backend()
-    kind = kind.strip().lower()
-    if kind in {"image_text", "clip_text"}:
+    if normalized == "image_text":
         return _embedding_backend_for("image_text", "image")
-    if kind in {"audio_text", "clap_text"}:
+    if normalized == "audio_text":
         return _embedding_backend_for("audio_text", "audio")
-    return _embedding_backend_for(kind)
+    return _embedding_backend_for(normalized)
+
+
+def get_runtime_embedding_backend(kind: str | None = None) -> str:
+    backend = get_embedding_backend(kind)
+    if backend == BACKEND_STUB:
+        return BACKEND_STUB
+    if not _use_real_models():
+        return BACKEND_STUB
+    return backend
+
+
+def get_embedding_artifact(kind: str | None = None) -> str:
+    normalized = _normalize_kind(kind) or "text"
+    backend = get_runtime_embedding_backend(normalized)
+    if backend == BACKEND_STUB:
+        return "stub:deterministic"
+
+    if normalized in {"text", "document", "transcript"}:
+        if backend == BACKEND_HF:
+            return f"hf:{_text_model_name()}"
+        if backend == BACKEND_ONNX:
+            return "onnx:bge-text.onnx"
+        if backend == BACKEND_QUANTIZED:
+            return "onnx-quant:bge-text-int8.onnx"
+    if normalized in {"image", "image_text"}:
+        if backend == BACKEND_HF:
+            return f"hf:{_image_model_name()}"
+        if backend in {BACKEND_ONNX, BACKEND_QUANTIZED}:
+            return "onnx:clip-image.onnx"
+    if normalized in {"audio", "audio_text"}:
+        if backend == BACKEND_HF:
+            return f"hf:{_audio_model_name()}"
+        if backend in {BACKEND_ONNX, BACKEND_QUANTIZED}:
+            return "onnx:clap-audio.onnx"
+
+    return f"{backend}:unknown"
 
 
 def reset_embedding_cache() -> None:

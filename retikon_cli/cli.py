@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import argparse
+import base64
 import json
 import mimetypes
 import os
@@ -12,6 +13,8 @@ import urllib.error
 import urllib.request
 from pathlib import Path
 from typing import Any
+
+from retikon_core.query_engine.query_runner import rank_of_expected, top_k_overlap
 
 DEFAULT_INGEST_URL = "http://localhost:8081"
 DEFAULT_QUERY_URL = "http://localhost:8080"
@@ -389,6 +392,45 @@ def _parse_metadata(args: argparse.Namespace) -> dict[str, str] | None:
     return parsed or None
 
 
+def _load_eval_queries(path: Path) -> list[dict[str, Any]]:
+    if path.suffix.lower() == ".json":
+        payload = json.loads(path.read_text(encoding="ascii"))
+        if not isinstance(payload, dict):
+            raise RuntimeError("Eval JSON must be an object")
+        queries = payload.get("queries")
+        if not isinstance(queries, list):
+            raise RuntimeError("Eval JSON must include a queries list")
+        return [item for item in queries if isinstance(item, dict)]
+    queries: list[dict[str, Any]] = []
+    for raw in path.read_text(encoding="ascii").splitlines():
+        line = raw.strip()
+        if not line:
+            continue
+        item = json.loads(line)
+        if isinstance(item, dict):
+            queries.append(item)
+    return queries
+
+
+def _build_eval_payload(entry: dict[str, Any], top_k: int) -> dict[str, Any]:
+    payload: dict[str, Any] = {"top_k": top_k}
+    if entry.get("query_text"):
+        payload["query_text"] = entry["query_text"]
+    image_path = entry.get("image_path")
+    if image_path:
+        with open(str(image_path), "rb") as handle:
+            payload["image_base64"] = base64.b64encode(handle.read()).decode("ascii")
+    if entry.get("mode"):
+        payload["mode"] = entry["mode"]
+    if entry.get("modalities"):
+        payload["modalities"] = entry["modalities"]
+    if entry.get("search_type"):
+        payload["search_type"] = entry["search_type"]
+    if entry.get("metadata_filters"):
+        payload["metadata_filters"] = entry["metadata_filters"]
+    return payload
+
+
 def cmd_query(args: argparse.Namespace) -> int:
     query_url = _resolve_query_url(args.query_url).rstrip("/")
     payload: dict[str, Any] = {"top_k": args.top_k}
@@ -412,6 +454,106 @@ def cmd_query(args: argparse.Namespace) -> int:
         auth_token_envs=("RETIKON_AUTH_TOKEN", "RETIKON_JWT"),
     )
     _print_json(response)
+    return 0
+
+
+def cmd_eval(args: argparse.Namespace) -> int:
+    query_url = _resolve_query_url(args.query_url).rstrip("/")
+    eval_path = Path(args.eval_file)
+    queries = _load_eval_queries(eval_path)
+    if not queries:
+        raise RuntimeError("No eval queries found")
+    top_k = max(1, min(args.top_k, 50))
+
+    records: list[dict[str, Any]] = []
+    per_modality: dict[str, list[dict[str, Any]]] = {}
+    for entry in queries:
+        payload = _build_eval_payload(entry, top_k)
+        start = time.perf_counter()
+        response = _request_json(
+            "POST",
+            f"{query_url}/query",
+            payload=payload,
+            timeout=args.timeout,
+            auth_token_envs=("RETIKON_AUTH_TOKEN", "RETIKON_JWT"),
+        )
+        latency_ms = round((time.perf_counter() - start) * 1000.0, 2)
+        results = [
+            item.get("uri")
+            for item in response.get("results", [])
+            if isinstance(item, dict) and item.get("uri")
+        ]
+        expected = [
+            uri for uri in entry.get("expected_uris", []) if isinstance(uri, str)
+        ]
+        rank = rank_of_expected(results[:top_k], expected)
+        record = {
+            "id": entry.get("id"),
+            "modality": entry.get("modality", "unknown"),
+            "rank": rank,
+            "recall_10": 1.0 if rank and rank <= 10 else 0.0,
+            "recall_50": 1.0 if rank and rank <= 50 else 0.0,
+            "mrr_10": round(1.0 / rank, 6) if rank and rank <= 10 else 0.0,
+            "top_k_overlap": round(top_k_overlap(results, expected, top_k), 6),
+            "latency_ms": latency_ms,
+        }
+        records.append(record)
+        per_modality.setdefault(record["modality"], []).append(record)
+
+    def _agg(items: list[dict[str, Any]]) -> dict[str, Any]:
+        if not items:
+            return {
+                "count": 0,
+                "recall_10": 0.0,
+                "recall_50": 0.0,
+                "mrr_10": 0.0,
+                "top_k_overlap": 0.0,
+                "latency_ms": {"mean": 0.0, "p50": 0.0, "p95": 0.0},
+            }
+        latencies = sorted(float(item["latency_ms"]) for item in items)
+
+        def _pct(values: list[float], percentile: float) -> float:
+            if not values:
+                return 0.0
+            index = (len(values) - 1) * percentile
+            low = int(index)
+            high = min(len(values) - 1, low + 1)
+            frac = index - low
+            return values[low] * (1.0 - frac) + values[high] * frac
+
+        return {
+            "count": len(items),
+            "recall_10": round(
+                sum(float(item["recall_10"]) for item in items) / len(items), 4
+            ),
+            "recall_50": round(
+                sum(float(item["recall_50"]) for item in items) / len(items), 4
+            ),
+            "mrr_10": round(sum(float(item["mrr_10"]) for item in items) / len(items), 4),
+            "top_k_overlap": round(
+                sum(float(item["top_k_overlap"]) for item in items) / len(items),
+                4,
+            ),
+            "latency_ms": {
+                "mean": round(sum(latencies) / len(latencies), 4),
+                "p50": round(_pct(latencies, 0.5), 4),
+                "p95": round(_pct(latencies, 0.95), 4),
+            },
+        }
+
+    summary = {
+        "eval_run_id": args.eval_run_id or f"eval-{int(time.time())}",
+        "query_url": f"{query_url}/query",
+        "top_k": top_k,
+        "overall": _agg(records),
+        "per_modality": {modality: _agg(items) for modality, items in per_modality.items()},
+        "queries": records,
+    }
+    if args.output:
+        output = Path(args.output)
+        output.parent.mkdir(parents=True, exist_ok=True)
+        output.write_text(json.dumps(summary, indent=2, sort_keys=True), encoding="ascii")
+    _print_json(summary)
     return 0
 
 
@@ -569,6 +711,18 @@ def build_parser() -> argparse.ArgumentParser:
     query_parser.add_argument("--metadata-json")
     query_parser.add_argument("--query-url")
     query_parser.set_defaults(func=cmd_query)
+
+    eval_parser = subparsers.add_parser(
+        "eval",
+        help="Run retrieval eval queries against query service",
+    )
+    eval_parser.add_argument("--eval-file", required=True)
+    eval_parser.add_argument("--query-url")
+    eval_parser.add_argument("--top-k", type=int, default=50)
+    eval_parser.add_argument("--timeout", type=int, default=60)
+    eval_parser.add_argument("--output")
+    eval_parser.add_argument("--eval-run-id")
+    eval_parser.set_defaults(func=cmd_eval)
 
     status_parser = subparsers.add_parser("status", help="Check service health")
     status_parser.add_argument("--ingest-url")

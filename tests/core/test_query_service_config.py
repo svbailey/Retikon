@@ -9,6 +9,8 @@ def test_query_service_config_defaults(monkeypatch):
     monkeypatch.delenv("QUERY_WARMUP", raising=False)
     monkeypatch.delenv("QUERY_WARMUP_TEXT", raising=False)
     monkeypatch.delenv("QUERY_WARMUP_STEPS", raising=False)
+    monkeypatch.delenv("QUERY_TRACE_HITLISTS", raising=False)
+    monkeypatch.delenv("QUERY_TRACE_HITLIST_SIZE", raising=False)
 
     cfg = QueryServiceConfig.from_env()
     assert cfg.max_query_bytes == 4_000_000
@@ -18,6 +20,8 @@ def test_query_service_config_defaults(monkeypatch):
     assert cfg.query_warmup is True
     assert cfg.query_warmup_text == "retikon warmup"
     assert "text" in cfg.query_warmup_steps
+    assert cfg.query_trace_hitlists is True
+    assert cfg.query_trace_hitlist_size == 5
 
 
 def test_query_service_config_overrides(monkeypatch):
@@ -28,6 +32,8 @@ def test_query_service_config_overrides(monkeypatch):
     monkeypatch.setenv("QUERY_WARMUP", "0")
     monkeypatch.setenv("QUERY_WARMUP_TEXT", "hello")
     monkeypatch.setenv("QUERY_WARMUP_STEPS", "text,image")
+    monkeypatch.setenv("QUERY_TRACE_HITLISTS", "0")
+    monkeypatch.setenv("QUERY_TRACE_HITLIST_SIZE", "12")
 
     cfg = QueryServiceConfig.from_env()
     assert cfg.max_query_bytes == 123
@@ -37,3 +43,5 @@ def test_query_service_config_overrides(monkeypatch):
     assert cfg.query_warmup is False
     assert cfg.query_warmup_text == "hello"
     assert cfg.query_warmup_steps == {"text", "image"}
+    assert cfg.query_trace_hitlists is False
+    assert cfg.query_trace_hitlist_size == 12

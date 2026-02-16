@@ -27,6 +27,7 @@ Defaults shown match current code where applicable.
 - `TEXT_MODEL_MAX_TOKENS` (default `512`)
 - `IMAGE_MODEL_NAME`
 - `AUDIO_MODEL_NAME`
+- `EMBEDDING_METADATA_ENABLED=0|1` (default `1`; writes embedding backend/artifact metadata)
 - `AUDIO_TRANSCRIBE=0|1`
 - `AUDIO_PROFILE=0|1`
 - `AUDIO_SKIP_NORMALIZE_IF_WAV=0|1`
@@ -55,6 +56,8 @@ Defaults shown match current code where applicable.
 - `QUERY_WARMUP=0|1` (defaults to `1`)
 - `QUERY_WARMUP_TEXT="retikon warmup"`
 - `QUERY_WARMUP_STEPS=text,image_text,audio_text,image`
+- `QUERY_TRACE_HITLISTS=0|1` (defaults to `1`)
+- `QUERY_TRACE_HITLIST_SIZE` (defaults to `5`)
 - `QUERY_DEFAULT_MODALITIES`
 - `QUERY_MODALITY_BOOSTS`
 - `QUERY_MODALITY_HINT_BOOST`

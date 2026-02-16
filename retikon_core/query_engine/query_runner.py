@@ -254,6 +254,75 @@ def _query_rows(
     return conn.execute(sql, list(params)).fetchall()
 
 
+def _trace_hitlists_enabled() -> bool:
+    return os.getenv("QUERY_TRACE_HITLISTS", "1").strip().lower() in {
+        "1",
+        "true",
+        "yes",
+        "on",
+    }
+
+
+def _trace_hitlist_size() -> int:
+    raw = os.getenv("QUERY_TRACE_HITLIST_SIZE", "5")
+    try:
+        value = int(raw)
+    except ValueError:
+        value = 5
+    return max(1, value)
+
+
+def _record_hitlist(
+    trace: dict[str, float | int | str] | None,
+    key: str,
+    rows: Iterable[tuple],
+    *,
+    uri_index: int = 0,
+    distance_index: int | None = None,
+) -> None:
+    if trace is None or not _trace_hitlists_enabled():
+        return
+    entries: list[dict[str, object]] = []
+    limit = _trace_hitlist_size()
+    for row in list(rows)[:limit]:
+        if len(row) <= uri_index:
+            continue
+        uri = row[uri_index]
+        if uri is None:
+            continue
+        item: dict[str, object] = {"uri": str(uri)}
+        if distance_index is not None and len(row) > distance_index:
+            distance = row[distance_index]
+            if distance is not None:
+                item["distance"] = round(float(distance), 6)
+                item["score"] = round(_score_from_distance(float(distance)), 6)
+        entries.append(item)
+    trace[f"{key}_hitlist"] = json.dumps(
+        entries,
+        ensure_ascii=True,
+        separators=(",", ":"),
+    )
+
+
+def rank_of_expected(results: Sequence[str], expected: Sequence[str]) -> int | None:
+    expected_set = {uri for uri in expected if uri}
+    if not expected_set:
+        return None
+    for idx, uri in enumerate(results, start=1):
+        if uri in expected_set:
+            return idx
+    return None
+
+
+def top_k_overlap(results: Sequence[str], expected: Sequence[str], top_k: int) -> float:
+    expected_set = {uri for uri in expected if uri}
+    if not expected_set:
+        return 0.0
+    seen = set(results[: max(0, int(top_k))])
+    overlap = len(seen & expected_set)
+    return overlap / float(len(expected_set))
+
+
 def _keyword_pattern(query_text: str) -> str:
     return f"%{query_text.strip()}%"
 
@@ -406,6 +475,13 @@ def search_by_text(
                     (time.monotonic() - doc_start) * 1000.0, 2
                 )
                 trace["doc_rows"] = len(doc_rows)
+            _record_hitlist(
+                trace,
+                "document",
+                doc_rows,
+                uri_index=0,
+                distance_index=4,
+            )
             for uri, media_type, media_asset_id, content, distance in doc_rows:
                 score = _boost_score(
                     _score_from_distance(distance),
@@ -448,6 +524,13 @@ def search_by_text(
                     (time.monotonic() - transcript_start) * 1000.0, 2
                 )
                 trace["transcript_rows"] = len(transcript_rows)
+            _record_hitlist(
+                trace,
+                "transcript",
+                transcript_rows,
+                uri_index=0,
+                distance_index=5,
+            )
             for uri, media_type, media_asset_id, content, start_ms, distance in (
                 transcript_rows
             ):
@@ -487,6 +570,13 @@ def search_by_text(
                     (time.monotonic() - image_start) * 1000.0, 2
                 )
                 trace["image_rows"] = len(image_rows)
+            _record_hitlist(
+                trace,
+                "image",
+                image_rows,
+                uri_index=0,
+                distance_index=5,
+            )
             for (
                 uri,
                 media_type,
@@ -534,6 +624,13 @@ def search_by_text(
                     (time.monotonic() - audio_start) * 1000.0, 2
                 )
                 trace["audio_rows"] = len(audio_rows)
+            _record_hitlist(
+                trace,
+                "audio",
+                audio_rows,
+                uri_index=0,
+                distance_index=3,
+            )
             for uri, media_type, media_asset_id, distance in audio_rows:
                 score = _boost_score(
                     _score_from_distance(distance),
@@ -595,6 +692,12 @@ def search_by_keyword(
                 (time.monotonic() - doc_start) * 1000.0, 2
             )
             trace["keyword_doc_rows"] = len(doc_rows)
+        _record_hitlist(
+            trace,
+            "keyword_document",
+            doc_rows,
+            uri_index=0,
+        )
         for uri, media_type, media_asset_id, content in doc_rows:
             results.append(
                 QueryResult(
@@ -623,6 +726,12 @@ def search_by_keyword(
                 (time.monotonic() - transcript_start) * 1000.0, 2
             )
             trace["keyword_transcript_rows"] = len(transcript_rows)
+        _record_hitlist(
+            trace,
+            "keyword_transcript",
+            transcript_rows,
+            uri_index=0,
+        )
         for uri, media_type, media_asset_id, content, start_ms in transcript_rows:
             results.append(
                 QueryResult(
@@ -697,6 +806,12 @@ def search_by_metadata(
                 (time.monotonic() - query_start) * 1000.0, 2
             )
             trace["metadata_rows"] = len(rows)
+        _record_hitlist(
+            trace,
+            "metadata",
+            rows,
+            uri_index=1,
+        )
         results = [
             QueryResult(
                 modality="metadata",
@@ -770,6 +885,13 @@ def search_by_image(
                 (time.monotonic() - image_start) * 1000.0, 2
             )
             trace["image_rows"] = len(image_rows)
+        _record_hitlist(
+            trace,
+            "image",
+            image_rows,
+            uri_index=0,
+            distance_index=5,
+        )
         results = [
             QueryResult(
                 modality="image",

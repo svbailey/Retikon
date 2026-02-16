@@ -13,8 +13,9 @@ from PIL import Image
 from retikon_core.config import Config
 from retikon_core.embeddings import (
     get_audio_embedder,
-    get_embedding_backend,
+    get_embedding_artifact,
     get_image_embedder,
+    get_runtime_embedding_backend,
     get_text_embedder,
 )
 from retikon_core.embeddings.timeout import run_inference
@@ -162,6 +163,19 @@ def ingest_video(
     transcribe_max_ms = transcribe_policy.max_ms
     transcript_model_tier = transcribe_tier if transcribe_enabled else "off"
     fps = _resolve_fps(config, probe.duration_seconds)
+    image_embedding_backend = None
+    image_embedding_artifact = None
+    audio_embedding_backend = None
+    audio_embedding_artifact = None
+    text_embedding_backend = None
+    text_embedding_artifact = None
+    if config.embedding_metadata_enabled:
+        image_embedding_backend = get_runtime_embedding_backend("image")
+        image_embedding_artifact = get_embedding_artifact("image")
+        audio_embedding_backend = get_runtime_embedding_backend("audio")
+        audio_embedding_artifact = get_embedding_artifact("audio")
+        text_embedding_backend = get_runtime_embedding_backend("text")
+        text_embedding_artifact = get_embedding_artifact("text")
 
     media_row = {
         "id": media_asset_id,
@@ -214,7 +228,7 @@ def ingest_video(
             "image_embed",
             {
                 "batch_size": batch_size,
-                "backend": get_embedding_backend("image"),
+                "backend": get_runtime_embedding_backend("image"),
                 "max_dim": video_embed_max_dim(),
             },
         )
@@ -273,6 +287,8 @@ def ingest_video(
                         "height_px": height,
                         "thumbnail_uri": thumb_uri,
                         "embedding_model": _image_model(),
+                        "embedding_backend": image_embedding_backend,
+                        "embedding_artifact": image_embedding_artifact,
                         **tenancy_fields(
                             org_id=source.org_id,
                             site_id=source.site_id,
@@ -402,6 +418,8 @@ def ingest_video(
                     "sample_rate_hz": probe.audio_sample_rate or 48000,
                     "channels": probe.audio_channels or 1,
                     "embedding_model": _audio_model(),
+                    "embedding_backend": audio_embedding_backend,
+                    "embedding_artifact": audio_embedding_artifact,
                     **tenancy_fields(
                         org_id=source.org_id,
                         site_id=source.site_id,
@@ -432,6 +450,8 @@ def ingest_video(
                     "end_ms": segment.end_ms,
                     "language": segment.language,
                     "embedding_model": _text_model(),
+                    "embedding_backend": text_embedding_backend,
+                    "embedding_artifact": text_embedding_artifact,
                     **tenancy_fields(
                         org_id=source.org_id,
                         site_id=source.site_id,

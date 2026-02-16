@@ -544,6 +544,16 @@ variable "query_warmup_steps" {
   default = "text,image_text,audio_text,image"
 }
 
+variable "query_trace_hitlists" {
+  type    = bool
+  default = true
+}
+
+variable "query_trace_hitlist_size" {
+  type    = number
+  default = 5
+}
+
 variable "query_default_modalities" {
   type    = string
   default = "document,transcript,image,audio"
@@ -1746,6 +1756,11 @@ variable "image_model_name" {
 variable "audio_model_name" {
   type    = string
   default = "laion/clap-htsat-fused"
+}
+
+variable "embedding_metadata_enabled" {
+  type    = bool
+  default = true
 }
 
 variable "text_embed_batch_size" {
