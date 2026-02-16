@@ -18,6 +18,9 @@ Baseline (gateway, 5 qps, 60s, timeout=60s):
 - p95 1.050s → 4.20 vCPU-s, 8.40 GiB-s
 - p99 1.127s → 4.51 vCPU-s, 9.02 GiB-s
 
+Latest eval latency check (staging): eval-20260216-110825
+- docs p95 749.29ms, images p95 831.91ms, audio p95 565.29ms, video p95 661.40ms
+
 ## Ingest cost per object (completion envelope)
 
 Ingestion completion (20–40 object runs):
@@ -64,6 +67,12 @@ Embed-only baseline (staging, 2026-02-13, doc/image only):
 - Images: cpu_s p50 0.695, p95 0.988; memory_peak_kb p50 2,179,424 (~2.08 GiB), p95 2,240,308.8 (~2.14 GiB); bytes_derived p50 20,199, p95 20,214.4
 - Source: `python scripts/report_ingest_baseline.py --project simitor --bucket retikon-raw-simitor-staging --raw-prefix raw_clean --run-id embed-baseline-20260213-103820 --modalities docs,images`
 
+Latest embed-only run (staging, 2026-02-16, doc/image only):
+- Run id: `embed-only-20260216-101846`
+- Docs: cpu_s p50 0.13, p95 0.59; memory_peak_kb p50 1,195,168 (~1.14 GiB), p95 1,204,395 (~1.15 GiB); bytes_derived p50 21,063, p95 21,251
+- Images: cpu_s p50 0.115, p95 0.704; memory_peak_kb p50 1,183,300 (~1.13 GiB), p95 1,205,028 (~1.15 GiB); bytes_derived p50 22,318, p95 22,347
+- Source: `python scripts/report_ingest_baseline.py --project simitor --bucket retikon-raw-simitor-staging --raw-prefix raw_clean --run-id embed-only-20260216-101846 --modalities docs,images`
+
 ## Guardrails that cap cost growth
 
 - `MAX_RAW_BYTES=500000000` (per object)
@@ -74,6 +83,34 @@ Embed-only baseline (staging, 2026-02-13, doc/image only):
 - `MAX_IMAGE_BASE64_BYTES=2000000`
 - Per-tenant rate limits (`RATE_LIMIT_*_PER_MIN`)
 - Optional global limits (`RATE_LIMIT_GLOBAL_*_PER_MIN`)
+
+## Derived bytes breakdown baseline (staging)
+
+Populate using `scripts/derived_bytes_guardrails.py` and record p95 per component.
+
+- Run id: sla-20260214-123316
+- manifest_b p95: TBD (requires new pipeline metrics deployment)
+- parquet_b p95: 21216
+- thumbnails_b p95: 3128
+- frames_b p95: TBD (requires new pipeline metrics deployment)
+- transcript_b p95: TBD (requires new pipeline metrics deployment)
+- embeddings_b p95: TBD (requires new pipeline metrics deployment)
+- other_b p95: TBD (requires new pipeline metrics deployment)
+- derived_b_total p95: 22115
+- Baseline file: `gs://retikon-graph-simitor-staging/retikon_v2_demo_20260209_clean/audit/ops/derived-bytes/baseline.json`
+- Latest guardrails output: `gs://retikon-graph-simitor-staging/retikon_v2_demo_20260209_clean/audit/ops/derived-bytes/latest.json`
+
+## Per-asset cost rollup (daily)
+
+Generate daily JSONL with `scripts/cost_aggregator.py` and load into analytics.
+
+Latest rollup (staging, 2026-02-14):
+- Run id: sla-20260214-123316
+- cpu_seconds p50 0.67, p95 1.1605
+- model_seconds p50 0.3061, p95 0.4976
+- derived_bytes p50 21087, p95 22115
+- Output: `gs://retikon-graph-simitor-staging/retikon_v2_demo_20260209_clean/audit/ops/cost-rollups/sla-20260214-123316.jsonl`
+- Latest pointer: `gs://retikon-graph-simitor-staging/retikon_v2_demo_20260209_clean/audit/ops/cost-rollups/latest.jsonl`
 
 ## Pricing formula (plug in current rates)
 
