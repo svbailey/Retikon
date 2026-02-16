@@ -30,10 +30,16 @@ def _parse_timeout(value: str | None) -> float:
 
 
 def inference_timeout_seconds(kind: str) -> float:
-    key = f"MODEL_INFERENCE_{kind.upper()}_TIMEOUT_S"
+    normalized = kind.strip().lower()
+    key = f"MODEL_INFERENCE_{normalized.upper()}_TIMEOUT_S"
     specific = _parse_timeout(os.getenv(key))
     if specific > 0:
         return specific
+    # Backward compatibility for rerank-specific timeout configuration.
+    if normalized == "rerank":
+        legacy = _parse_timeout(os.getenv("RERANK_TIMEOUT_S"))
+        if legacy > 0:
+            return legacy
     return _parse_timeout(os.getenv("MODEL_INFERENCE_TIMEOUT_S", "0"))
 
 

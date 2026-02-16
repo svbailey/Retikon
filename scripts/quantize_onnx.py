@@ -48,6 +48,9 @@ def main() -> None:
         "--clip-text", action="store_true", help="Quantize CLIP text."
     )
     parser.add_argument(
+        "--reranker", action="store_true", help="Quantize reranker model."
+    )
+    parser.add_argument(
         "--input-dir",
         default="",
         help="Input directory (defaults to MODEL_DIR/onnx).",
@@ -67,7 +70,7 @@ def main() -> None:
         Path(args.output_dir) if args.output_dir else Path(model_dir) / "onnx-quant"
     )
 
-    quant_all = args.all or not any([args.text, args.clip_text])
+    quant_all = args.all or not any([args.text, args.clip_text, args.reranker])
 
     if quant_all or args.text:
         source = input_dir / "bge-text.onnx"
@@ -79,6 +82,13 @@ def main() -> None:
     if quant_all or args.clip_text:
         source = input_dir / "clip-text.onnx"
         target = output_dir / "clip-text-int8.onnx"
+        _check_exists(source)
+        print(f"Quantizing {source} -> {target}")
+        _quantize(source, target)
+
+    if args.reranker:
+        source = input_dir / "reranker.onnx"
+        target = output_dir / "reranker-int8.onnx"
         _check_exists(source)
         print(f"Quantizing {source} -> {target}")
         _quantize(source, target)

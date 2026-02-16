@@ -106,6 +106,14 @@ def _dynamic_axes_text() -> dict[str, dict[int, str]]:
     }
 
 
+def _dynamic_axes_logits() -> dict[str, dict[int, str]]:
+    return {
+        "input_ids": {0: "batch", 1: "sequence"},
+        "attention_mask": {0: "batch", 1: "sequence"},
+        "logits": {0: "batch"},
+    }
+
+
 def _dynamic_axes_audio(
     input_features, attention_mask, is_longer
 ) -> dict[str, dict[int, str]]:
@@ -384,6 +392,54 @@ def _export_clap_text(model_name: str, cache_dir: str, output_path: Path) -> Non
         )
 
 
+def _export_reranker(model_name: str, cache_dir: str, output_path: Path) -> None:
+    import torch
+    from transformers import AutoModelForSequenceClassification, AutoTokenizer
+
+    _disable_sdpa()
+    with _patch_sdpa():
+        tokenizer = AutoTokenizer.from_pretrained(model_name, cache_dir=cache_dir)
+        model = AutoModelForSequenceClassification.from_pretrained(
+            model_name,
+            cache_dir=cache_dir,
+        )
+        model.eval()
+
+    class RerankerWrapper(torch.nn.Module):
+        def __init__(self, backbone) -> None:
+            super().__init__()
+            self.backbone = backbone
+
+        def forward(self, input_ids, attention_mask):
+            outputs = self.backbone(
+                input_ids=input_ids,
+                attention_mask=attention_mask,
+            )
+            return outputs.logits
+
+    dummy = tokenizer(
+        ["query"],
+        ["document"],
+        return_tensors="pt",
+        padding=True,
+        truncation=True,
+        max_length=512,
+    )
+    wrapper = RerankerWrapper(model)
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    with _patch_sdpa():
+        torch.onnx.export(
+            wrapper,
+            (dummy["input_ids"], dummy["attention_mask"]),
+            output_path.as_posix(),
+            input_names=["input_ids", "attention_mask"],
+            output_names=["logits"],
+            dynamic_axes=_dynamic_axes_logits(),
+            opset_version=17,
+            do_constant_folding=True,
+        )
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description="Export ONNX embedding models.")
     parser.add_argument("--all", action="store_true", help="Export all models.")
@@ -401,6 +457,9 @@ def main() -> None:
         "--clap-text", action="store_true", help="Export CLAP text."
     )
     parser.add_argument(
+        "--reranker", action="store_true", help="Export reranker cross-encoder."
+    )
+    parser.add_argument(
         "--output-dir",
         default="",
         help="Output directory (defaults to MODEL_DIR/onnx).",
@@ -413,6 +472,7 @@ def main() -> None:
     text_model = _env("TEXT_MODEL_NAME", "BAAI/bge-base-en-v1.5")
     image_model = _env("IMAGE_MODEL_NAME", "openai/clip-vit-base-patch32")
     audio_model = _env("AUDIO_MODEL_NAME", "laion/clap-htsat-fused")
+    rerank_model = _env("RERANK_MODEL_NAME", "cross-encoder/ms-marco-MiniLM-L-6-v2")
 
     output_dir = Path(args.output_dir) if args.output_dir else Path(model_dir) / "onnx"
     output_dir.mkdir(parents=True, exist_ok=True)
@@ -424,6 +484,7 @@ def main() -> None:
             args.clip_image,
             args.clap_audio,
             args.clap_text,
+            args.reranker,
         ]
     )
 
@@ -442,6 +503,9 @@ def main() -> None:
     if export_all or args.clap_text:
         print(f"Exporting CLAP text ONNX to {output_dir}")
         _export_clap_text(audio_model, model_dir, output_dir / "clap-text.onnx")
+    if args.reranker:
+        print(f"Exporting reranker ONNX to {output_dir}")
+        _export_reranker(rerank_model, model_dir, output_dir / "reranker.onnx")
 
 
 if __name__ == "__main__":

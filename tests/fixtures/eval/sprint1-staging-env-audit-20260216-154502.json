@@ -1,0 +1,22 @@
+{
+  "missing": [],
+  "present": {
+    "QUERY_FUSION_RRF_K": "60",
+    "QUERY_FUSION_WEIGHTS": "",
+    "QUERY_FUSION_WEIGHT_VERSION": "v1",
+    "RERANK_BACKEND": "hf",
+    "RERANK_BATCH_SIZE": "16",
+    "RERANK_DOC_MAX_TOKENS": "256",
+    "RERANK_ENABLED": "1",
+    "RERANK_MODEL_NAME": "BAAI/bge-reranker-large",
+    "RERANK_ONNX_MODEL_PATH": "",
+    "RERANK_QUERY_MAX_TOKENS": "64",
+    "RERANK_TIMEOUT_S": "2",
+    "RERANK_TOP_N": "100",
+    "SEARCH_FILTERS_V1_ENABLED": "1",
+    "SEARCH_GROUP_BY_ENABLED": "1",
+    "SEARCH_PAGINATION_ENABLED": "1",
+    "SEARCH_TYPED_ERRORS_ENABLED": "1",
+    "SEARCH_WHY_ENABLED": "1"
+  }
+}

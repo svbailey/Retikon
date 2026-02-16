@@ -7,6 +7,8 @@ import duckdb
 import jwt
 import pytest
 
+from retikon_core.ingestion.rate_limit import reset_rate_limit_state
+
 
 @pytest.fixture(autouse=True)
 def _disable_query_warmup(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -38,6 +40,13 @@ def _disable_query_warmup(monkeypatch: pytest.MonkeyPatch) -> None:
     set_default("AUTH_ISSUER", "https://issuer.test")
     set_default("AUTH_AUDIENCE", "retikon-test")
     set_default("AUTH_REQUIRED_CLAIMS", "sub,iss,aud,exp,iat,org_id")
+
+
+@pytest.fixture(autouse=True)
+def _reset_rate_limit_state_fixture() -> None:
+    reset_rate_limit_state()
+    yield
+    reset_rate_limit_state()
 
 
 _TEST_SNAPSHOT_PATH: str | None = None

@@ -1,0 +1,10 @@
+{
+  "all_passed": true,
+  "checks": {
+    "basic_query_200": true,
+    "grouping_present": true,
+    "next_page_token_present": true,
+    "response_has_meta": true,
+    "typed_error_shape": true
+  }
+}

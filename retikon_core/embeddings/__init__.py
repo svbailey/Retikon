@@ -1,3 +1,8 @@
+from retikon_core.embeddings.rerank_backend import (
+    get_reranker,
+    normalize_rerank_scores,
+    reset_reranker_cache,
+)
 from retikon_core.embeddings.stub import (
     StubAudioEmbedder,
     StubImageEmbedder,
@@ -24,6 +29,9 @@ __all__ = [
     "get_audio_text_embedder",
     "get_image_embedder",
     "get_image_text_embedder",
+    "get_reranker",
     "get_text_embedder",
+    "normalize_rerank_scores",
     "reset_embedding_cache",
+    "reset_reranker_cache",
 ]

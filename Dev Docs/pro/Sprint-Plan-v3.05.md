@@ -152,10 +152,14 @@ Define one shared error schema across Search/Embed/Tasks/Analyze/Detect:
 ## Default Budgets (Initial Values)
 
 - Rerank:
-  - `RERANK_TOP_N=100`
-  - `RERANK_BATCH_SIZE=16`
-  - `RERANK_QUERY_MAX_TOKENS=64`
-  - `RERANK_DOC_MAX_TOKENS=256`
+  - `RERANK_TOP_N=20`
+  - `RERANK_BATCH_SIZE=8`
+  - `RERANK_QUERY_MAX_TOKENS=32`
+  - `RERANK_DOC_MAX_TOKENS=128`
+  - `RERANK_MIN_CANDIDATES=2`
+  - `RERANK_MAX_TOTAL_CHARS=6000`
+  - `RERANK_SKIP_SCORE_GAP=1.0`
+  - `RERANK_SKIP_MIN_SCORE=0.7`
   - `RERANK_TIMEOUT_S=2.0` (skip on timeout)
 - OCR:
   - `OCR_IMAGES=1`
@@ -259,6 +263,34 @@ Acceptance
 - Text-bearing results include `highlight_text`.
 - Rerank timeout skip path returns fused results without failure.
 - Pagination is deterministic for identical query + snapshot.
+
+Sprint 1 implementation evidence (2026-02-16)
+- Runtime implemented:
+  - reranker backend module (`retikon_core/embeddings/rerank_backend.py`)
+  - weighted-RRF fusion + `why[]` + highlight extraction (`retikon_core/query_engine/query_runner.py`)
+  - Search contract v1 request/response + deterministic cursor paging + grouping payload
+    (`retikon_core/services/query_service_core.py`)
+  - typed error payloads on query endpoints (`gcp_adapter/query_service.py`,
+    `local_adapter/query_service.py`)
+  - reranker model tooling updates (`scripts/download_models.py`,
+    `scripts/export_onnx.py`, `scripts/quantize_onnx.py`)
+- Config/IaC wired:
+  - query/rerank/fusion env parsing (`retikon_core/services/query_config.py`)
+  - Terraform vars/env wiring (`infrastructure/terraform/variables.tf`,
+    `infrastructure/terraform/main.tf`, `infrastructure/terraform/terraform.tfvars.example`)
+  - environment reference updated (`Dev Docs/Environment-Reference.md`)
+- Test coverage added/updated:
+  - `tests/pro/test_query_contract_v1.py`
+  - `tests/core/test_rerank_backend.py`
+  - `tests/core/test_query_runner.py`
+  - `tests/core/test_query_service_core.py`
+  - `tests/core/test_query_service_config.py`
+  - `tests/conftest.py` rate-limit state isolation fixture
+- Validation:
+  - targeted query/rerank contract suite passed (`47 passed`)
+  - full repository suite passed: `244 passed, 17 skipped`
+  - metadata namespace filters (`metadata.<key>`) are explicitly blocked with
+    typed `UNSUPPORTED_MODE` until control-plane metadata resolver wiring lands.
 
 ## Sprint 2: OCR for Images/Keyframes + FTS/BM25 Wiring (Parity P1 Exact Match)
 

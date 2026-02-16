@@ -1,0 +1,139 @@
+{
+  "eval_run_id": "sprint1-staging-rerank-off-20260216-181118",
+  "overall": {
+    "count": 7,
+    "latency_ms": {
+      "mean": 2238.91,
+      "p50": 1072.96,
+      "p95": 6719.688
+    },
+    "mrr_10": 0.7857,
+    "recall_10": 1.0,
+    "recall_50": 1.0,
+    "top_k_overlap": 1.0
+  },
+  "per_modality": {
+    "audio": {
+      "count": 1,
+      "latency_ms": {
+        "mean": 719.06,
+        "p50": 719.06,
+        "p95": 719.06
+      },
+      "mrr_10": 1.0,
+      "recall_10": 1.0,
+      "recall_50": 1.0,
+      "top_k_overlap": 1.0
+    },
+    "docs": {
+      "count": 3,
+      "latency_ms": {
+        "mean": 1129.1033,
+        "p50": 1021.01,
+        "p95": 1393.574
+      },
+      "mrr_10": 0.5,
+      "recall_10": 1.0,
+      "recall_50": 1.0,
+      "top_k_overlap": 1.0
+    },
+    "images": {
+      "count": 2,
+      "latency_ms": {
+        "mean": 5001.2,
+        "p50": 5001.2,
+        "p95": 8536.616
+      },
+      "mrr_10": 1.0,
+      "recall_10": 1.0,
+      "recall_50": 1.0,
+      "top_k_overlap": 1.0
+    },
+    "videos": {
+      "count": 1,
+      "latency_ms": {
+        "mean": 1563.6,
+        "p50": 1563.6,
+        "p95": 1563.6
+      },
+      "mrr_10": 1.0,
+      "recall_10": 1.0,
+      "recall_50": 1.0,
+      "top_k_overlap": 1.0
+    }
+  },
+  "queries": [
+    {
+      "id": "video-mp4-1",
+      "latency_ms": 1563.6,
+      "modality": "videos",
+      "mrr_10": 1.0,
+      "rank": 1,
+      "recall_10": 1.0,
+      "recall_50": 1.0,
+      "top_k_overlap": 1.0
+    },
+    {
+      "id": "docs-txt-1",
+      "latency_ms": 1434.97,
+      "modality": "docs",
+      "mrr_10": 0.5,
+      "rank": 2,
+      "recall_10": 1.0,
+      "recall_50": 1.0,
+      "top_k_overlap": 1.0
+    },
+    {
+      "id": "images-jpg-1",
+      "latency_ms": 8929.44,
+      "modality": "images",
+      "mrr_10": 1.0,
+      "rank": 1,
+      "recall_10": 1.0,
+      "recall_50": 1.0,
+      "top_k_overlap": 1.0
+    },
+    {
+      "id": "images-png-1",
+      "latency_ms": 1072.96,
+      "modality": "images",
+      "mrr_10": 1.0,
+      "rank": 1,
+      "recall_10": 1.0,
+      "recall_50": 1.0,
+      "top_k_overlap": 1.0
+    },
+    {
+      "id": "docs-tsv-1",
+      "latency_ms": 1021.01,
+      "modality": "docs",
+      "mrr_10": 0.5,
+      "rank": 2,
+      "recall_10": 1.0,
+      "recall_50": 1.0,
+      "top_k_overlap": 1.0
+    },
+    {
+      "id": "docs-csv-1",
+      "latency_ms": 931.33,
+      "modality": "docs",
+      "mrr_10": 0.5,
+      "rank": 2,
+      "recall_10": 1.0,
+      "recall_50": 1.0,
+      "top_k_overlap": 1.0
+    },
+    {
+      "id": "audio-wav-1",
+      "latency_ms": 719.06,
+      "modality": "audio",
+      "mrr_10": 1.0,
+      "rank": 1,
+      "recall_10": 1.0,
+      "recall_50": 1.0,
+      "top_k_overlap": 1.0
+    }
+  ],
+  "query_url": "https://retikon-query-staging-yt27ougp4q-uc.a.run.app/query",
+  "top_k": 50
+}

@@ -14,6 +14,13 @@ def main() -> None:
     image_model = _env("IMAGE_MODEL_NAME", "openai/clip-vit-base-patch32")
     audio_model = _env("AUDIO_MODEL_NAME", "laion/clap-htsat-fused")
     whisper_model = _env("WHISPER_MODEL_NAME", "small")
+    rerank_enabled = _env("RERANK_ENABLED", "0").strip().lower() in {
+        "1",
+        "true",
+        "yes",
+    }
+    rerank_model = _env("RERANK_MODEL_NAME", "cross-encoder/ms-marco-MiniLM-L-6-v2")
+    rerank_backend = _env("RERANK_BACKEND", "hf").strip().lower()
     export_onnx = _env("EXPORT_ONNX", "").strip().lower() in {"1", "true", "yes"}
     quantize_onnx = _env("QUANTIZE_ONNX", "").strip().lower() in {
         "1",
@@ -65,27 +72,47 @@ def main() -> None:
 
     whisper.load_model(whisper_model, download_root=model_dir)
 
-    if export_onnx or any(backend in {"onnx", "quantized"} for backend in backends):
+    if rerank_enabled or rerank_backend in {"onnx", "quantized"}:
+        print(f"Downloading reranker model: {rerank_model}")
+        from sentence_transformers import CrossEncoder
+
+        CrossEncoder(rerank_model, max_length=160)
+
+    needs_onnx_export = (
+        export_onnx
+        or rerank_backend in {"onnx", "quantized"}
+        or any(backend in {"onnx", "quantized"} for backend in backends)
+    )
+    if needs_onnx_export:
         export_script = Path(__file__).with_name("export_onnx.py")
         if export_script.exists():
             print("Exporting ONNX models...")
             import subprocess
             import sys
 
-            subprocess.check_call([sys.executable, export_script.as_posix(), "--all"])
+            args = [sys.executable, export_script.as_posix(), "--all"]
+            if rerank_enabled or rerank_backend in {"onnx", "quantized"}:
+                args.append("--reranker")
+            subprocess.check_call(args)
         else:
             raise SystemExit(f"Missing ONNX export script: {export_script}")
 
-    if quantize_onnx or any(backend == "quantized" for backend in backends):
+    needs_onnx_quant = (
+        quantize_onnx
+        or rerank_backend == "quantized"
+        or any(backend == "quantized" for backend in backends)
+    )
+    if needs_onnx_quant:
         quantize_script = Path(__file__).with_name("quantize_onnx.py")
         if quantize_script.exists():
             print("Quantizing ONNX models...")
             import subprocess
             import sys
 
-            subprocess.check_call(
-                [sys.executable, quantize_script.as_posix(), "--all"]
-            )
+            args = [sys.executable, quantize_script.as_posix(), "--all"]
+            if rerank_enabled or rerank_backend == "quantized":
+                args.append("--reranker")
+            subprocess.check_call(args)
         else:
             raise SystemExit(f"Missing ONNX quantize script: {quantize_script}")
 

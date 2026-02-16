@@ -6,7 +6,7 @@ import json
 import os
 import threading
 import time
-from dataclasses import dataclass
+from dataclasses import dataclass, field, replace
 from functools import lru_cache
 from typing import Iterable, Sequence
 
@@ -17,9 +17,12 @@ from retikon_core.embeddings import (
     get_audio_text_embedder,
     get_image_embedder,
     get_image_text_embedder,
+    get_reranker,
     get_text_embedder,
+    normalize_rerank_scores,
 )
 from retikon_core.embeddings.timeout import run_inference
+from retikon_core.errors import InferenceTimeoutError
 from retikon_core.logging import get_logger
 from retikon_core.query_engine.warm_start import load_extensions
 from retikon_core.tenancy.types import TenantScope
@@ -113,16 +116,25 @@ def _apply_duckdb_settings(conn: duckdb.DuckDBPyConnection) -> dict[str, str]:
     return settings
 
 
-@dataclass(frozen=True)
+@dataclass
 class QueryResult:
     modality: str
     uri: str
     snippet: str | None
-    timestamp_ms: int | None
+    start_ms: int | None
+    end_ms: int | None
     thumbnail_uri: str | None
     score: float
     media_asset_id: str | None
     media_type: str | None
+    primary_evidence_id: str
+    evidence_refs: list[dict[str, str]] = field(default_factory=list)
+    why: list[dict[str, object]] = field(default_factory=list)
+
+    @property
+    def timestamp_ms(self) -> int | None:
+        # Backwards-compatible alias used by existing API/tests.
+        return self.start_ms
 
 
 def _clamp_score(value: float) -> float:
@@ -135,6 +147,182 @@ def _clamp_score(value: float) -> float:
 
 def _score_from_distance(distance: float) -> float:
     return _clamp_score(1.0 - float(distance))
+
+
+def _canonical_modality(modality: str) -> str:
+    cleaned = modality.strip().lower()
+    if cleaned in {"document", "transcript", "text"}:
+        return "text"
+    if cleaned in {"image", "vision"}:
+        return "vision"
+    if cleaned in {"audio"}:
+        return "audio"
+    if cleaned in {"ocr"}:
+        return "ocr"
+    if cleaned in {"video"}:
+        return "video"
+    if cleaned in {"fts"}:
+        return "fts"
+    return cleaned
+
+
+def _evidence_refs_for(modality: str, evidence_id: str) -> list[dict[str, str]]:
+    canonical = _canonical_modality(modality)
+    if canonical == "text":
+        if modality == "transcript":
+            return [{"transcript_segment_id": evidence_id}]
+        return [{"doc_chunk_id": evidence_id}]
+    if canonical == "vision":
+        return [{"image_asset_id": evidence_id}]
+    if canonical == "audio":
+        return [{"audio_segment_id": evidence_id}]
+    if canonical == "video":
+        return [{"video_clip_id": evidence_id}]
+    if canonical == "ocr":
+        return [{"doc_chunk_id": evidence_id}]
+    return []
+
+
+def _fusion_weights() -> dict[str, float]:
+    defaults = {
+        "text": 1.0,
+        "ocr": 1.0,
+        "vision": 0.8,
+        "audio": 0.8,
+        "video": 1.0,
+        "fts": 1.2,
+    }
+    raw = os.getenv("QUERY_FUSION_WEIGHTS")
+    if not raw:
+        return defaults
+    cleaned = raw.strip()
+    if not cleaned:
+        return defaults
+    parsed: dict[str, float] = {}
+    if cleaned.startswith("{"):
+        try:
+            payload = json.loads(cleaned)
+        except json.JSONDecodeError:
+            return defaults
+        if isinstance(payload, dict):
+            for key, value in payload.items():
+                try:
+                    parsed[_canonical_modality(str(key))] = float(value)
+                except (TypeError, ValueError):
+                    continue
+    else:
+        for item in cleaned.split(","):
+            if "=" not in item:
+                continue
+            key, value = item.split("=", 1)
+            key = _canonical_modality(key.strip())
+            try:
+                parsed[key] = float(value.strip())
+            except ValueError:
+                continue
+    if not parsed:
+        return defaults
+    for key, value in defaults.items():
+        parsed.setdefault(key, value)
+    return parsed
+
+
+def _fuse_k() -> int:
+    raw = os.getenv("QUERY_FUSION_RRF_K", "60")
+    try:
+        value = int(raw)
+    except ValueError:
+        value = 60
+    return max(1, value)
+
+
+def _rerank_enabled() -> bool:
+    return os.getenv("RERANK_ENABLED", "0").strip().lower() in {"1", "true", "yes", "on"}
+
+
+def _rerank_top_n() -> int:
+    raw = os.getenv("RERANK_TOP_N", "20")
+    try:
+        value = int(raw)
+    except ValueError:
+        value = 20
+    return max(1, value)
+
+
+def _rerank_min_candidates() -> int:
+    raw = os.getenv("RERANK_MIN_CANDIDATES", "2")
+    try:
+        value = int(raw)
+    except ValueError:
+        value = 2
+    return max(1, value)
+
+
+def _rerank_max_total_chars() -> int:
+    raw = os.getenv("RERANK_MAX_TOTAL_CHARS", "6000")
+    try:
+        value = int(raw)
+    except ValueError:
+        value = 6000
+    return max(0, value)
+
+
+def _rerank_skip_score_gap() -> float:
+    raw = os.getenv("RERANK_SKIP_SCORE_GAP", "1.0")
+    try:
+        value = float(raw)
+    except ValueError:
+        value = 1.0
+    return max(0.0, value)
+
+
+def _rerank_skip_min_score() -> float:
+    raw = os.getenv("RERANK_SKIP_MIN_SCORE", "0.7")
+    try:
+        value = float(raw)
+    except ValueError:
+        value = 0.7
+    return _clamp_score(value)
+
+
+def _highlight_text(snippet: str | None, query_text: str | None) -> str | None:
+    if not snippet:
+        return None
+    cleaned = " ".join(snippet.strip().split())
+    if not cleaned:
+        return None
+    if not query_text:
+        return cleaned[:240]
+    query_terms = {
+        token.lower()
+        for token in query_text.split()
+        if token.strip()
+    }
+    if not query_terms:
+        return cleaned[:240]
+    candidates = [piece.strip() for piece in cleaned.replace("\n", ". ").split(".")]
+    candidates = [piece for piece in candidates if piece]
+    if not candidates:
+        return cleaned[:240]
+    best = candidates[0]
+    best_score = -1
+    for candidate in candidates:
+        words = {token.lower() for token in candidate.split() if token.strip()}
+        score = len(words & query_terms)
+        if score > best_score:
+            best = candidate
+            best_score = score
+    return best[:240]
+
+
+def _result_key(item: QueryResult) -> tuple[str, str, str, int | None, int | None]:
+    return (
+        item.media_asset_id or "",
+        item.modality,
+        item.primary_evidence_id,
+        item.start_ms,
+        item.end_ms,
+    )
 
 
 def _safe_float(value: str | None, default: float) -> float:
@@ -456,10 +644,47 @@ def search_by_text(
     try:
         has_thumbnail = _table_has_column(conn, "image_assets", "thumbnail_uri")
         thumbnail_expr = "i.thumbnail_uri" if has_thumbnail else "NULL AS thumbnail_uri"
+        doc_has_id = _table_has_column(conn, "doc_chunks", "id")
+        doc_has_chunk_index = _table_has_column(conn, "doc_chunks", "chunk_index")
+        transcript_has_id = _table_has_column(conn, "transcripts", "id")
+        transcript_has_end_ms = _table_has_column(conn, "transcripts", "end_ms")
+        image_has_id = _table_has_column(conn, "image_assets", "id")
+        audio_has_id = _table_has_column(conn, "audio_clips", "id")
+        audio_has_start_ms = _table_has_column(conn, "audio_clips", "start_ms")
+        audio_has_end_ms = _table_has_column(conn, "audio_clips", "end_ms")
+
+        doc_id_expr = "d.id" if doc_has_id else "CAST(d.media_asset_id AS VARCHAR)"
+        if not doc_has_id and doc_has_chunk_index:
+            doc_id_expr = (
+                "CAST(d.media_asset_id AS VARCHAR) || ':doc:' || "
+                "CAST(d.chunk_index AS VARCHAR)"
+            )
+        transcript_id_expr = (
+            "t.id"
+            if transcript_has_id
+            else "CAST(t.media_asset_id AS VARCHAR) || ':transcript:' || "
+            "COALESCE(CAST(t.start_ms AS VARCHAR), '0')"
+        )
+        transcript_end_expr = "t.end_ms" if transcript_has_end_ms else "NULL AS end_ms"
+        image_id_expr = (
+            "i.id"
+            if image_has_id
+            else "CAST(i.media_asset_id AS VARCHAR) || ':image:' || "
+            "COALESCE(CAST(i.timestamp_ms AS VARCHAR), '0')"
+        )
+        audio_id_expr = "a.id" if audio_has_id else "CAST(a.media_asset_id AS VARCHAR)"
+        if not audio_has_id and audio_has_start_ms:
+            audio_id_expr = (
+                "CAST(a.media_asset_id AS VARCHAR) || ':audio:' || "
+                "COALESCE(CAST(a.start_ms AS VARCHAR), '0')"
+            )
+        audio_start_expr = "a.start_ms" if audio_has_start_ms else "NULL AS start_ms"
+        audio_end_expr = "a.end_ms" if audio_has_end_ms else "NULL AS end_ms"
         scope_clause, scope_params = _scope_filters(conn, scope)
 
         doc_sql = f"""
             SELECT m.uri, m.media_type, d.media_asset_id, d.content,
+                   {doc_id_expr} AS evidence_id,
                    (1.0 - list_cosine_similarity(d.text_vector, ?::FLOAT[])) AS distance
             FROM doc_chunks d
             JOIN media_assets m ON d.media_asset_id = m.id
@@ -480,9 +705,21 @@ def search_by_text(
                 "document",
                 doc_rows,
                 uri_index=0,
-                distance_index=4,
+                distance_index=5,
             )
-            for uri, media_type, media_asset_id, content, distance in doc_rows:
+            for row in doc_rows:
+                if len(row) >= 6:
+                    (
+                        uri,
+                        media_type,
+                        media_asset_id,
+                        content,
+                        evidence_id,
+                        distance,
+                    ) = row[:6]
+                else:
+                    uri, media_type, media_asset_id, content, distance = row[:5]
+                    evidence_id = media_asset_id
                 score = _boost_score(
                     _score_from_distance(distance),
                     modality="document",
@@ -493,16 +730,21 @@ def search_by_text(
                         modality="document",
                         uri=uri,
                         snippet=content,
-                        timestamp_ms=None,
+                        start_ms=None,
+                        end_ms=None,
                         thumbnail_uri=None,
                         score=score,
                         media_asset_id=media_asset_id,
                         media_type=media_type,
+                        primary_evidence_id=str(evidence_id),
+                        evidence_refs=_evidence_refs_for("document", str(evidence_id)),
                     )
                 )
 
         transcript_sql = f"""
             SELECT m.uri, m.media_type, t.media_asset_id, t.content, t.start_ms,
+                   {transcript_end_expr},
+                   {transcript_id_expr} AS evidence_id,
                    (1.0 - list_cosine_similarity(
                        t.text_embedding, ?::FLOAT[]
                    )) AS distance
@@ -529,11 +771,24 @@ def search_by_text(
                 "transcript",
                 transcript_rows,
                 uri_index=0,
-                distance_index=5,
+                distance_index=7,
             )
-            for uri, media_type, media_asset_id, content, start_ms, distance in (
-                transcript_rows
-            ):
+            for row in transcript_rows:
+                if len(row) >= 8:
+                    (
+                        uri,
+                        media_type,
+                        media_asset_id,
+                        content,
+                        start_ms,
+                        end_ms,
+                        evidence_id,
+                        distance,
+                    ) = row[:8]
+                else:
+                    uri, media_type, media_asset_id, content, start_ms, distance = row[:6]
+                    end_ms = None
+                    evidence_id = f"{media_asset_id}:transcript:{start_ms}"
                 score = _boost_score(
                     _score_from_distance(distance),
                     modality="transcript",
@@ -544,17 +799,21 @@ def search_by_text(
                         modality="transcript",
                         uri=uri,
                         snippet=content,
-                        timestamp_ms=int(start_ms),
+                        start_ms=int(start_ms) if start_ms is not None else None,
+                        end_ms=int(end_ms) if end_ms is not None else None,
                         thumbnail_uri=None,
                         score=score,
                         media_asset_id=media_asset_id,
                         media_type=media_type,
+                        primary_evidence_id=str(evidence_id),
+                        evidence_refs=_evidence_refs_for("transcript", str(evidence_id)),
                     )
                 )
 
         image_sql = f"""
             SELECT m.uri, m.media_type, i.media_asset_id, i.timestamp_ms,
                    {thumbnail_expr},
+                   {image_id_expr} AS evidence_id,
                    (1.0 - list_cosine_similarity(i.clip_vector, ?::FLOAT[])) AS distance
             FROM image_assets i
             JOIN media_assets m ON i.media_asset_id = m.id
@@ -575,16 +834,29 @@ def search_by_text(
                 "image",
                 image_rows,
                 uri_index=0,
-                distance_index=5,
+                distance_index=7,
             )
-            for (
-                uri,
-                media_type,
-                media_asset_id,
-                timestamp_ms,
-                thumbnail_uri,
-                distance,
-            ) in image_rows:
+            for row in image_rows:
+                if len(row) >= 7:
+                    (
+                        uri,
+                        media_type,
+                        media_asset_id,
+                        timestamp_ms,
+                        thumbnail_uri,
+                        evidence_id,
+                        distance,
+                    ) = row[:7]
+                else:
+                    (
+                        uri,
+                        media_type,
+                        media_asset_id,
+                        timestamp_ms,
+                        thumbnail_uri,
+                        distance,
+                    ) = row[:6]
+                    evidence_id = f"{media_asset_id}:image:{timestamp_ms}"
                 score = _boost_score(
                     _score_from_distance(distance),
                     modality="image",
@@ -595,18 +867,26 @@ def search_by_text(
                         modality="image",
                         uri=uri,
                         snippet=None,
-                        timestamp_ms=(
+                        start_ms=(
+                            int(timestamp_ms) if timestamp_ms is not None else None
+                        ),
+                        end_ms=(
                             int(timestamp_ms) if timestamp_ms is not None else None
                         ),
                         thumbnail_uri=thumbnail_uri,
                         score=score,
                         media_asset_id=media_asset_id,
                         media_type=media_type,
+                        primary_evidence_id=str(evidence_id),
+                        evidence_refs=_evidence_refs_for("image", str(evidence_id)),
                     )
                 )
 
         audio_sql = f"""
             SELECT m.uri, m.media_type, a.media_asset_id,
+                   {audio_start_expr},
+                   {audio_end_expr},
+                   {audio_id_expr} AS evidence_id,
                    (1.0 - list_cosine_similarity(
                        a.clap_embedding, ?::FLOAT[]
                    )) AS distance
@@ -629,9 +909,24 @@ def search_by_text(
                 "audio",
                 audio_rows,
                 uri_index=0,
-                distance_index=3,
+                distance_index=7,
             )
-            for uri, media_type, media_asset_id, distance in audio_rows:
+            for row in audio_rows:
+                if len(row) >= 7:
+                    (
+                        uri,
+                        media_type,
+                        media_asset_id,
+                        start_ms,
+                        end_ms,
+                        evidence_id,
+                        distance,
+                    ) = row[:7]
+                else:
+                    uri, media_type, media_asset_id, distance = row[:4]
+                    start_ms = None
+                    end_ms = None
+                    evidence_id = media_asset_id
                 score = _boost_score(
                     _score_from_distance(distance),
                     modality="audio",
@@ -642,11 +937,14 @@ def search_by_text(
                         modality="audio",
                         uri=uri,
                         snippet=None,
-                        timestamp_ms=None,
+                        start_ms=int(start_ms) if start_ms is not None else None,
+                        end_ms=int(end_ms) if end_ms is not None else None,
                         thumbnail_uri=None,
                         score=score,
                         media_asset_id=media_asset_id,
                         media_type=media_type,
+                        primary_evidence_id=str(evidence_id),
+                        evidence_refs=_evidence_refs_for("audio", str(evidence_id)),
                     )
                 )
     finally:
@@ -675,11 +973,31 @@ def search_by_keyword(
         )
         trace.update(_apply_duckdb_settings(conn))
     try:
+        doc_has_id = _table_has_column(conn, "doc_chunks", "id")
+        doc_has_chunk_index = _table_has_column(conn, "doc_chunks", "chunk_index")
+        transcript_has_id = _table_has_column(conn, "transcripts", "id")
+        transcript_has_end_ms = _table_has_column(conn, "transcripts", "end_ms")
+
+        doc_id_expr = "d.id" if doc_has_id else "CAST(d.media_asset_id AS VARCHAR)"
+        if not doc_has_id and doc_has_chunk_index:
+            doc_id_expr = (
+                "CAST(d.media_asset_id AS VARCHAR) || ':doc:' || "
+                "CAST(d.chunk_index AS VARCHAR)"
+            )
+        transcript_id_expr = (
+            "t.id"
+            if transcript_has_id
+            else "CAST(t.media_asset_id AS VARCHAR) || ':transcript:' || "
+            "COALESCE(CAST(t.start_ms AS VARCHAR), '0')"
+        )
+        transcript_end_expr = "t.end_ms" if transcript_has_end_ms else "NULL AS end_ms"
+
         scope_clause, scope_params = _scope_filters(conn, scope)
         scope_filter = scope_clause.replace("WHERE ", "", 1) if scope_clause else ""
         scope_sql = f" AND {scope_filter}" if scope_filter else ""
         doc_sql = f"""
-            SELECT m.uri, m.media_type, d.media_asset_id, d.content
+            SELECT m.uri, m.media_type, d.media_asset_id, d.content,
+                   {doc_id_expr} AS evidence_id
             FROM doc_chunks d
             JOIN media_assets m ON d.media_asset_id = m.id
             WHERE d.content ILIKE ?{scope_sql}
@@ -698,22 +1016,27 @@ def search_by_keyword(
             doc_rows,
             uri_index=0,
         )
-        for uri, media_type, media_asset_id, content in doc_rows:
+        for uri, media_type, media_asset_id, content, evidence_id in doc_rows:
             results.append(
                 QueryResult(
                     modality="document",
                     uri=uri,
                     snippet=content,
-                    timestamp_ms=None,
+                    start_ms=None,
+                    end_ms=None,
                     thumbnail_uri=None,
                     score=1.0,
                     media_asset_id=media_asset_id,
                     media_type=media_type,
+                    primary_evidence_id=str(evidence_id),
+                    evidence_refs=_evidence_refs_for("document", str(evidence_id)),
                 )
             )
 
         transcript_sql = f"""
-            SELECT m.uri, m.media_type, t.media_asset_id, t.content, t.start_ms
+            SELECT m.uri, m.media_type, t.media_asset_id, t.content, t.start_ms,
+                   {transcript_end_expr},
+                   {transcript_id_expr} AS evidence_id
             FROM transcripts t
             JOIN media_assets m ON t.media_asset_id = m.id
             WHERE t.content ILIKE ?{scope_sql}
@@ -732,17 +1055,28 @@ def search_by_keyword(
             transcript_rows,
             uri_index=0,
         )
-        for uri, media_type, media_asset_id, content, start_ms in transcript_rows:
+        for (
+            uri,
+            media_type,
+            media_asset_id,
+            content,
+            start_ms,
+            end_ms,
+            evidence_id,
+        ) in transcript_rows:
             results.append(
                 QueryResult(
                     modality="transcript",
                     uri=uri,
                     snippet=content,
-                    timestamp_ms=int(start_ms) if start_ms is not None else None,
+                    start_ms=int(start_ms) if start_ms is not None else None,
+                    end_ms=int(end_ms) if end_ms is not None else None,
                     thumbnail_uri=None,
                     score=1.0,
                     media_asset_id=media_asset_id,
                     media_type=media_type,
+                    primary_evidence_id=str(evidence_id),
+                    evidence_refs=_evidence_refs_for("transcript", str(evidence_id)),
                 )
             )
     finally:
@@ -817,11 +1151,21 @@ def search_by_metadata(
                 modality="metadata",
                 uri=uri,
                 snippet=None,
-                timestamp_ms=None,
+                start_ms=None,
+                end_ms=None,
                 thumbnail_uri=None,
                 score=1.0,
                 media_asset_id=media_asset_id,
                 media_type=media_type,
+                primary_evidence_id=str(media_asset_id),
+                evidence_refs=[],
+                why=[
+                    {
+                        "modality": "fts",
+                        "source": "metadata",
+                        "reason": "metadata_filter",
+                    }
+                ],
             )
             for media_asset_id, uri, media_type in rows
         ]
@@ -865,12 +1209,20 @@ def search_by_image(
         trace.update(_apply_duckdb_settings(conn))
     try:
         has_thumbnail = _table_has_column(conn, "image_assets", "thumbnail_uri")
+        has_image_id = _table_has_column(conn, "image_assets", "id")
         thumbnail_expr = "i.thumbnail_uri" if has_thumbnail else "NULL AS thumbnail_uri"
+        image_id_expr = (
+            "i.id"
+            if has_image_id
+            else "CAST(i.media_asset_id AS VARCHAR) || ':image:' || "
+            "COALESCE(CAST(i.timestamp_ms AS VARCHAR), '0')"
+        )
         scope_clause, scope_params = _scope_filters(conn, scope)
 
         image_sql = f"""
             SELECT m.uri, m.media_type, i.media_asset_id, i.timestamp_ms,
                    {thumbnail_expr},
+                   {image_id_expr} AS evidence_id,
                    (1.0 - list_cosine_similarity(i.clip_vector, ?::FLOAT[])) AS distance
             FROM image_assets i
             JOIN media_assets m ON i.media_asset_id = m.id
@@ -890,18 +1242,21 @@ def search_by_image(
             "image",
             image_rows,
             uri_index=0,
-            distance_index=5,
+            distance_index=6,
         )
         results = [
             QueryResult(
                 modality="image",
                 uri=uri,
                 snippet=None,
-                timestamp_ms=int(timestamp_ms) if timestamp_ms is not None else None,
+                start_ms=int(timestamp_ms) if timestamp_ms is not None else None,
+                end_ms=int(timestamp_ms) if timestamp_ms is not None else None,
                 thumbnail_uri=thumbnail_uri,
                 score=_score_from_distance(distance),
                 media_asset_id=media_asset_id,
                 media_type=media_type,
+                primary_evidence_id=str(evidence_id),
+                evidence_refs=_evidence_refs_for("image", str(evidence_id)),
             )
             for (
                 uri,
@@ -909,6 +1264,7 @@ def search_by_image(
                 media_asset_id,
                 timestamp_ms,
                 thumbnail_uri,
+                evidence_id,
                 distance,
             ) in image_rows
         ]
@@ -917,3 +1273,176 @@ def search_by_image(
 
     results.sort(key=lambda item: item.score, reverse=True)
     return results[: int(top_k)]
+
+
+def fuse_results(
+    results: Sequence[QueryResult],
+    *,
+    trace: dict[str, float | int | str] | None = None,
+) -> list[QueryResult]:
+    if not results:
+        return []
+
+    k = _fuse_k()
+    weights = _fusion_weights()
+    ranked_by_modality: dict[str, list[QueryResult]] = {}
+    for item in results:
+        ranked_by_modality.setdefault(item.modality, []).append(item)
+
+    for values in ranked_by_modality.values():
+        values.sort(key=lambda row: row.score, reverse=True)
+
+    merged: dict[tuple[str, str, str, int | None, int | None], QueryResult] = {}
+    for modality, rows in ranked_by_modality.items():
+        canonical = _canonical_modality(modality)
+        weight = float(weights.get(canonical, 1.0))
+        for idx, row in enumerate(rows, start=1):
+            contribution = weight / float(k + idx)
+            key = _result_key(row)
+            existing = merged.get(key)
+            detail = {
+                "modality": canonical,
+                "source": "vector",
+                "rank": idx,
+                "weight": round(weight, 6),
+                "contribution": round(contribution, 8),
+                "raw_score": round(float(row.score), 6),
+            }
+            if existing is None:
+                item = replace(row)
+                item.score = contribution
+                item.why = list(item.why) + [detail]
+                merged[key] = item
+            else:
+                existing.score += contribution
+                existing.why.append(detail)
+                if row.snippet and not existing.snippet:
+                    existing.snippet = row.snippet
+
+    fused = list(merged.values())
+    max_score = max(item.score for item in fused) if fused else 1.0
+    if max_score > 0:
+        for item in fused:
+            item.score = _clamp_score(item.score / max_score)
+
+    fused.sort(key=lambda row: row.score, reverse=True)
+    if trace is not None:
+        trace["fusion_method"] = "weighted_rrf"
+        trace["fusion_weight_version"] = os.getenv("QUERY_FUSION_WEIGHT_VERSION", "v1")
+    return fused
+
+
+def rerank_text_candidates(
+    *,
+    query_text: str | None,
+    results: Sequence[QueryResult],
+    trace: dict[str, float | int | str] | None = None,
+) -> list[QueryResult]:
+    if not results:
+        return []
+    if not query_text or not query_text.strip():
+        return list(results)
+    if not _rerank_enabled():
+        if trace is not None:
+            trace["rerank_status"] = "disabled"
+        return list(results)
+
+    text_candidates = [
+        (idx, row)
+        for idx, row in enumerate(results)
+        if row.snippet and _canonical_modality(row.modality) in {"text", "ocr"}
+    ]
+    if not text_candidates:
+        if trace is not None:
+            trace["rerank_status"] = "skipped_no_text_candidates"
+        return list(results)
+
+    top_n = _rerank_top_n()
+    text_candidates.sort(key=lambda pair: pair[1].score, reverse=True)
+    min_candidates = _rerank_min_candidates()
+    max_total_chars = _rerank_max_total_chars()
+    selected: list[tuple[int, QueryResult]] = []
+    selected_chars = 0
+    for pair in text_candidates:
+        if len(selected) >= top_n:
+            break
+        candidate_len = len(pair[1].snippet or "")
+        if (
+            max_total_chars > 0
+            and len(selected) >= min_candidates
+            and (selected_chars + candidate_len) > max_total_chars
+        ):
+            break
+        selected.append(pair)
+        selected_chars += candidate_len
+
+    if len(selected) < min_candidates:
+        if trace is not None:
+            trace["rerank_status"] = "skipped_low_candidate_count"
+            trace["rerank_candidates"] = len(selected)
+        return list(results)
+
+    if len(selected) >= 2:
+        top_score = float(selected[0][1].score)
+        runner_up_score = float(selected[1][1].score)
+        score_gap = top_score - runner_up_score
+        gap_threshold = _rerank_skip_score_gap()
+        min_score = _rerank_skip_min_score()
+        if top_score >= min_score and score_gap >= gap_threshold:
+            if trace is not None:
+                trace["rerank_status"] = "skipped_confident_top_result"
+                trace["rerank_candidates"] = len(selected)
+                trace["rerank_selected_chars"] = selected_chars
+                trace["rerank_score_gap"] = round(score_gap, 6)
+            return list(results)
+    selected_docs = [row.snippet or "" for _, row in selected]
+
+    rerank_start = time.monotonic()
+    try:
+        raw_scores = run_inference(
+            "rerank",
+            lambda: get_reranker().score(query_text, selected_docs),
+        )
+    except InferenceTimeoutError:
+        if trace is not None:
+            trace["rerank_status"] = "timeout_skip"
+            trace["rerank_candidates"] = len(selected)
+        return list(results)
+    except Exception:
+        if trace is not None:
+            trace["rerank_status"] = "error_skip"
+            trace["rerank_candidates"] = len(selected)
+        return list(results)
+
+    scores = normalize_rerank_scores(raw_scores)
+    reranked = list(results)
+    for (result_idx, row), rerank_score in zip(selected, scores, strict=False):
+        base = float(row.score)
+        blended = (0.5 * base) + (0.5 * float(rerank_score))
+        updated = replace(row)
+        updated.score = _clamp_score(blended)
+        updated.why = list(updated.why) + [
+            {
+                "modality": _canonical_modality(row.modality),
+                "source": "rerank",
+                "model": os.getenv("RERANK_MODEL_NAME", ""),
+                "backend": os.getenv("RERANK_BACKEND", ""),
+                "raw_score": round(float(rerank_score), 6),
+                "base_score": round(base, 6),
+                "blended_score": round(updated.score, 6),
+            }
+        ]
+        reranked[result_idx] = updated
+
+    if trace is not None:
+        trace["rerank_status"] = "applied"
+        trace["rerank_candidates"] = len(selected)
+        trace["rerank_selected_chars"] = selected_chars
+        trace["rerank_ms"] = round((time.monotonic() - rerank_start) * 1000.0, 2)
+
+    reranked.sort(key=lambda row: row.score, reverse=True)
+    return reranked
+
+
+def highlight_for_result(item: QueryResult, query_text: str | None) -> str | None:
+    return _highlight_text(item.snippet, query_text)

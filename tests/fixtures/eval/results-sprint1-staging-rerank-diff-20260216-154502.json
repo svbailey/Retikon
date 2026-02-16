@@ -1,0 +1,31 @@
+{
+  "latency_ms_mean": {
+    "delta": 17892.005699999998,
+    "off": 962.4386,
+    "on": 18854.4443
+  },
+  "off_run_id": "sprint1-staging-rerank-off-20260216-154502",
+  "on_run_id": "sprint1-staging-rerank-on-20260216-154502",
+  "overall": {
+    "mrr_10": {
+      "delta": 0.21430000000000005,
+      "off": 0.7857,
+      "on": 1.0
+    },
+    "recall_10": {
+      "delta": 0.0,
+      "off": 1.0,
+      "on": 1.0
+    },
+    "recall_50": {
+      "delta": 0.0,
+      "off": 1.0,
+      "on": 1.0
+    },
+    "top_k_overlap": {
+      "delta": 0.0,
+      "off": 1.0,
+      "on": 1.0
+    }
+  }
+}

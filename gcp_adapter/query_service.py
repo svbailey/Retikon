@@ -10,6 +10,8 @@ from pathlib import Path
 import duckdb
 import fsspec
 from fastapi import FastAPI, Header, HTTPException, Request
+from fastapi.exceptions import RequestValidationError
+from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
 
 from gcp_adapter.auth import authorize_internal_service_account, authorize_request
@@ -72,6 +74,38 @@ configure_logging(
 logger = get_logger(__name__)
 
 
+def _typed_errors_enabled() -> bool:
+    return QUERY_CONFIG.search_typed_errors_enabled
+
+
+def _error_code_for_status(status_code: int) -> str:
+    mapping = {
+        400: "VALIDATION_ERROR",
+        401: "UNAUTHORIZED",
+        403: "FORBIDDEN",
+        404: "TASK_NOT_FOUND",
+        413: "PAYLOAD_TOO_LARGE",
+        422: "VALIDATION_ERROR",
+        504: "TIMEOUT",
+    }
+    return mapping.get(status_code, "INTERNAL_ERROR")
+
+
+def _typed_error_payload(
+    *,
+    code: str,
+    message: str,
+    details: list[dict[str, object]] | None = None,
+) -> dict[str, object]:
+    return {
+        "error": {
+            "code": code,
+            "message": message,
+            "details": details or [],
+        }
+    }
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     healthcheck_uri = os.getenv("DUCKDB_HEALTHCHECK_URI")
@@ -110,7 +144,17 @@ os.environ["RERANK_TOP_N"] = str(QUERY_CONFIG.rerank_top_n)
 os.environ["RERANK_BATCH_SIZE"] = str(QUERY_CONFIG.rerank_batch_size)
 os.environ["RERANK_QUERY_MAX_TOKENS"] = str(QUERY_CONFIG.rerank_query_max_tokens)
 os.environ["RERANK_DOC_MAX_TOKENS"] = str(QUERY_CONFIG.rerank_doc_max_tokens)
+os.environ["RERANK_MIN_CANDIDATES"] = str(QUERY_CONFIG.rerank_min_candidates)
+os.environ["RERANK_MAX_TOTAL_CHARS"] = str(QUERY_CONFIG.rerank_max_total_chars)
+os.environ["RERANK_SKIP_SCORE_GAP"] = str(QUERY_CONFIG.rerank_skip_score_gap)
+os.environ["RERANK_SKIP_MIN_SCORE"] = str(QUERY_CONFIG.rerank_skip_min_score)
 os.environ["RERANK_TIMEOUT_S"] = str(QUERY_CONFIG.rerank_timeout_s)
+# Make rerank timeout effective with run_inference("rerank", ...).
+os.environ["MODEL_INFERENCE_RERANK_TIMEOUT_S"] = str(QUERY_CONFIG.rerank_timeout_s)
+if QUERY_CONFIG.rerank_onnx_model_path:
+    os.environ["RERANK_ONNX_MODEL_PATH"] = QUERY_CONFIG.rerank_onnx_model_path
+else:
+    os.environ.pop("RERANK_ONNX_MODEL_PATH", None)
 os.environ["SEARCH_GROUP_BY_ENABLED"] = (
     "1" if QUERY_CONFIG.search_group_by_enabled else "0"
 )
@@ -124,6 +168,12 @@ os.environ["SEARCH_WHY_ENABLED"] = "1" if QUERY_CONFIG.search_why_enabled else "
 os.environ["SEARCH_TYPED_ERRORS_ENABLED"] = (
     "1" if QUERY_CONFIG.search_typed_errors_enabled else "0"
 )
+os.environ["QUERY_FUSION_RRF_K"] = str(QUERY_CONFIG.query_fusion_rrf_k)
+if QUERY_CONFIG.query_fusion_weights:
+    os.environ["QUERY_FUSION_WEIGHTS"] = QUERY_CONFIG.query_fusion_weights
+else:
+    os.environ.pop("QUERY_FUSION_WEIGHTS", None)
+os.environ["QUERY_FUSION_WEIGHT_VERSION"] = QUERY_CONFIG.query_fusion_weight_version
 
 
 @dataclass
@@ -182,6 +232,56 @@ apply_cors_middleware(app)
 add_correlation_id_middleware(app)
 
 
+@app.exception_handler(RequestValidationError)
+async def _request_validation_exception_handler(
+    request: Request,
+    exc: RequestValidationError,
+):
+    if not _typed_errors_enabled():
+        return JSONResponse(status_code=422, content={"detail": exc.errors()})
+    details: list[dict[str, object]] = []
+    for err in exc.errors():
+        location = ".".join(str(part) for part in err.get("loc", []))
+        details.append(
+            {
+                "field": location or "request",
+                "reason": str(err.get("type", "validation_error")),
+                "expected": None,
+                "actual": err.get("input"),
+            }
+        )
+    return JSONResponse(
+        status_code=422,
+        content=_typed_error_payload(
+            code="VALIDATION_ERROR",
+            message="Request validation failed",
+            details=details or None,
+        ),
+    )
+
+
+@app.exception_handler(HTTPException)
+async def _http_exception_handler(request: Request, exc: HTTPException):
+    if not _typed_errors_enabled():
+        return JSONResponse(status_code=exc.status_code, content={"detail": exc.detail})
+
+    detail = exc.detail
+    if isinstance(detail, dict) and "error" in detail:
+        error_payload = detail.get("error")
+        if isinstance(error_payload, dict) and "details" not in error_payload:
+            error_payload["details"] = []
+        return JSONResponse(status_code=exc.status_code, content=detail)
+
+    message = str(detail) if detail is not None else "Request failed"
+    return JSONResponse(
+        status_code=exc.status_code,
+        content=_typed_error_payload(
+            code=_error_code_for_status(exc.status_code),
+            message=message,
+        ),
+    )
+
+
 def _graph_root_uri() -> str:
     graph_bucket, graph_prefix = _graph_settings()
     return graph_root(normalize_bucket_uri(graph_bucket, scheme="gs"), graph_prefix)
@@ -210,6 +310,22 @@ def _manifest_count(metadata: dict | None) -> int | None:
     if isinstance(manifest_uris, list):
         return len({str(uri) for uri in manifest_uris})
     return None
+
+
+def _snapshot_marker() -> str:
+    metadata = STATE.metadata or {}
+    for key in (
+        "manifest_fingerprint",
+        "snapshot_manifest_count",
+        "manifest_count",
+        "snapshot_uri",
+    ):
+        value = metadata.get(key)
+        if value not in {None, ""}:
+            return str(value)
+    if STATE.loaded_at:
+        return STATE.loaded_at.isoformat()
+    return "unknown"
 
 
 def _rbac_enabled() -> bool:
@@ -776,15 +892,13 @@ async def query(
             max_image_base64_bytes=QUERY_CONFIG.max_image_base64_bytes,
         )
     except QueryValidationError as exc:
-        raise HTTPException(status_code=exc.status_code, detail=exc.detail) from exc
-    if (
-        not payload.query_text
-        and not payload.image_base64
-        and search_type != "metadata"
-    ):
         raise HTTPException(
-            status_code=400,
-            detail="query_text or image_base64 is required",
+            status_code=exc.status_code,
+            detail=_typed_error_payload(
+                code=exc.code,
+                message=exc.detail,
+                details=exc.details or None,
+            ),
         )
 
     rate_limit_modality = _rate_limit_modality(
@@ -849,10 +963,17 @@ async def query(
     except InferenceTimeoutError as exc:
         raise HTTPException(status_code=504, detail=str(exc)) from exc
     except QueryValidationError as exc:
-        raise HTTPException(status_code=exc.status_code, detail=exc.detail) from exc
+        raise HTTPException(
+            status_code=exc.status_code,
+            detail=_typed_error_payload(
+                code=exc.code,
+                message=exc.detail,
+                details=exc.details or None,
+            ),
+        ) from exc
 
     trimmed = _apply_privacy_redaction(
-        results=results[: payload.top_k],
+        results=results,
         base_uri=_graph_root_uri(),
         scope=scope,
         is_admin=bool(auth_context and auth_context.is_admin),
@@ -922,7 +1043,22 @@ async def query(
                 "timings": timings,
             },
         )
-    return build_query_response(trimmed, payload.top_k)
+    try:
+        return build_query_response(
+            trimmed,
+            payload=payload,
+            snapshot_marker=_snapshot_marker(),
+            trace_id=trace_id,
+        )
+    except QueryValidationError as exc:
+        raise HTTPException(
+            status_code=exc.status_code,
+            detail=_typed_error_payload(
+                code=exc.code,
+                message=exc.detail,
+                details=exc.details or None,
+            ),
+        ) from exc
 
 
 @app.post("/admin/reload-snapshot", response_model=HealthResponse)

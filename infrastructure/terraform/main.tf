@@ -10,24 +10,24 @@ locals {
   api_gateway_openapi = templatefile(
     "${path.module}/apigateway/retikon-gateway.yaml.tmpl",
     {
-      api_title    = "Retikon API Gateway"
-      api_version  = "1.0.0"
-      jwt_issuer   = var.auth_issuer
-      jwt_audience = var.auth_audience
-      jwt_jwks_uri = var.auth_jwks_uri
-      query_url    = google_cloud_run_service.query.status[0].url
-      audit_url    = google_cloud_run_service.audit.status[0].url
-      workflow_url = google_cloud_run_service.workflow.status[0].url
-      chaos_url    = google_cloud_run_service.chaos.status[0].url
-      privacy_url  = google_cloud_run_service.privacy.status[0].url
-      fleet_url    = google_cloud_run_service.fleet.status[0].url
+      api_title        = "Retikon API Gateway"
+      api_version      = "1.0.0"
+      jwt_issuer       = var.auth_issuer
+      jwt_audience     = var.auth_audience
+      jwt_jwks_uri     = var.auth_jwks_uri
+      query_url        = google_cloud_run_service.query.status[0].url
+      audit_url        = google_cloud_run_service.audit.status[0].url
+      workflow_url     = google_cloud_run_service.workflow.status[0].url
+      chaos_url        = google_cloud_run_service.chaos.status[0].url
+      privacy_url      = google_cloud_run_service.privacy.status[0].url
+      fleet_url        = google_cloud_run_service.fleet.status[0].url
       data_factory_url = google_cloud_run_service.data_factory.status[0].url
-      webhook_url  = google_cloud_run_service.webhook.status[0].url
-      dev_console_url = google_cloud_run_service.dev_console.status[0].url
+      webhook_url      = google_cloud_run_service.webhook.status[0].url
+      dev_console_url  = google_cloud_run_service.dev_console.status[0].url
       edge_gateway_url = google_cloud_run_service.edge_gateway.status[0].url
     }
   )
-  api_gateway_invoker = "serviceAccount:${data.google_project.project.number}-compute@developer.gserviceaccount.com"
+  api_gateway_invoker            = "serviceAccount:${data.google_project.project.number}-compute@developer.gserviceaccount.com"
   dev_console_cors_allow_origins = var.dev_console_cors_allow_origins != "" ? var.dev_console_cors_allow_origins : var.cors_allow_origins
 }
 
@@ -607,10 +607,10 @@ resource "google_firestore_database" "default" {
 }
 
 locals {
-  ops_report_root = "gs://${google_storage_bucket.graph.name}/${var.graph_prefix}/audit/ops"
-  ops_guardrails_output = "${local.ops_report_root}/derived-bytes/latest.json"
+  ops_report_root         = "gs://${google_storage_bucket.graph.name}/${var.graph_prefix}/audit/ops"
+  ops_guardrails_output   = "${local.ops_report_root}/derived-bytes/latest.json"
   ops_guardrails_baseline = "${local.ops_report_root}/derived-bytes/baseline.json"
-  ops_cost_rollup_output = "${local.ops_report_root}/cost-rollups/latest.jsonl"
+  ops_cost_rollup_output  = "${local.ops_report_root}/cost-rollups/latest.jsonl"
   notification_channels = concat(
     var.alert_notification_channels,
     [for channel in google_monitoring_notification_channel.email : channel.name]
@@ -1591,8 +1591,32 @@ resource "google_cloud_run_service" "query" {
           value = tostring(var.rerank_doc_max_tokens)
         }
         env {
+          name  = "RERANK_MIN_CANDIDATES"
+          value = tostring(var.rerank_min_candidates)
+        }
+        env {
+          name  = "RERANK_MAX_TOTAL_CHARS"
+          value = tostring(var.rerank_max_total_chars)
+        }
+        env {
+          name  = "RERANK_SKIP_SCORE_GAP"
+          value = tostring(var.rerank_skip_score_gap)
+        }
+        env {
+          name  = "RERANK_SKIP_MIN_SCORE"
+          value = tostring(var.rerank_skip_min_score)
+        }
+        env {
           name  = "RERANK_TIMEOUT_S"
           value = tostring(var.rerank_timeout_s)
+        }
+        env {
+          name  = "MODEL_INFERENCE_RERANK_TIMEOUT_S"
+          value = tostring(var.rerank_timeout_s)
+        }
+        env {
+          name  = "RERANK_ONNX_MODEL_PATH"
+          value = var.rerank_onnx_model_path
         }
         env {
           name  = "SEARCH_GROUP_BY_ENABLED"
@@ -1613,6 +1637,18 @@ resource "google_cloud_run_service" "query" {
         env {
           name  = "SEARCH_TYPED_ERRORS_ENABLED"
           value = var.search_typed_errors_enabled ? "1" : "0"
+        }
+        env {
+          name  = "QUERY_FUSION_RRF_K"
+          value = tostring(var.query_fusion_rrf_k)
+        }
+        env {
+          name  = "QUERY_FUSION_WEIGHTS"
+          value = var.query_fusion_weights
+        }
+        env {
+          name  = "QUERY_FUSION_WEIGHT_VERSION"
+          value = var.query_fusion_weight_version
         }
         env {
           name  = "QUERY_DEFAULT_MODALITIES"
@@ -2047,8 +2083,32 @@ resource "google_cloud_run_service" "query_gpu" {
           value = tostring(var.rerank_doc_max_tokens)
         }
         env {
+          name  = "RERANK_MIN_CANDIDATES"
+          value = tostring(var.rerank_min_candidates)
+        }
+        env {
+          name  = "RERANK_MAX_TOTAL_CHARS"
+          value = tostring(var.rerank_max_total_chars)
+        }
+        env {
+          name  = "RERANK_SKIP_SCORE_GAP"
+          value = tostring(var.rerank_skip_score_gap)
+        }
+        env {
+          name  = "RERANK_SKIP_MIN_SCORE"
+          value = tostring(var.rerank_skip_min_score)
+        }
+        env {
           name  = "RERANK_TIMEOUT_S"
           value = tostring(var.rerank_timeout_s)
+        }
+        env {
+          name  = "MODEL_INFERENCE_RERANK_TIMEOUT_S"
+          value = tostring(var.rerank_timeout_s)
+        }
+        env {
+          name  = "RERANK_ONNX_MODEL_PATH"
+          value = var.rerank_onnx_model_path
         }
         env {
           name  = "SEARCH_GROUP_BY_ENABLED"
@@ -2069,6 +2129,18 @@ resource "google_cloud_run_service" "query_gpu" {
         env {
           name  = "SEARCH_TYPED_ERRORS_ENABLED"
           value = var.search_typed_errors_enabled ? "1" : "0"
+        }
+        env {
+          name  = "QUERY_FUSION_RRF_K"
+          value = tostring(var.query_fusion_rrf_k)
+        }
+        env {
+          name  = "QUERY_FUSION_WEIGHTS"
+          value = var.query_fusion_weights
+        }
+        env {
+          name  = "QUERY_FUSION_WEIGHT_VERSION"
+          value = var.query_fusion_weight_version
         }
         env {
           name  = "QUERY_DEFAULT_MODALITIES"
@@ -4238,7 +4310,7 @@ resource "google_api_gateway_api_config" "retikon" {
   count    = var.enable_api_gateway ? 1 : 0
   provider = google-beta
 
-  api                = google_api_gateway_api.retikon[0].api_id
+  api                  = google_api_gateway_api.retikon[0].api_id
   api_config_id_prefix = var.api_gateway_config_name
 
   openapi_documents {
@@ -6624,7 +6696,7 @@ resource "google_monitoring_dashboard" "ops" {
               xyChart = {
                 dataSets = [
                   {
-                    plotType = "LINE"
+                    plotType       = "LINE"
                     legendTemplate = "p50"
                     timeSeriesQuery = {
                       timeSeriesFilter = {
@@ -6638,7 +6710,7 @@ resource "google_monitoring_dashboard" "ops" {
                     }
                   },
                   {
-                    plotType = "LINE"
+                    plotType       = "LINE"
                     legendTemplate = "p95"
                     timeSeriesQuery = {
                       timeSeriesFilter = {
@@ -6652,7 +6724,7 @@ resource "google_monitoring_dashboard" "ops" {
                     }
                   },
                   {
-                    plotType = "LINE"
+                    plotType       = "LINE"
                     legendTemplate = "p99"
                     timeSeriesQuery = {
                       timeSeriesFilter = {
@@ -6689,7 +6761,7 @@ resource "google_monitoring_dashboard" "ops" {
                         filter = "resource.type=\"pubsub_subscription\" AND resource.labels.subscription_id=\"${var.ingest_dlq_subscription_name}\" AND metric.type=\"pubsub.googleapis.com/subscription/num_undelivered_messages\""
                         aggregation = {
                           alignmentPeriod    = "60s"
-                              perSeriesAligner   = "ALIGN_PERCENTILE_95"
+                          perSeriesAligner   = "ALIGN_PERCENTILE_95"
                           crossSeriesReducer = "REDUCE_MAX"
                         }
                       }
@@ -6713,7 +6785,7 @@ resource "google_monitoring_dashboard" "ops" {
               xyChart = {
                 dataSets = [
                   {
-                    plotType = "LINE"
+                    plotType       = "LINE"
                     legendTemplate = "2xx"
                     timeSeriesQuery = {
                       timeSeriesFilter = {
@@ -6727,7 +6799,7 @@ resource "google_monitoring_dashboard" "ops" {
                     }
                   },
                   {
-                    plotType = "LINE"
+                    plotType       = "LINE"
                     legendTemplate = "4xx"
                     timeSeriesQuery = {
                       timeSeriesFilter = {
@@ -6741,7 +6813,7 @@ resource "google_monitoring_dashboard" "ops" {
                     }
                   },
                   {
-                    plotType = "LINE"
+                    plotType       = "LINE"
                     legendTemplate = "5xx"
                     timeSeriesQuery = {
                       timeSeriesFilter = {
@@ -6772,7 +6844,7 @@ resource "google_monitoring_dashboard" "ops" {
               xyChart = {
                 dataSets = [
                   {
-                    plotType = "LINE"
+                    plotType       = "LINE"
                     legendTemplate = "2xx"
                     timeSeriesQuery = {
                       timeSeriesFilter = {
@@ -6786,7 +6858,7 @@ resource "google_monitoring_dashboard" "ops" {
                     }
                   },
                   {
-                    plotType = "LINE"
+                    plotType       = "LINE"
                     legendTemplate = "4xx"
                     timeSeriesQuery = {
                       timeSeriesFilter = {
@@ -6800,7 +6872,7 @@ resource "google_monitoring_dashboard" "ops" {
                     }
                   },
                   {
-                    plotType = "LINE"
+                    plotType       = "LINE"
                     legendTemplate = "5xx"
                     timeSeriesQuery = {
                       timeSeriesFilter = {
@@ -6831,7 +6903,7 @@ resource "google_monitoring_dashboard" "ops" {
               xyChart = {
                 dataSets = [
                   {
-                    plotType = "LINE"
+                    plotType       = "LINE"
                     legendTemplate = "p50"
                     timeSeriesQuery = {
                       timeSeriesFilter = {
@@ -6845,7 +6917,7 @@ resource "google_monitoring_dashboard" "ops" {
                     }
                   },
                   {
-                    plotType = "LINE"
+                    plotType       = "LINE"
                     legendTemplate = "p95"
                     timeSeriesQuery = {
                       timeSeriesFilter = {
@@ -6859,7 +6931,7 @@ resource "google_monitoring_dashboard" "ops" {
                     }
                   },
                   {
-                    plotType = "LINE"
+                    plotType       = "LINE"
                     legendTemplate = "p99"
                     timeSeriesQuery = {
                       timeSeriesFilter = {
@@ -6920,7 +6992,7 @@ resource "google_monitoring_dashboard" "ops" {
               xyChart = {
                 dataSets = [
                   {
-                    plotType = "LINE"
+                    plotType       = "LINE"
                     legendTemplate = "query"
                     timeSeriesQuery = {
                       timeSeriesFilter = {
@@ -6934,7 +7006,7 @@ resource "google_monitoring_dashboard" "ops" {
                     }
                   },
                   {
-                    plotType = "LINE"
+                    plotType       = "LINE"
                     legendTemplate = "ingest"
                     timeSeriesQuery = {
                       timeSeriesFilter = {
@@ -6965,7 +7037,7 @@ resource "google_monitoring_dashboard" "ops" {
               xyChart = {
                 dataSets = [
                   {
-                    plotType = "LINE"
+                    plotType       = "LINE"
                     legendTemplate = "query"
                     timeSeriesQuery = {
                       timeSeriesFilter = {
@@ -6979,7 +7051,7 @@ resource "google_monitoring_dashboard" "ops" {
                     }
                   },
                   {
-                    plotType = "LINE"
+                    plotType       = "LINE"
                     legendTemplate = "ingest"
                     timeSeriesQuery = {
                       timeSeriesFilter = {
@@ -7010,7 +7082,7 @@ resource "google_monitoring_dashboard" "ops" {
               xyChart = {
                 dataSets = [
                   {
-                    plotType = "LINE"
+                    plotType       = "LINE"
                     legendTemplate = "query"
                     timeSeriesQuery = {
                       timeSeriesFilter = {
@@ -7024,7 +7096,7 @@ resource "google_monitoring_dashboard" "ops" {
                     }
                   },
                   {
-                    plotType = "LINE"
+                    plotType       = "LINE"
                     legendTemplate = "ingest"
                     timeSeriesQuery = {
                       timeSeriesFilter = {
@@ -7055,7 +7127,7 @@ resource "google_monitoring_dashboard" "ops" {
               xyChart = {
                 dataSets = [
                   {
-                    plotType = "LINE"
+                    plotType       = "LINE"
                     legendTemplate = "$${metric.label.modality} p50"
                     timeSeriesQuery = {
                       timeSeriesFilter = {
@@ -7070,7 +7142,7 @@ resource "google_monitoring_dashboard" "ops" {
                     }
                   },
                   {
-                    plotType = "LINE"
+                    plotType       = "LINE"
                     legendTemplate = "$${metric.label.modality} p95"
                     timeSeriesQuery = {
                       timeSeriesFilter = {
@@ -7102,7 +7174,7 @@ resource "google_monitoring_dashboard" "ops" {
               xyChart = {
                 dataSets = [
                   {
-                    plotType = "LINE"
+                    plotType       = "LINE"
                     legendTemplate = "$${metric.label.modality}"
                     timeSeriesQuery = {
                       timeSeriesFilter = {
@@ -7134,7 +7206,7 @@ resource "google_monitoring_dashboard" "ops" {
               xyChart = {
                 dataSets = [
                   {
-                    plotType = "LINE"
+                    plotType       = "LINE"
                     legendTemplate = "decode_ms"
                     timeSeriesQuery = {
                       timeSeriesFilter = {
@@ -7148,7 +7220,7 @@ resource "google_monitoring_dashboard" "ops" {
                     }
                   },
                   {
-                    plotType = "LINE"
+                    plotType       = "LINE"
                     legendTemplate = "embed_text_ms"
                     timeSeriesQuery = {
                       timeSeriesFilter = {
@@ -7162,7 +7234,7 @@ resource "google_monitoring_dashboard" "ops" {
                     }
                   },
                   {
-                    plotType = "LINE"
+                    plotType       = "LINE"
                     legendTemplate = "embed_image_ms"
                     timeSeriesQuery = {
                       timeSeriesFilter = {
@@ -7176,7 +7248,7 @@ resource "google_monitoring_dashboard" "ops" {
                     }
                   },
                   {
-                    plotType = "LINE"
+                    plotType       = "LINE"
                     legendTemplate = "embed_audio_ms"
                     timeSeriesQuery = {
                       timeSeriesFilter = {
@@ -7190,7 +7262,7 @@ resource "google_monitoring_dashboard" "ops" {
                     }
                   },
                   {
-                    plotType = "LINE"
+                    plotType       = "LINE"
                     legendTemplate = "transcribe_ms"
                     timeSeriesQuery = {
                       timeSeriesFilter = {
@@ -7204,7 +7276,7 @@ resource "google_monitoring_dashboard" "ops" {
                     }
                   },
                   {
-                    plotType = "LINE"
+                    plotType       = "LINE"
                     legendTemplate = "write_parquet_ms"
                     timeSeriesQuery = {
                       timeSeriesFilter = {
@@ -7218,7 +7290,7 @@ resource "google_monitoring_dashboard" "ops" {
                     }
                   },
                   {
-                    plotType = "LINE"
+                    plotType       = "LINE"
                     legendTemplate = "write_manifest_ms"
                     timeSeriesQuery = {
                       timeSeriesFilter = {

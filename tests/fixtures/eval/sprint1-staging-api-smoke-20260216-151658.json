@@ -1,0 +1,38 @@
+{
+  "checks": [
+    {
+      "check": "basic_query_200",
+      "ok": true,
+      "status": 200
+    },
+    {
+      "check": "response_has_meta",
+      "ok": true,
+      "status": 200
+    },
+    {
+      "check": "next_page_token_present",
+      "ok": true,
+      "status": 200
+    },
+    {
+      "check": "grouping_present",
+      "ok": true,
+      "status": 200
+    },
+    {
+      "body": {
+        "error": {
+          "code": "UNSUPPORTED_MODE",
+          "message": "Unsupported mode: bogus"
+        }
+      },
+      "check": "typed_error_shape",
+      "ok": false,
+      "status": 400
+    }
+  ],
+  "passed": 4,
+  "query_url": "https://retikon-query-staging-yt27ougp4q-uc.a.run.app/query",
+  "total": 5
+}

@@ -1,6 +1,6 @@
 # Parity API Contract v1
 
-Status: draft baseline for Sprint 1 implementation.
+Status: active for Sprint 1 implementation.
 Version: `v1`.
 
 This contract defines the platform-facing behavior for Search, Embed, Tasks,
@@ -63,9 +63,10 @@ Guaranteed system fields:
   `start_ms`, `end_ms`
 
 Custom fields:
-- `metadata.<key>` (mapped to control-plane metadata namespace)
-  - resolved by control-plane metadata lookup to an `asset_id` allowlist, then
-    applied in DuckDB filtering
+- `metadata.<key>` namespace is reserved for control-plane metadata filters.
+- Runtime v1 behavior:
+  - returns `UNSUPPORTED_MODE` unless a metadata resolver is configured.
+  - system-field filters remain fully supported.
 
 Validation behavior:
 - unknown field/op/type returns `400` with structured error details.

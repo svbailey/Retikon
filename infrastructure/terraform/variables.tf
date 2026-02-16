@@ -541,7 +541,7 @@ variable "query_warmup_text" {
 
 variable "query_warmup_steps" {
   type    = string
-  default = "text,image_text,audio_text,image"
+  default = "text,image_text,audio_text,image,rerank"
 }
 
 variable "query_trace_hitlists" {
@@ -561,7 +561,7 @@ variable "rerank_enabled" {
 
 variable "rerank_model_name" {
   type    = string
-  default = "BAAI/bge-reranker-large"
+  default = "cross-encoder/ms-marco-MiniLM-L-6-v2"
 }
 
 variable "rerank_backend" {
@@ -571,27 +571,52 @@ variable "rerank_backend" {
 
 variable "rerank_top_n" {
   type    = number
-  default = 100
+  default = 20
 }
 
 variable "rerank_batch_size" {
   type    = number
-  default = 16
+  default = 8
 }
 
 variable "rerank_query_max_tokens" {
   type    = number
-  default = 64
+  default = 32
 }
 
 variable "rerank_doc_max_tokens" {
   type    = number
-  default = 256
+  default = 128
+}
+
+variable "rerank_min_candidates" {
+  type    = number
+  default = 2
+}
+
+variable "rerank_max_total_chars" {
+  type    = number
+  default = 6000
+}
+
+variable "rerank_skip_score_gap" {
+  type    = number
+  default = 1.0
+}
+
+variable "rerank_skip_min_score" {
+  type    = number
+  default = 0.7
 }
 
 variable "rerank_timeout_s" {
   type    = number
   default = 2.0
+}
+
+variable "rerank_onnx_model_path" {
+  type    = string
+  default = ""
 }
 
 variable "search_group_by_enabled" {
@@ -617,6 +642,21 @@ variable "search_why_enabled" {
 variable "search_typed_errors_enabled" {
   type    = bool
   default = true
+}
+
+variable "query_fusion_rrf_k" {
+  type    = number
+  default = 60
+}
+
+variable "query_fusion_weights" {
+  type    = string
+  default = ""
+}
+
+variable "query_fusion_weight_version" {
+  type    = string
+  default = "v1"
 }
 
 variable "query_default_modalities" {
