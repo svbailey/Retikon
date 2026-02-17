@@ -4,6 +4,7 @@ from pathlib import Path
 
 import pytest
 
+from retikon_core.query_engine import query_runner
 from retikon_core.query_engine.query_runner import (
     QueryResult,
     fuse_results,
@@ -299,3 +300,198 @@ def test_rerank_text_candidates_respects_total_char_budget(monkeypatch):
 
     rerank_text_candidates(query_text="hello", results=rows)
     assert len(captured_docs) == 2
+
+
+def test_id_like_query_heuristic_avoids_plain_text():
+    assert query_runner._is_id_like_query("INV-2026-001") is True
+    assert query_runner._is_id_like_query("error code 500") is False
+    assert query_runner._is_id_like_query("video query") is False
+
+
+def test_search_by_text_merges_fts_hits_for_id_like_query(monkeypatch):
+    class DummyConn:
+        def close(self) -> None:
+            return None
+
+    def fake_query_rows(_conn, sql, _params):
+        if "fts_main_doc_chunks.match_bm25" in sql:
+            return [
+                (
+                    "gs://raw/images/id.jpg",
+                    "image",
+                    "asset-1",
+                    "INV-2026-001",
+                    "chunk-1",
+                    "image",
+                    None,
+                    2.5,
+                )
+            ]
+        if "FROM doc_chunks d" in sql:
+            return []
+        if "FROM transcripts t" in sql:
+            return []
+        if "FROM image_assets i" in sql:
+            return []
+        if "FROM audio_clips a" in sql:
+            return []
+        return []
+
+    monkeypatch.setattr(query_runner, "_connect", lambda *_args, **_kwargs: DummyConn())
+    monkeypatch.setattr(query_runner, "_table_has_column", lambda *_args, **_kwargs: True)
+    monkeypatch.setattr(query_runner, "_query_rows", fake_query_rows)
+    monkeypatch.setattr(query_runner, "_cached_text_vector", lambda _text: [0.0])
+    monkeypatch.setattr(query_runner, "_fts_enabled", lambda: True)
+
+    results = search_by_text(
+        snapshot_path="/tmp/retikon-sprint2-test.duckdb",
+        query_text="INV-2026-001",
+        top_k=5,
+        modalities=["document"],
+    )
+
+    assert len(results) == 1
+    assert results[0].modality == "ocr"
+    assert results[0].why
+    assert results[0].why[0]["reason"] == "fts_hit"
+
+
+def test_search_by_text_audio_segments_merge_adjacent_hits(monkeypatch):
+    class DummyConn:
+        def close(self) -> None:
+            return None
+
+    def fake_has_column(_conn, table, column):
+        if table == "audio_segments" and column in {
+            "clap_embedding",
+            "id",
+            "start_ms",
+            "end_ms",
+        }:
+            return True
+        return False
+
+    def fake_query_rows(_conn, sql, _params):
+        if "FROM audio_segments a" in sql:
+            return [
+                ("gs://raw/a.wav", "audio", "asset-a", 0, 5000, "seg-a-1", 0.2),
+                ("gs://raw/a.wav", "audio", "asset-a", 5000, 10000, "seg-a-2", 0.21),
+                ("gs://raw/b.wav", "audio", "asset-b", 0, 5000, "seg-b-1", 0.1),
+            ]
+        return []
+
+    monkeypatch.setattr(query_runner, "_connect", lambda *_args, **_kwargs: DummyConn())
+    monkeypatch.setattr(query_runner, "_table_has_column", fake_has_column)
+    monkeypatch.setattr(query_runner, "_query_rows", fake_query_rows)
+    monkeypatch.setattr(query_runner, "_cached_audio_text_vector", lambda _text: [0.0])
+    monkeypatch.setenv("AUDIO_SEGMENT_MERGE_GAP_MS", "500")
+
+    results = search_by_text(
+        snapshot_path="/tmp/retikon-sprint3-test.duckdb",
+        query_text="alarm sound",
+        top_k=5,
+        modalities=["audio"],
+    )
+
+    assert len(results) == 2
+    merged = next(item for item in results if item.media_asset_id == "asset-a")
+    assert merged.start_ms == 0
+    assert merged.end_ms == 10000
+    assert any(
+        item.get("source") == "audio_segment_merge" for item in merged.why
+    )
+
+
+def test_search_by_text_audio_segments_not_dropped_when_filling_with_audio_clips(monkeypatch):
+    class DummyConn:
+        def close(self) -> None:
+            return None
+
+    def fake_has_column(_conn, table, column):
+        if table == "audio_segments" and column in {
+            "clap_embedding",
+            "id",
+            "start_ms",
+            "end_ms",
+        }:
+            return True
+        if table == "audio_clips" and column in {"clap_embedding"}:
+            return True
+        return False
+
+    def fake_query_rows(_conn, sql, _params):
+        if "FROM audio_segments a" in sql:
+            # Distance is intentionally high so score is low; this segment should still
+            # be preserved when audio clips are used to fill top_k.
+            return [("gs://raw/seg.wav", "audio", "asset-seg", 0, 5000, "seg-1", 0.9)]
+        if "FROM audio_clips a" in sql:
+            return [
+                ("gs://raw/clip1.wav", "audio", "asset-1", None, None, "asset-1", 0.0),
+                ("gs://raw/clip2.wav", "audio", "asset-2", None, None, "asset-2", 0.0),
+                ("gs://raw/clip3.wav", "audio", "asset-3", None, None, "asset-3", 0.0),
+                ("gs://raw/clip4.wav", "audio", "asset-4", None, None, "asset-4", 0.0),
+                ("gs://raw/clip5.wav", "audio", "asset-5", None, None, "asset-5", 0.0),
+            ]
+        return []
+
+    monkeypatch.setattr(query_runner, "_connect", lambda *_args, **_kwargs: DummyConn())
+    monkeypatch.setattr(query_runner, "_table_has_column", fake_has_column)
+    monkeypatch.setattr(query_runner, "_query_rows", fake_query_rows)
+    monkeypatch.setattr(query_runner, "_cached_audio_text_vector", lambda _text: [0.0])
+
+    results = search_by_text(
+        snapshot_path="/tmp/retikon-sprint3-test.duckdb",
+        query_text="alarm sound",
+        top_k=5,
+        modalities=["audio"],
+    )
+
+    assert len(results) == 5
+    assert any(item.primary_evidence_id == "seg-1" for item in results)
+    segment = next(item for item in results if item.primary_evidence_id == "seg-1")
+    assert segment.start_ms == 0
+    assert segment.end_ms == 5000
+
+
+def test_search_by_text_audio_segments_fallback_to_audio_clips(monkeypatch):
+    class DummyConn:
+        def close(self) -> None:
+            return None
+
+    def fake_has_column(_conn, table, column):
+        if table == "audio_segments" and column in {
+            "clap_embedding",
+            "id",
+            "start_ms",
+            "end_ms",
+        }:
+            return True
+        if table == "audio_clips" and column in {"clap_embedding"}:
+            return True
+        return False
+
+    def fake_query_rows(_conn, sql, _params):
+        if "FROM audio_segments a" in sql:
+            return []
+        if "FROM audio_clips a" in sql:
+            return [("gs://raw/legacy.wav", "audio", "asset-legacy", None, None, "clip-1", 0.2)]
+        return []
+
+    monkeypatch.setattr(query_runner, "_connect", lambda *_args, **_kwargs: DummyConn())
+    monkeypatch.setattr(query_runner, "_table_has_column", fake_has_column)
+    monkeypatch.setattr(query_runner, "_query_rows", fake_query_rows)
+    monkeypatch.setattr(query_runner, "_cached_audio_text_vector", lambda _text: [0.0])
+
+    trace: dict[str, float | int | str] = {}
+    results = search_by_text(
+        snapshot_path="/tmp/retikon-sprint3-test.duckdb",
+        query_text="alarm sound",
+        top_k=5,
+        modalities=["audio"],
+        trace=trace,
+    )
+
+    assert len(results) == 1
+    assert results[0].media_asset_id == "asset-legacy"
+    assert results[0].source_type == "audio"
+    assert trace["audio_clip_fallback_rows"] == 1

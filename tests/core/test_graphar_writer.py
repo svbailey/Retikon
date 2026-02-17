@@ -116,6 +116,22 @@ def test_write_parquet_roundtrip(tmp_path):
             },
         ),
         ("AudioClip", "vector", {"clap_embedding": _vector(512)}),
+        (
+            "AudioSegment",
+            "core",
+            {
+                "id": "audio-seg-1",
+                "media_asset_id": "media-4",
+                "start_ms": 0,
+                "end_ms": 500,
+                "embedding_model": "clap",
+                "embedding_backend": "hf",
+                "embedding_artifact": "hf:laion/clap-htsat-fused",
+                "pipeline_version": "v2.5",
+                "schema_version": "1",
+            },
+        ),
+        ("AudioSegment", "vector", {"clap_embedding": _vector(512)}),
     ]
 
     for entity, file_kind, row in cases:

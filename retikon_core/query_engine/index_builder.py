@@ -159,6 +159,7 @@ _TABLE_BY_VERTEX: dict[str, str] = {
     "Transcript": "transcripts",
     "ImageAsset": "image_assets",
     "AudioClip": "audio_clips",
+    "AudioSegment": "audio_segments",
     "MediaAsset": "media_assets",
 }
 
@@ -549,10 +550,136 @@ def _append_table_from_select(
     )
     conn.execute(f"DROP TABLE IF EXISTS {temp_table}")
     conn.execute(create_temp_sql)
-    conn.execute(f"INSERT INTO {table} SELECT * FROM {temp_table}")
+    _align_table_columns(conn, target=table, source=temp_table)
+    _reconcile_table_column_types(conn, target=table, source=temp_table)
+    target_columns = [name for name, _ in _table_columns_with_types(conn, table)]
+    source_column_set = {
+        name for name, _ in _table_columns_with_types(conn, temp_table)
+    }
+    insert_columns = ", ".join(_quote_ident(name) for name in target_columns)
+    select_columns = ", ".join(
+        _quote_ident(name)
+        if name in source_column_set
+        else f"NULL AS {_quote_ident(name)}"
+        for name in target_columns
+    )
+    conn.execute(
+        f"INSERT INTO {table} ({insert_columns}) "
+        f"SELECT {select_columns} FROM {temp_table}"
+    )
     row = conn.execute(f"SELECT COUNT(*) FROM {table}").fetchone()
     conn.execute(f"DROP TABLE {temp_table}")
     return int(row[0]) if row is not None else 0
+
+
+def _quote_ident(name: str) -> str:
+    return '"' + name.replace('"', '""') + '"'
+
+
+def _table_columns_with_types(
+    conn: duckdb.DuckDBPyConnection,
+    table: str,
+) -> list[tuple[str, str]]:
+    rows = conn.execute(f"PRAGMA table_info('{table}')").fetchall()
+    return [(str(row[1]), str(row[2])) for row in rows]
+
+
+def _align_table_columns(
+    conn: duckdb.DuckDBPyConnection,
+    *,
+    target: str,
+    source: str,
+) -> None:
+    target_columns = {
+        name: dtype for name, dtype in _table_columns_with_types(conn, target)
+    }
+    for name, dtype in _table_columns_with_types(conn, source):
+        if name in target_columns:
+            continue
+        conn.execute(
+            f"ALTER TABLE {target} ADD COLUMN {_quote_ident(name)} {dtype}"
+        )
+
+
+_INTEGER_TYPE_ORDER: dict[str, int] = {
+    "TINYINT": 1,
+    "UTINYINT": 1,
+    "SMALLINT": 2,
+    "USMALLINT": 2,
+    "INTEGER": 3,
+    "UINTEGER": 3,
+    "BIGINT": 4,
+    "UBIGINT": 4,
+    "HUGEINT": 5,
+    "UHUGEINT": 5,
+}
+
+
+def _base_duckdb_type(dtype: str) -> str:
+    token = dtype.strip().upper()
+    token = token.split("[", 1)[0]
+    token = token.split("(", 1)[0]
+    return token
+
+
+def _is_integer_type(dtype: str) -> bool:
+    return _base_duckdb_type(dtype) in _INTEGER_TYPE_ORDER
+
+
+def _is_textual_type(dtype: str) -> bool:
+    base = _base_duckdb_type(dtype)
+    return base in {"VARCHAR", "TEXT", "STRING", "UUID"} or base.startswith("CHAR")
+
+
+def _promoted_column_type(target_type: str, source_type: str) -> str | None:
+    target_base = _base_duckdb_type(target_type)
+    source_base = _base_duckdb_type(source_type)
+    if target_base == source_base:
+        return None
+    # Legacy snapshots may store reference ids as integers while new ingests
+    # write UUID/string identifiers.
+    if _is_integer_type(target_type) and _is_textual_type(source_type):
+        return "VARCHAR"
+    if _is_integer_type(target_type) and _is_integer_type(source_type):
+        target_rank = _INTEGER_TYPE_ORDER.get(target_base, 0)
+        source_rank = _INTEGER_TYPE_ORDER.get(source_base, 0)
+        if source_rank > target_rank:
+            return source_base
+    return None
+
+
+def _reconcile_table_column_types(
+    conn: duckdb.DuckDBPyConnection,
+    *,
+    target: str,
+    source: str,
+) -> None:
+    target_types = {
+        name: dtype for name, dtype in _table_columns_with_types(conn, target)
+    }
+    source_types = {
+        name: dtype for name, dtype in _table_columns_with_types(conn, source)
+    }
+    for name, source_type in source_types.items():
+        target_type = target_types.get(name)
+        if target_type is None:
+            continue
+        promoted = _promoted_column_type(target_type, source_type)
+        if not promoted:
+            continue
+        conn.execute(
+            f"ALTER TABLE {target} ALTER COLUMN {_quote_ident(name)} TYPE {promoted}"
+        )
+        logger.info(
+            "Promoted incremental column type.",
+            extra={
+                "table": target,
+                "column": name,
+                "from_type": target_type,
+                "to_type": promoted,
+                "source_type": source_type,
+            },
+        )
 
 
 def _file_size_bytes(path: str) -> int:
@@ -986,7 +1113,22 @@ def build_snapshot(
         settings = _apply_duckdb_settings(conn, work_dir)
         if settings:
             logger.info("DuckDB settings applied.", extra=settings)
-        extensions = load_extensions(conn, ("httpfs", "vss"), allow_install)
+        extensions = list(load_extensions(conn, ("httpfs", "vss"), allow_install))
+        if os.getenv("QUERY_FTS_ENABLED", "1").strip().lower() in {
+            "1",
+            "true",
+            "yes",
+            "on",
+        }:
+            try:
+                load_extensions(conn, ("fts",), allow_install)
+            except Exception as exc:
+                logger.warning(
+                    "DuckDB optional extension load failed",
+                    extra={"extension": "fts", "error_message": str(exc)},
+                )
+            else:
+                extensions.append("fts")
         provider = load_duckdb_auth_provider()
         context = DuckDBAuthContext(
             uris=tuple(uri for uri in (base_uri, source_uri) if uri),
@@ -1106,14 +1248,70 @@ def build_snapshot(
             ]
             conn.execute(
                 f"""
-                CREATE TEMP VIEW doc_chunk_core AS
-                SELECT m.group_id,
-                       c.file_row_number AS row_number,
-                       c.media_asset_id
+                CREATE TEMP TABLE doc_chunk_core_raw AS
+                SELECT *
                 FROM read_parquet({_sql_list(core_files)},
                                   filename=true,
                                   file_row_number=true,
                                   union_by_name=true) AS c
+                """
+            )
+            has_doc_id = _table_has_column(conn, "doc_chunk_core_raw", "id")
+            has_chunk_index = _table_has_column(conn, "doc_chunk_core_raw", "chunk_index")
+            has_source_type = _table_has_column(conn, "doc_chunk_core_raw", "source_type")
+            has_source_ref_id = _table_has_column(conn, "doc_chunk_core_raw", "source_ref_id")
+            has_source_time_ms = _table_has_column(conn, "doc_chunk_core_raw", "source_time_ms")
+            has_ocr_conf_avg = _table_has_column(conn, "doc_chunk_core_raw", "ocr_conf_avg")
+            if has_doc_id:
+                doc_id_expr = "CAST(c.id AS VARCHAR)"
+            elif has_chunk_index:
+                doc_id_expr = (
+                    "CAST(c.media_asset_id AS VARCHAR) || ':doc:' || "
+                    "COALESCE(CAST(c.chunk_index AS VARCHAR), CAST(c.file_row_number AS VARCHAR))"
+                )
+            else:
+                doc_id_expr = (
+                    "CAST(c.media_asset_id AS VARCHAR) || ':doc:' || "
+                    "CAST(c.file_row_number AS VARCHAR)"
+                )
+            source_type_expr = (
+                "COALESCE(c.source_type, 'document')"
+                if has_source_type
+                else "'document'"
+            )
+            source_ref_expr = (
+                "c.source_ref_id"
+                if has_source_ref_id
+                else "NULL"
+            )
+            source_time_expr = (
+                "c.source_time_ms"
+                if has_source_time_ms
+                else "NULL"
+            )
+            ocr_conf_expr = (
+                "c.ocr_conf_avg"
+                if has_ocr_conf_avg
+                else "NULL"
+            )
+            chunk_index_expr = (
+                "c.chunk_index"
+                if has_chunk_index
+                else "CAST(c.file_row_number AS BIGINT)"
+            )
+            conn.execute(
+                f"""
+                CREATE TEMP VIEW doc_chunk_core AS
+                SELECT m.group_id,
+                       c.file_row_number AS row_number,
+                       {doc_id_expr} AS id,
+                       c.media_asset_id,
+                       {chunk_index_expr} AS chunk_index,
+                       {source_type_expr} AS source_type,
+                       {source_ref_expr} AS source_ref_id,
+                       {source_time_expr} AS source_time_ms,
+                       {ocr_conf_expr} AS ocr_conf_avg
+                FROM doc_chunk_core_raw AS c
                 JOIN doc_chunk_map m
                   ON {_filename_basename_sql('c.filename')} = m.core
                 """
@@ -1151,8 +1349,13 @@ def build_snapshot(
         )
         doc_chunks_create_sql = """
                 CREATE TABLE doc_chunks AS
-                SELECT core.media_asset_id,
+                SELECT core.id,
+                       core.media_asset_id,
                        text.content,
+                       core.source_type,
+                       core.source_ref_id,
+                       core.source_time_ms,
+                       CAST(core.ocr_conf_avg AS INTEGER) AS ocr_conf_avg,
                        CAST(vector.text_vector AS FLOAT[768]) AS text_vector
                 FROM doc_chunk_core AS core
                 JOIN doc_chunk_text AS text
@@ -1164,8 +1367,13 @@ def build_snapshot(
                 """
         doc_chunks_empty_sql = """
                 CREATE TABLE doc_chunks (
+                  id VARCHAR,
                   media_asset_id VARCHAR,
                   content VARCHAR,
+                  source_type VARCHAR,
+                  source_ref_id VARCHAR,
+                  source_time_ms BIGINT,
+                  ocr_conf_avg INTEGER,
                   text_vector FLOAT[768]
                 )
                 """
@@ -1534,6 +1742,137 @@ def build_snapshot(
             )
         tables["audio_clips"] = {"rows": audio_rows}
 
+        audio_segment_groups = [
+            group
+            for group in groups.get("AudioSegment", [])
+            if group.core and group.vector
+        ]
+        if audio_segment_groups:
+            conn.execute(
+                "CREATE TEMP TABLE audio_segment_map "
+                "(group_id INTEGER, core VARCHAR, vector VARCHAR)"
+            )
+            conn.executemany(
+                "INSERT INTO audio_segment_map VALUES (?, ?, ?)",
+                [
+                    (
+                        group.group_id,
+                        _uri_basename(group.core),
+                        _uri_basename(group.vector),
+                    )
+                    for group in audio_segment_groups
+                ],
+            )
+            core_files = [
+                group.core for group in audio_segment_groups if group.core is not None
+            ]
+            vector_files = [
+                group.vector
+                for group in audio_segment_groups
+                if group.vector is not None
+            ]
+            conn.execute(
+                f"""
+                CREATE TEMP TABLE audio_segment_core_raw AS
+                SELECT *
+                FROM read_parquet({_sql_list(core_files)},
+                                  filename=true,
+                                  file_row_number=true,
+                                  union_by_name=true) AS c
+                """
+            )
+            has_segment_id = _table_has_column(conn, "audio_segment_core_raw", "id")
+            has_start_ms = _table_has_column(conn, "audio_segment_core_raw", "start_ms")
+            has_end_ms = _table_has_column(conn, "audio_segment_core_raw", "end_ms")
+            segment_id_expr = (
+                "c.id"
+                if has_segment_id
+                else "CAST(c.media_asset_id AS VARCHAR) || ':audio_segment:' || "
+                "COALESCE(CAST(c.start_ms AS VARCHAR), '0')"
+            )
+            start_ms_expr = "c.start_ms" if has_start_ms else "0"
+            end_ms_expr = "c.end_ms" if has_end_ms else start_ms_expr
+            conn.execute(
+                f"""
+                CREATE TEMP VIEW audio_segment_core AS
+                SELECT m.group_id,
+                       c.file_row_number AS row_number,
+                       {segment_id_expr} AS id,
+                       c.media_asset_id,
+                       {start_ms_expr} AS start_ms,
+                       {end_ms_expr} AS end_ms
+                FROM audio_segment_core_raw AS c
+                JOIN audio_segment_map m
+                  ON {_filename_basename_sql('c.filename')} = m.core
+                """
+            )
+            conn.execute(
+                f"""
+                CREATE TEMP VIEW audio_segment_vector AS
+                SELECT m.group_id,
+                       v.file_row_number AS row_number,
+                       v.clap_embedding
+                FROM read_parquet({_sql_list(vector_files)},
+                                  filename=true,
+                                  file_row_number=true,
+                                  union_by_name=true) AS v
+                JOIN audio_segment_map m
+                  ON {_filename_basename_sql('v.filename')} = m.vector
+                """
+            )
+        audio_segment_source = TableSource(
+            core=[
+                group.core
+                for group in audio_segment_groups
+                if group.core is not None
+            ]
+        )
+        audio_segment_create_sql = """
+                CREATE TABLE audio_segments AS
+                SELECT core.id,
+                       core.media_asset_id,
+                       core.start_ms,
+                       core.end_ms,
+                       CAST(vector.clap_embedding AS FLOAT[512]) AS clap_embedding
+                FROM audio_segment_core AS core
+                JOIN audio_segment_vector AS vector
+                  ON core.group_id = vector.group_id
+                 AND core.row_number = vector.row_number
+                """
+        audio_segment_empty_sql = """
+                CREATE TABLE audio_segments (
+                  id VARCHAR,
+                  media_asset_id VARCHAR,
+                  start_ms BIGINT,
+                  end_ms BIGINT,
+                  clap_embedding FLOAT[512]
+                )
+                """
+        if incremental_mode:
+            audio_segment_rows = _create_table_from_base(
+                conn,
+                "audio_segments",
+                audio_segment_empty_sql,
+            )
+            appended_rows = _append_table_from_select(
+                conn,
+                "audio_segments",
+                audio_segment_source,
+                audio_segment_create_sql,
+            )
+            if appended_rows:
+                audio_segment_rows = appended_rows
+        else:
+            audio_segment_rows = _create_table(
+                conn,
+                "audio_segments",
+                audio_segment_source,
+                audio_segment_create_sql,
+                audio_segment_empty_sql,
+                [],
+            )
+        tables["audio_segments"] = {"rows": audio_segment_rows}
+
         conn.execute("CHECKPOINT")
         apply_deltas_seconds = round(time.monotonic() - apply_deltas_start, 2)
 
@@ -1542,6 +1881,7 @@ def build_snapshot(
             ("transcripts_text_embedding", "transcripts", "text_embedding", 768),
             ("image_assets_clip_vector", "image_assets", "clip_vector", 512),
             ("audio_clips_clap_embedding", "audio_clips", "clap_embedding", 512),
+            ("audio_segments_clap_embedding", "audio_segments", "clap_embedding", 512),
         ]
 
         indexes: dict[str, dict[str, Any]] = {}
@@ -1582,6 +1922,42 @@ def build_snapshot(
             hnsw_build_seconds += index_seconds
             index_size_delta_bytes += size_delta
             prev_size = new_size
+
+        if os.getenv("QUERY_FTS_ENABLED", "1").strip().lower() in {
+            "1",
+            "true",
+            "yes",
+            "on",
+        }:
+            if _table_has_column(conn, "doc_chunks", "id") and _table_has_column(
+                conn,
+                "doc_chunks",
+                "content",
+            ):
+                fts_start = time.monotonic()
+                try:
+                    conn.execute(
+                        "PRAGMA create_fts_index('doc_chunks', 'id', 'content', overwrite=1)"
+                    )
+                    conn.execute("CHECKPOINT")
+                except duckdb.Error as exc:
+                    logger.warning(
+                        "FTS index build skipped",
+                        extra={"error_message": str(exc)},
+                    )
+                else:
+                    fts_seconds = round(time.monotonic() - fts_start, 2)
+                    new_size = _file_size_bytes(str(db_path))
+                    size_delta = max(0, new_size - prev_size)
+                    indexes["doc_chunks_content_fts"] = {
+                        "table": "doc_chunks",
+                        "column": "content",
+                        "type": "fts",
+                        "size_bytes": size_delta,
+                        "build_seconds": fts_seconds,
+                    }
+                    index_size_delta_bytes += size_delta
+                    prev_size = new_size
 
         build_vectors_seconds = round(time.monotonic() - build_vectors_start, 2)
 

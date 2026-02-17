@@ -17,6 +17,10 @@ def test_docchunk_schema_split():
         "token_start",
         "token_end",
         "token_count",
+        "source_type",
+        "source_ref_id",
+        "source_time_ms",
+        "ocr_conf_avg",
         "embedding_model",
         "embedding_backend",
         "embedding_artifact",
@@ -45,11 +49,18 @@ def test_vector_lengths():
     assert "embedding_backend" in audio_core.names
     assert "embedding_artifact" in audio_core.names
 
+    audio_segment_core = schema_for("AudioSegment", "core")
+    assert "embedding_backend" in audio_segment_core.names
+    assert "embedding_artifact" in audio_segment_core.names
+
     clip_vector = schema_for("ImageAsset", "vector").field("clip_vector")
     assert clip_vector.type.list_size == 512
 
     clap_vector = schema_for("AudioClip", "vector").field("clap_embedding")
     assert clap_vector.type.list_size == 512
+
+    segment_vector = schema_for("AudioSegment", "vector").field("clap_embedding")
+    assert segment_vector.type.list_size == 512
 
 
 def test_schema_merge_union():

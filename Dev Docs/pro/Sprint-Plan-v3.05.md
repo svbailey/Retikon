@@ -324,6 +324,43 @@ Acceptance
 - OCR hits return `highlight_text` and `why[]` includes FTS evidence when applicable.
 - Queries remain safe for older ingests with no OCR rows (no backfill).
 
+Sprint 2 implementation evidence (2026-02-16)
+- Runtime implemented:
+  - OCR image/keyframe extraction with confidence and text-length filtering
+    (`retikon_core/ingestion/ocr.py`,
+    `retikon_core/ingestion/pipelines/image.py`,
+    `retikon_core/ingestion/pipelines/video.py`)
+  - OCR snippets persisted as `DocChunk` rows with source metadata
+    (`source_type`, `source_ref_id`, `source_time_ms`, `ocr_conf_avg`)
+    via `retikon_core/schemas/graphar/DocChunk/prefix.yml`
+  - Query-time OCR classification and ID-like FTS/BM25 merge path with
+    `why[].reason=fts_hit`
+    (`retikon_core/query_engine/query_runner.py`)
+  - Optional DuckDB `fts` extension load/build path for warm start and index build
+    (`retikon_core/query_engine/warm_start.py`,
+    `retikon_core/query_engine/index_builder.py`)
+  - Source-aware filtering support for `source_type`, `asset_id`, and time-range
+    filters (`retikon_core/services/query_service_core.py`)
+- Config/IaC wired:
+  - OCR/FTS env config parsing (`retikon_core/config.py`,
+    `retikon_core/embeddings/timeout.py`)
+  - Terraform vars/env wiring (`infrastructure/terraform/variables.tf`,
+    `infrastructure/terraform/main.tf`,
+    `infrastructure/terraform/terraform.tfvars.example`,
+    `infrastructure/terraform/terraform.tfvars.staging`)
+- Test coverage added/updated:
+  - `tests/core/test_ocr.py`
+  - `tests/core/test_image_pipeline.py`
+  - `tests/core/test_audio_video_pipeline.py`
+  - `tests/core/test_query_runner.py`
+  - `tests/core/test_query_service_core.py`
+  - `tests/core/test_graphar_schemas.py`
+- Validation:
+  - full repository suite passed:
+    `256 passed, 17 skipped` (`pytest -q`)
+  - sprint-targeted suites passed:
+    `52 passed` across OCR/image/video/query/index schema tests
+
 ## Sprint 3: Windowed CLAP Audio Segments + Audio UX (Parity P1 Sound Moments)
 
 Goal: Enable timestamped audio search with clean user-facing moments.
@@ -349,6 +386,12 @@ Acceptance
 - Audio queries return precise `start_ms/end_ms` for new ingests.
 - Silence filtering reduces segment counts on real audio workloads.
 - Adjacent-hit merge produces clean moments (no overlapping-window spam).
+
+Sprint 3 acceptance evidence (2026-02-17)
+- Staging ingest metrics (silence gating): `tests/fixtures/eval/sprint3-staging-audio-seg-ingest-metrics-20260217-115121.json`
+- Staging audio query smoke (AudioSegment `start_ms/end_ms` present): `tests/fixtures/eval/sprint3-staging-audio-query-smoke-20260217-131158.json`
+- Staging eval run: `tests/fixtures/eval/results-sprint3-staging-20260217-131227.json`
+- Local tests: `262 passed, 17 skipped` (`pytest -q`)
 
 ## Sprint 4: Vision Encoder v2 (SigLIP2) + Image Query Parity (P1)
 

@@ -7,6 +7,7 @@ import pytest
 
 from retikon_core.config import get_config
 from retikon_core.errors import PermanentError, RecoverableError
+from retikon_core.ingestion.ocr import OcrImageResult
 from retikon_core.ingestion.media import AudioAnalysis, FrameInfo
 from retikon_core.ingestion.pipelines import audio as audio_pipeline
 from retikon_core.ingestion.pipelines import video as video_pipeline
@@ -35,6 +36,7 @@ def test_audio_pipeline_writes_graphar(tmp_path, monkeypatch):
     from retikon_core import config as config_module
 
     monkeypatch.setenv("AUDIO_VAD_ENABLED", "0")
+    monkeypatch.setenv("AUDIO_VAD_SILENCE_DB", "-120")
     config_module.get_config.cache_clear()
     config = get_config()
     fixture = Path("tests/fixtures/sample.wav")
@@ -84,6 +86,7 @@ def test_audio_pipeline_writes_graphar(tmp_path, monkeypatch):
     )
 
     assert result.counts["AudioClip"] == 1
+    assert result.counts["AudioSegment"] >= 1
 
     payload = json.loads(Path(result.manifest_uri).read_text(encoding="utf-8"))
     files = [item["uri"] for item in payload.get("files", [])]
@@ -92,11 +95,15 @@ def test_audio_pipeline_writes_graphar(tmp_path, monkeypatch):
         uri for uri in files if "vertices/Transcript/core" in uri
     )
     audio_core_uri = next(uri for uri in files if "vertices/AudioClip/core" in uri)
+    audio_segment_core_uri = next(
+        uri for uri in files if "vertices/AudioSegment/core" in uri
+    )
     edge_uri = next(uri for uri in files if "edges/DerivedFrom/adj_list" in uri)
 
     media_table = pq.read_table(media_uri)
     transcript_table = pq.read_table(transcript_core_uri)
     audio_table = pq.read_table(audio_core_uri)
+    audio_segment_table = pq.read_table(audio_segment_core_uri)
     edge_table = pq.read_table(edge_uri)
 
     for value in media_table.column("id").to_pylist():
@@ -115,6 +122,14 @@ def test_audio_pipeline_writes_graphar(tmp_path, monkeypatch):
         assert _is_uuid4(value)
     assert set(audio_table.column("embedding_backend").to_pylist()) == {"stub"}
     assert set(audio_table.column("embedding_artifact").to_pylist()) == {
+        "stub:deterministic"
+    }
+    for value in audio_segment_table.column("id").to_pylist():
+        assert _is_uuid4(value)
+    for value in audio_segment_table.column("media_asset_id").to_pylist():
+        assert _is_uuid4(value)
+    assert set(audio_segment_table.column("embedding_backend").to_pylist()) == {"stub"}
+    assert set(audio_segment_table.column("embedding_artifact").to_pylist()) == {
         "stub:deterministic"
     }
     for value in edge_table.column("src_id").to_pylist():
@@ -492,6 +507,7 @@ def test_audio_skip_normalize_for_wav(tmp_path, monkeypatch):
     from retikon_core import config as config_module
 
     monkeypatch.setenv("AUDIO_SKIP_NORMALIZE_IF_WAV", "1")
+    monkeypatch.setenv("AUDIO_VAD_SILENCE_DB", "-120")
     config_module.get_config.cache_clear()
     config = config_module.get_config()
     fixture = Path("tests/fixtures/sample.wav")
@@ -540,6 +556,7 @@ def test_audio_skip_normalize_for_wav(tmp_path, monkeypatch):
     )
 
     assert result.counts["AudioClip"] == 1
+    assert result.counts["AudioSegment"] >= 1
 
 
 def test_audio_duration_cap(monkeypatch):
@@ -616,6 +633,7 @@ def test_video_pipeline_writes_graphar(tmp_path, monkeypatch):
     from retikon_core import config as config_module
 
     monkeypatch.setenv("AUDIO_VAD_ENABLED", "0")
+    monkeypatch.setenv("AUDIO_VAD_SILENCE_DB", "-120")
     config_module.get_config.cache_clear()
     config = get_config()
     video_fixture = Path("tests/fixtures/sample.mp4")
@@ -676,6 +694,7 @@ def test_video_pipeline_writes_graphar(tmp_path, monkeypatch):
     )
 
     assert result.counts["ImageAsset"] == 2
+    assert result.counts["AudioSegment"] >= 1
 
     payload = json.loads(Path(result.manifest_uri).read_text(encoding="utf-8"))
     files = [item["uri"] for item in payload.get("files", [])]
@@ -685,12 +704,16 @@ def test_video_pipeline_writes_graphar(tmp_path, monkeypatch):
         uri for uri in files if "vertices/Transcript/core" in uri
     )
     audio_core_uri = next(uri for uri in files if "vertices/AudioClip/core" in uri)
+    audio_segment_core_uri = next(
+        uri for uri in files if "vertices/AudioSegment/core" in uri
+    )
     edge_uri = next(uri for uri in files if "edges/DerivedFrom/adj_list" in uri)
 
     media_table = pq.read_table(media_uri)
     image_table = pq.read_table(image_core_uri)
     transcript_table = pq.read_table(transcript_core_uri)
     audio_table = pq.read_table(audio_core_uri)
+    audio_segment_table = pq.read_table(audio_segment_core_uri)
     edge_table = pq.read_table(edge_uri)
 
     for value in media_table.column("id").to_pylist():
@@ -717,6 +740,14 @@ def test_video_pipeline_writes_graphar(tmp_path, monkeypatch):
         assert _is_uuid4(value)
     assert set(audio_table.column("embedding_backend").to_pylist()) == {"stub"}
     assert set(audio_table.column("embedding_artifact").to_pylist()) == {
+        "stub:deterministic"
+    }
+    for value in audio_segment_table.column("id").to_pylist():
+        assert _is_uuid4(value)
+    for value in audio_segment_table.column("media_asset_id").to_pylist():
+        assert _is_uuid4(value)
+    assert set(audio_segment_table.column("embedding_backend").to_pylist()) == {"stub"}
+    assert set(audio_segment_table.column("embedding_artifact").to_pylist()) == {
         "stub:deterministic"
     }
     for value in edge_table.column("src_id").to_pylist():
@@ -1097,3 +1128,97 @@ def test_video_frame_cap(monkeypatch, tmp_path):
 
     assert captured["fps"] == pytest.approx(0.2, rel=1e-3)
     assert result.counts["ImageAsset"] == 2
+
+
+def test_video_pipeline_writes_keyframe_ocr_docchunks(tmp_path, monkeypatch):
+    from retikon_core import config as config_module
+
+    monkeypatch.setenv("OCR_KEYFRAMES", "1")
+    monkeypatch.setenv("OCR_MAX_KEYFRAMES", "2")
+    monkeypatch.setenv("AUDIO_TRANSCRIBE", "0")
+    config_module.get_config.cache_clear()
+    config = config_module.get_config()
+    frame_fixture = Path("tests/fixtures/sample.jpg")
+
+    def fake_probe(_path):
+        return type(
+            "Probe",
+            (),
+            {
+                "duration_seconds": 1.0,
+                "has_audio": False,
+                "has_video": True,
+                "audio_sample_rate": None,
+                "audio_channels": None,
+                "video_width": 2,
+                "video_height": 2,
+                "frame_rate": 1.0,
+                "frame_count": 2,
+            },
+        )()
+
+    monkeypatch.setattr(video_pipeline, "probe_media", fake_probe)
+    monkeypatch.setattr(
+        video_pipeline,
+        "extract_keyframes",
+        lambda *args, **kwargs: [
+            FrameInfo(path=str(frame_fixture), timestamp_ms=0),
+            FrameInfo(path=str(frame_fixture), timestamp_ms=1000),
+        ],
+    )
+    monkeypatch.setattr(video_pipeline, "cleanup_tmp", lambda _path: None)
+
+    call_index = {"value": 0}
+
+    def fake_ocr(_image, **_kwargs):
+        if call_index["value"] == 0:
+            call_index["value"] += 1
+            return OcrImageResult(
+                text="BAY-12",
+                conf_avg=88,
+                kept_tokens=1,
+                raw_tokens=1,
+            )
+        call_index["value"] += 1
+        return OcrImageResult(
+            text="",
+            conf_avg=None,
+            kept_tokens=0,
+            raw_tokens=0,
+        )
+
+    monkeypatch.setattr(video_pipeline, "ocr_result_from_image", fake_ocr)
+
+    source = IngestSource(
+        bucket="test-raw",
+        name="raw/videos/ocr.mp4",
+        generation="1",
+        content_type="video/mp4",
+        size_bytes=1,
+        md5_hash=None,
+        crc32c=None,
+        local_path=str(Path("tests/fixtures/sample.mp4")),
+        uri_scheme="gs",
+    )
+    result = video_pipeline.ingest_video(
+        source=source,
+        config=config,
+        output_uri=tmp_path.as_posix(),
+        pipeline_version="v2.5",
+        schema_version="1",
+    )
+
+    payload = json.loads(Path(result.manifest_uri).read_text(encoding="utf-8"))
+    assert payload["counts"]["DocChunk"] == 1
+    files = [item["uri"] for item in payload.get("files", [])]
+    doc_core_uri = next(uri for uri in files if "vertices/DocChunk/core" in uri)
+    doc_text_uri = next(uri for uri in files if "vertices/DocChunk/text" in uri)
+
+    doc_core = pq.read_table(doc_core_uri)
+    doc_text = pq.read_table(doc_text_uri)
+    assert doc_text.column("content").to_pylist() == ["BAY-12"]
+    assert doc_core.column("source_type").to_pylist() == ["keyframe"]
+    assert doc_core.column("source_time_ms").to_pylist() == [0]
+    assert doc_core.column("source_ref_id").to_pylist()[0]
+
+    config_module.get_config.cache_clear()

@@ -659,6 +659,11 @@ variable "query_fusion_weight_version" {
   default = "v1"
 }
 
+variable "query_fts_enabled" {
+  type    = bool
+  default = true
+}
+
 variable "query_default_modalities" {
   type    = string
   default = "document,transcript,image,audio"
@@ -1428,6 +1433,21 @@ variable "audio_max_segments" {
   default = 0
 }
 
+variable "audio_segment_window_s" {
+  type    = number
+  default = 5
+}
+
+variable "audio_segment_hop_s" {
+  type    = number
+  default = 5
+}
+
+variable "audio_segment_max_segments" {
+  type    = number
+  default = 120
+}
+
 variable "max_frames_per_video" {
   type    = number
   default = 600
@@ -1471,6 +1491,41 @@ variable "chunk_target_tokens" {
 variable "chunk_overlap_tokens" {
   type    = number
   default = 50
+}
+
+variable "ocr_images" {
+  type    = bool
+  default = true
+}
+
+variable "ocr_keyframes" {
+  type    = bool
+  default = true
+}
+
+variable "ocr_max_keyframes" {
+  type    = number
+  default = 8
+}
+
+variable "ocr_timeout_s" {
+  type    = number
+  default = 2.0
+}
+
+variable "ocr_total_budget_ms" {
+  type    = number
+  default = 5000
+}
+
+variable "ocr_min_text_len" {
+  type    = number
+  default = 8
+}
+
+variable "ocr_min_confidence" {
+  type    = number
+  default = 60
 }
 
 variable "max_ingest_attempts" {

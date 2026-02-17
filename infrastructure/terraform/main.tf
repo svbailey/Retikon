@@ -1008,6 +1008,18 @@ resource "google_cloud_run_service" "ingestion" {
           value = tostring(var.audio_max_segments)
         }
         env {
+          name  = "AUDIO_SEGMENT_WINDOW_S"
+          value = tostring(var.audio_segment_window_s)
+        }
+        env {
+          name  = "AUDIO_SEGMENT_HOP_S"
+          value = tostring(var.audio_segment_hop_s)
+        }
+        env {
+          name  = "AUDIO_SEGMENT_MAX_SEGMENTS"
+          value = tostring(var.audio_segment_max_segments)
+        }
+        env {
           name  = "TRANSCRIBE_TIER"
           value = var.transcribe_tier
         }
@@ -1042,6 +1054,34 @@ resource "google_cloud_run_service" "ingestion" {
         env {
           name  = "CHUNK_OVERLAP_TOKENS"
           value = tostring(var.chunk_overlap_tokens)
+        }
+        env {
+          name  = "OCR_IMAGES"
+          value = var.ocr_images ? "1" : "0"
+        }
+        env {
+          name  = "OCR_KEYFRAMES"
+          value = var.ocr_keyframes ? "1" : "0"
+        }
+        env {
+          name  = "OCR_MAX_KEYFRAMES"
+          value = tostring(var.ocr_max_keyframes)
+        }
+        env {
+          name  = "OCR_TIMEOUT_S"
+          value = tostring(var.ocr_timeout_s)
+        }
+        env {
+          name  = "OCR_TOTAL_BUDGET_MS"
+          value = tostring(var.ocr_total_budget_ms)
+        }
+        env {
+          name  = "OCR_MIN_TEXT_LEN"
+          value = tostring(var.ocr_min_text_len)
+        }
+        env {
+          name  = "OCR_MIN_CONFIDENCE"
+          value = tostring(var.ocr_min_confidence)
         }
         env {
           name = "HF_TOKEN"
@@ -1457,6 +1497,34 @@ resource "google_cloud_run_service" "query" {
           value = tostring(var.chunk_overlap_tokens)
         }
         env {
+          name  = "OCR_IMAGES"
+          value = var.ocr_images ? "1" : "0"
+        }
+        env {
+          name  = "OCR_KEYFRAMES"
+          value = var.ocr_keyframes ? "1" : "0"
+        }
+        env {
+          name  = "OCR_MAX_KEYFRAMES"
+          value = tostring(var.ocr_max_keyframes)
+        }
+        env {
+          name  = "OCR_TIMEOUT_S"
+          value = tostring(var.ocr_timeout_s)
+        }
+        env {
+          name  = "OCR_TOTAL_BUDGET_MS"
+          value = tostring(var.ocr_total_budget_ms)
+        }
+        env {
+          name  = "OCR_MIN_TEXT_LEN"
+          value = tostring(var.ocr_min_text_len)
+        }
+        env {
+          name  = "OCR_MIN_CONFIDENCE"
+          value = tostring(var.ocr_min_confidence)
+        }
+        env {
           name = "HF_TOKEN"
           value_from {
             secret_key_ref {
@@ -1649,6 +1717,10 @@ resource "google_cloud_run_service" "query" {
         env {
           name  = "QUERY_FUSION_WEIGHT_VERSION"
           value = var.query_fusion_weight_version
+        }
+        env {
+          name  = "QUERY_FTS_ENABLED"
+          value = var.query_fts_enabled ? "1" : "0"
         }
         env {
           name  = "QUERY_DEFAULT_MODALITIES"
@@ -1941,6 +2013,34 @@ resource "google_cloud_run_service" "query_gpu" {
           value = tostring(var.chunk_overlap_tokens)
         }
         env {
+          name  = "OCR_IMAGES"
+          value = var.ocr_images ? "1" : "0"
+        }
+        env {
+          name  = "OCR_KEYFRAMES"
+          value = var.ocr_keyframes ? "1" : "0"
+        }
+        env {
+          name  = "OCR_MAX_KEYFRAMES"
+          value = tostring(var.ocr_max_keyframes)
+        }
+        env {
+          name  = "OCR_TIMEOUT_S"
+          value = tostring(var.ocr_timeout_s)
+        }
+        env {
+          name  = "OCR_TOTAL_BUDGET_MS"
+          value = tostring(var.ocr_total_budget_ms)
+        }
+        env {
+          name  = "OCR_MIN_TEXT_LEN"
+          value = tostring(var.ocr_min_text_len)
+        }
+        env {
+          name  = "OCR_MIN_CONFIDENCE"
+          value = tostring(var.ocr_min_confidence)
+        }
+        env {
           name  = "QUERY_TIER_OVERRIDE"
           value = "gpu"
         }
@@ -2141,6 +2241,10 @@ resource "google_cloud_run_service" "query_gpu" {
         env {
           name  = "QUERY_FUSION_WEIGHT_VERSION"
           value = var.query_fusion_weight_version
+        }
+        env {
+          name  = "QUERY_FTS_ENABLED"
+          value = var.query_fts_enabled ? "1" : "0"
         }
         env {
           name  = "QUERY_DEFAULT_MODALITIES"
@@ -2559,6 +2663,34 @@ resource "google_cloud_run_service" "workflow" {
           value = tostring(var.chunk_overlap_tokens)
         }
         env {
+          name  = "OCR_IMAGES"
+          value = var.ocr_images ? "1" : "0"
+        }
+        env {
+          name  = "OCR_KEYFRAMES"
+          value = var.ocr_keyframes ? "1" : "0"
+        }
+        env {
+          name  = "OCR_MAX_KEYFRAMES"
+          value = tostring(var.ocr_max_keyframes)
+        }
+        env {
+          name  = "OCR_TIMEOUT_S"
+          value = tostring(var.ocr_timeout_s)
+        }
+        env {
+          name  = "OCR_TOTAL_BUDGET_MS"
+          value = tostring(var.ocr_total_budget_ms)
+        }
+        env {
+          name  = "OCR_MIN_TEXT_LEN"
+          value = tostring(var.ocr_min_text_len)
+        }
+        env {
+          name  = "OCR_MIN_CONFIDENCE"
+          value = tostring(var.ocr_min_confidence)
+        }
+        env {
           name = "HF_TOKEN"
           value_from {
             secret_key_ref {
@@ -2777,6 +2909,34 @@ resource "google_cloud_run_service" "chaos" {
           value = tostring(var.chunk_overlap_tokens)
         }
         env {
+          name  = "OCR_IMAGES"
+          value = var.ocr_images ? "1" : "0"
+        }
+        env {
+          name  = "OCR_KEYFRAMES"
+          value = var.ocr_keyframes ? "1" : "0"
+        }
+        env {
+          name  = "OCR_MAX_KEYFRAMES"
+          value = tostring(var.ocr_max_keyframes)
+        }
+        env {
+          name  = "OCR_TIMEOUT_S"
+          value = tostring(var.ocr_timeout_s)
+        }
+        env {
+          name  = "OCR_TOTAL_BUDGET_MS"
+          value = tostring(var.ocr_total_budget_ms)
+        }
+        env {
+          name  = "OCR_MIN_TEXT_LEN"
+          value = tostring(var.ocr_min_text_len)
+        }
+        env {
+          name  = "OCR_MIN_CONFIDENCE"
+          value = tostring(var.ocr_min_confidence)
+        }
+        env {
           name  = "CHAOS_REQUIRE_ADMIN"
           value = var.chaos_require_admin ? "1" : "0"
         }
@@ -2959,6 +3119,34 @@ resource "google_cloud_run_service" "privacy" {
         env {
           name  = "CHUNK_OVERLAP_TOKENS"
           value = tostring(var.chunk_overlap_tokens)
+        }
+        env {
+          name  = "OCR_IMAGES"
+          value = var.ocr_images ? "1" : "0"
+        }
+        env {
+          name  = "OCR_KEYFRAMES"
+          value = var.ocr_keyframes ? "1" : "0"
+        }
+        env {
+          name  = "OCR_MAX_KEYFRAMES"
+          value = tostring(var.ocr_max_keyframes)
+        }
+        env {
+          name  = "OCR_TIMEOUT_S"
+          value = tostring(var.ocr_timeout_s)
+        }
+        env {
+          name  = "OCR_TOTAL_BUDGET_MS"
+          value = tostring(var.ocr_total_budget_ms)
+        }
+        env {
+          name  = "OCR_MIN_TEXT_LEN"
+          value = tostring(var.ocr_min_text_len)
+        }
+        env {
+          name  = "OCR_MIN_CONFIDENCE"
+          value = tostring(var.ocr_min_confidence)
         }
         env {
           name  = "PRIVACY_REQUIRE_ADMIN"
@@ -3145,6 +3333,34 @@ resource "google_cloud_run_service" "fleet" {
           value = tostring(var.chunk_overlap_tokens)
         }
         env {
+          name  = "OCR_IMAGES"
+          value = var.ocr_images ? "1" : "0"
+        }
+        env {
+          name  = "OCR_KEYFRAMES"
+          value = var.ocr_keyframes ? "1" : "0"
+        }
+        env {
+          name  = "OCR_MAX_KEYFRAMES"
+          value = tostring(var.ocr_max_keyframes)
+        }
+        env {
+          name  = "OCR_TIMEOUT_S"
+          value = tostring(var.ocr_timeout_s)
+        }
+        env {
+          name  = "OCR_TOTAL_BUDGET_MS"
+          value = tostring(var.ocr_total_budget_ms)
+        }
+        env {
+          name  = "OCR_MIN_TEXT_LEN"
+          value = tostring(var.ocr_min_text_len)
+        }
+        env {
+          name  = "OCR_MIN_CONFIDENCE"
+          value = tostring(var.ocr_min_confidence)
+        }
+        env {
           name  = "FLEET_REQUIRE_ADMIN"
           value = var.fleet_require_admin ? "1" : "0"
         }
@@ -3327,6 +3543,34 @@ resource "google_cloud_run_service" "data_factory" {
         env {
           name  = "CHUNK_OVERLAP_TOKENS"
           value = tostring(var.chunk_overlap_tokens)
+        }
+        env {
+          name  = "OCR_IMAGES"
+          value = var.ocr_images ? "1" : "0"
+        }
+        env {
+          name  = "OCR_KEYFRAMES"
+          value = var.ocr_keyframes ? "1" : "0"
+        }
+        env {
+          name  = "OCR_MAX_KEYFRAMES"
+          value = tostring(var.ocr_max_keyframes)
+        }
+        env {
+          name  = "OCR_TIMEOUT_S"
+          value = tostring(var.ocr_timeout_s)
+        }
+        env {
+          name  = "OCR_TOTAL_BUDGET_MS"
+          value = tostring(var.ocr_total_budget_ms)
+        }
+        env {
+          name  = "OCR_MIN_TEXT_LEN"
+          value = tostring(var.ocr_min_text_len)
+        }
+        env {
+          name  = "OCR_MIN_CONFIDENCE"
+          value = tostring(var.ocr_min_confidence)
         }
         env {
           name  = "DATA_FACTORY_REQUIRE_ADMIN"
@@ -3523,6 +3767,34 @@ resource "google_cloud_run_service" "webhook" {
         env {
           name  = "CHUNK_OVERLAP_TOKENS"
           value = tostring(var.chunk_overlap_tokens)
+        }
+        env {
+          name  = "OCR_IMAGES"
+          value = var.ocr_images ? "1" : "0"
+        }
+        env {
+          name  = "OCR_KEYFRAMES"
+          value = var.ocr_keyframes ? "1" : "0"
+        }
+        env {
+          name  = "OCR_MAX_KEYFRAMES"
+          value = tostring(var.ocr_max_keyframes)
+        }
+        env {
+          name  = "OCR_TIMEOUT_S"
+          value = tostring(var.ocr_timeout_s)
+        }
+        env {
+          name  = "OCR_TOTAL_BUDGET_MS"
+          value = tostring(var.ocr_total_budget_ms)
+        }
+        env {
+          name  = "OCR_MIN_TEXT_LEN"
+          value = tostring(var.ocr_min_text_len)
+        }
+        env {
+          name  = "OCR_MIN_CONFIDENCE"
+          value = tostring(var.ocr_min_confidence)
         }
         env {
           name  = "WEBHOOK_REQUIRE_ADMIN"
@@ -4181,6 +4453,34 @@ resource "google_cloud_run_service" "stream_ingest" {
           value = tostring(var.chunk_overlap_tokens)
         }
         env {
+          name  = "OCR_IMAGES"
+          value = var.ocr_images ? "1" : "0"
+        }
+        env {
+          name  = "OCR_KEYFRAMES"
+          value = var.ocr_keyframes ? "1" : "0"
+        }
+        env {
+          name  = "OCR_MAX_KEYFRAMES"
+          value = tostring(var.ocr_max_keyframes)
+        }
+        env {
+          name  = "OCR_TIMEOUT_S"
+          value = tostring(var.ocr_timeout_s)
+        }
+        env {
+          name  = "OCR_TOTAL_BUDGET_MS"
+          value = tostring(var.ocr_total_budget_ms)
+        }
+        env {
+          name  = "OCR_MIN_TEXT_LEN"
+          value = tostring(var.ocr_min_text_len)
+        }
+        env {
+          name  = "OCR_MIN_CONFIDENCE"
+          value = tostring(var.ocr_min_confidence)
+        }
+        env {
           name  = "MAX_INGEST_ATTEMPTS"
           value = tostring(var.max_ingest_attempts)
         }
@@ -4673,6 +4973,34 @@ resource "google_cloud_run_service" "ingestion_media" {
           value = tostring(var.chunk_overlap_tokens)
         }
         env {
+          name  = "OCR_IMAGES"
+          value = var.ocr_images ? "1" : "0"
+        }
+        env {
+          name  = "OCR_KEYFRAMES"
+          value = var.ocr_keyframes ? "1" : "0"
+        }
+        env {
+          name  = "OCR_MAX_KEYFRAMES"
+          value = tostring(var.ocr_max_keyframes)
+        }
+        env {
+          name  = "OCR_TIMEOUT_S"
+          value = tostring(var.ocr_timeout_s)
+        }
+        env {
+          name  = "OCR_TOTAL_BUDGET_MS"
+          value = tostring(var.ocr_total_budget_ms)
+        }
+        env {
+          name  = "OCR_MIN_TEXT_LEN"
+          value = tostring(var.ocr_min_text_len)
+        }
+        env {
+          name  = "OCR_MIN_CONFIDENCE"
+          value = tostring(var.ocr_min_confidence)
+        }
+        env {
           name  = "VIDEO_SCENE_THRESHOLD"
           value = tostring(var.video_scene_threshold)
         }
@@ -4715,6 +5043,18 @@ resource "google_cloud_run_service" "ingestion_media" {
         env {
           name  = "AUDIO_MAX_SEGMENTS"
           value = tostring(var.audio_max_segments)
+        }
+        env {
+          name  = "AUDIO_SEGMENT_WINDOW_S"
+          value = tostring(var.audio_segment_window_s)
+        }
+        env {
+          name  = "AUDIO_SEGMENT_HOP_S"
+          value = tostring(var.audio_segment_hop_s)
+        }
+        env {
+          name  = "AUDIO_SEGMENT_MAX_SEGMENTS"
+          value = tostring(var.audio_segment_max_segments)
         }
         env {
           name  = "TRANSCRIBE_TIER"
@@ -5206,6 +5546,34 @@ resource "google_cloud_run_service" "ingestion_embed" {
           value = tostring(var.chunk_overlap_tokens)
         }
         env {
+          name  = "OCR_IMAGES"
+          value = var.ocr_images ? "1" : "0"
+        }
+        env {
+          name  = "OCR_KEYFRAMES"
+          value = var.ocr_keyframes ? "1" : "0"
+        }
+        env {
+          name  = "OCR_MAX_KEYFRAMES"
+          value = tostring(var.ocr_max_keyframes)
+        }
+        env {
+          name  = "OCR_TIMEOUT_S"
+          value = tostring(var.ocr_timeout_s)
+        }
+        env {
+          name  = "OCR_TOTAL_BUDGET_MS"
+          value = tostring(var.ocr_total_budget_ms)
+        }
+        env {
+          name  = "OCR_MIN_TEXT_LEN"
+          value = tostring(var.ocr_min_text_len)
+        }
+        env {
+          name  = "OCR_MIN_CONFIDENCE"
+          value = tostring(var.ocr_min_confidence)
+        }
+        env {
           name  = "VIDEO_SCENE_THRESHOLD"
           value = tostring(var.video_scene_threshold)
         }
@@ -5248,6 +5616,18 @@ resource "google_cloud_run_service" "ingestion_embed" {
         env {
           name  = "AUDIO_MAX_SEGMENTS"
           value = tostring(var.audio_max_segments)
+        }
+        env {
+          name  = "AUDIO_SEGMENT_WINDOW_S"
+          value = tostring(var.audio_segment_window_s)
+        }
+        env {
+          name  = "AUDIO_SEGMENT_HOP_S"
+          value = tostring(var.audio_segment_hop_s)
+        }
+        env {
+          name  = "AUDIO_SEGMENT_MAX_SEGMENTS"
+          value = tostring(var.audio_segment_max_segments)
         }
         env {
           name  = "TRANSCRIBE_TIER"

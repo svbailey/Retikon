@@ -37,6 +37,9 @@ class Config:
     audio_profile: bool
     audio_skip_normalize_if_wav: bool
     audio_max_segments: int
+    audio_segment_window_s: float
+    audio_segment_hop_s: float
+    audio_segment_max_segments: int
     audio_vad_enabled: bool
     audio_vad_frame_ms: int
     audio_vad_silence_db: float
@@ -76,6 +79,13 @@ class Config:
     embedding_metadata_enabled: bool
     enable_ocr: bool
     ocr_max_pages: int
+    ocr_images: bool
+    ocr_keyframes: bool
+    ocr_max_keyframes: int
+    ocr_timeout_s: float
+    ocr_total_budget_ms: int
+    ocr_min_text_len: int
+    ocr_min_confidence: int
     default_org_id: str | None
     default_site_id: str | None
     default_stream_id: str | None
@@ -171,6 +181,18 @@ class Config:
             False,
         )
         audio_max_segments = int(os.getenv("AUDIO_MAX_SEGMENTS", "0"))
+        audio_segment_window_s = max(
+            0.1,
+            _parse_float(os.getenv("AUDIO_SEGMENT_WINDOW_S", "5")),
+        )
+        audio_segment_hop_s = max(
+            0.1,
+            _parse_float(os.getenv("AUDIO_SEGMENT_HOP_S", "5")),
+        )
+        audio_segment_max_segments = max(
+            1,
+            int(os.getenv("AUDIO_SEGMENT_MAX_SEGMENTS", "120")),
+        )
         audio_vad_enabled = _parse_bool(os.getenv("AUDIO_VAD_ENABLED"), True)
         audio_vad_frame_ms = int(os.getenv("AUDIO_VAD_FRAME_MS", "30"))
         audio_vad_silence_db = float(os.getenv("AUDIO_VAD_SILENCE_DB", "-45.0"))
@@ -269,6 +291,13 @@ class Config:
         )
         enable_ocr = os.getenv("ENABLE_OCR", "0") == "1"
         ocr_max_pages = int(os.getenv("OCR_MAX_PAGES", "5"))
+        ocr_images = _parse_bool(os.getenv("OCR_IMAGES"), True)
+        ocr_keyframes = _parse_bool(os.getenv("OCR_KEYFRAMES"), True)
+        ocr_max_keyframes = int(os.getenv("OCR_MAX_KEYFRAMES", "8"))
+        ocr_timeout_s = _parse_float(os.getenv("OCR_TIMEOUT_S", "2.0"))
+        ocr_total_budget_ms = int(os.getenv("OCR_TOTAL_BUDGET_MS", "5000"))
+        ocr_min_text_len = int(os.getenv("OCR_MIN_TEXT_LEN", "8"))
+        ocr_min_confidence = int(os.getenv("OCR_MIN_CONFIDENCE", "60"))
         default_org_id = os.getenv("DEFAULT_ORG_ID")
         default_site_id = os.getenv("DEFAULT_SITE_ID")
         default_stream_id = os.getenv("DEFAULT_STREAM_ID")
@@ -318,6 +347,9 @@ class Config:
             audio_profile=audio_profile,
             audio_skip_normalize_if_wav=audio_skip_normalize_if_wav,
             audio_max_segments=audio_max_segments,
+            audio_segment_window_s=audio_segment_window_s,
+            audio_segment_hop_s=audio_segment_hop_s,
+            audio_segment_max_segments=audio_segment_max_segments,
             audio_vad_enabled=audio_vad_enabled,
             audio_vad_frame_ms=audio_vad_frame_ms,
             audio_vad_silence_db=audio_vad_silence_db,
@@ -357,6 +389,13 @@ class Config:
             embedding_metadata_enabled=embedding_metadata_enabled,
             enable_ocr=enable_ocr,
             ocr_max_pages=ocr_max_pages,
+            ocr_images=ocr_images,
+            ocr_keyframes=ocr_keyframes,
+            ocr_max_keyframes=ocr_max_keyframes,
+            ocr_timeout_s=ocr_timeout_s,
+            ocr_total_budget_ms=ocr_total_budget_ms,
+            ocr_min_text_len=ocr_min_text_len,
+            ocr_min_confidence=ocr_min_confidence,
             default_org_id=default_org_id,
             default_site_id=default_site_id,
             default_stream_id=default_stream_id,

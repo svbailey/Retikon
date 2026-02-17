@@ -481,6 +481,8 @@ def _extract_filter_value(item: QueryResult, field: str) -> Any:
     if field == "asset_type":
         return item.media_type
     if field == "source_type":
+        if item.source_type:
+            return item.source_type
         return _canonical_modality(item.modality)
     if field == "start_ms":
         return item.start_ms

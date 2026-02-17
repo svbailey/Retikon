@@ -1,0 +1,50 @@
+version: 1
+name: AudioSegment
+entity: vertex
+path_prefix: vertices/AudioSegment
+files:
+  core: vertices/AudioSegment/core
+  vector: vertices/AudioSegment/vector
+primary_key: id
+fields:
+  - name: id
+    type: string
+    nullable: false
+  - name: media_asset_id
+    type: string
+    nullable: false
+  - name: org_id
+    type: string
+    nullable: true
+  - name: site_id
+    type: string
+    nullable: true
+  - name: stream_id
+    type: string
+    nullable: true
+  - name: start_ms
+    type: int64
+    nullable: false
+  - name: end_ms
+    type: int64
+    nullable: false
+  - name: embedding_model
+    type: string
+    nullable: false
+  - name: embedding_backend
+    type: string
+    nullable: true
+  - name: embedding_artifact
+    type: string
+    nullable: true
+  - name: pipeline_version
+    type: string
+    nullable: false
+  - name: schema_version
+    type: string
+    nullable: false
+  - name: clap_embedding
+    type: list<float32>
+    vector_length: 512
+    nullable: false
+    file: vector

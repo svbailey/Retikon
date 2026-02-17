@@ -93,7 +93,23 @@ def get_secure_connection(
     skip_healthcheck = os.getenv("DUCKDB_SKIP_HEALTHCHECK", "0") == "1"
 
     conn = duckdb.connect(database=":memory:")
-    extensions_loaded = load_extensions(conn, ("httpfs", "vss"), allow_install)
+    loaded_extensions = list(load_extensions(conn, ("httpfs", "vss"), allow_install))
+    if os.getenv("QUERY_FTS_ENABLED", "1").strip().lower() in {
+        "1",
+        "true",
+        "yes",
+        "on",
+    }:
+        try:
+            load_extensions(conn, ("fts",), allow_install)
+        except Exception as exc:
+            logger.warning(
+                "DuckDB optional extension load failed",
+                extra={"extension": "fts", "error_message": str(exc)},
+            )
+        else:
+            loaded_extensions.append("fts")
+    extensions_loaded = tuple(loaded_extensions)
     provider = load_duckdb_auth_provider()
     context = DuckDBAuthContext(
         uris=tuple(uri for uri in (healthcheck_uri,) if uri),

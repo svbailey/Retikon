@@ -98,6 +98,12 @@ def _write_doc_run(
     output_root: str,
     paths: GraphPaths,
     extra_core_column: bool = False,
+    *,
+    source_type: str | None = None,
+    source_ref_id: str | int | None = None,
+    source_time_ms: int | None = None,
+    ocr_conf_avg: int | None = None,
+    legacy_source_ref_int: bool = False,
 ) -> None:
     media_id = str(uuid.uuid4())
     media_row = _media_row(
@@ -120,8 +126,26 @@ def _write_doc_run(
         "pipeline_version": "test",
         "schema_version": "1",
     }
+    if source_type is not None:
+        chunk_core["source_type"] = source_type
+    if source_ref_id is not None:
+        chunk_core["source_ref_id"] = source_ref_id
+    if source_time_ms is not None:
+        chunk_core["source_time_ms"] = source_time_ms
+    if ocr_conf_avg is not None:
+        chunk_core["ocr_conf_avg"] = ocr_conf_avg
     chunk_text = {"content": "hello world"}
     chunk_vector = {"text_vector": _vector(768, 1.0)}
+
+    core_schema = schema_for("DocChunk", "core")
+    if legacy_source_ref_int:
+        legacy_fields: list[pa.Field] = []
+        for field in core_schema:
+            if field.name == "source_ref_id":
+                legacy_fields.append(pa.field("source_ref_id", pa.int32(), nullable=True))
+            else:
+                legacy_fields.append(field)
+        core_schema = pa.schema(legacy_fields)
 
     files = []
     files.append(
@@ -132,9 +156,7 @@ def _write_doc_run(
         )
     )
     if extra_core_column:
-        extra_schema = schema_for("DocChunk", "core").append(
-            pa.field("extra_col", pa.string(), nullable=True)
-        )
+        extra_schema = core_schema.append(pa.field("extra_col", pa.string(), nullable=True))
         files.append(
             write_parquet(
                 [dict(chunk_core, extra_col="extra")],
@@ -146,7 +168,7 @@ def _write_doc_run(
         files.append(
             write_parquet(
                 [chunk_core],
-                schema_for("DocChunk", "core"),
+                core_schema,
                 paths.vertex("DocChunk", "core", str(uuid.uuid4())),
             )
         )
@@ -283,6 +305,17 @@ def _write_audio_run(output_root: str, paths: GraphPaths) -> None:
         "schema_version": "1",
     }
     audio_vector = {"clap_embedding": _vector(512, 4.0)}
+    audio_segment_id = str(uuid.uuid4())
+    audio_segment_core = {
+        "id": audio_segment_id,
+        "media_asset_id": media_id,
+        "start_ms": 0,
+        "end_ms": 500,
+        "embedding_model": "stub",
+        "pipeline_version": "test",
+        "schema_version": "1",
+    }
+    audio_segment_vector = {"clap_embedding": _vector(512, 4.1)}
 
     files = []
     files.append(
@@ -329,9 +362,24 @@ def _write_audio_run(output_root: str, paths: GraphPaths) -> None:
     )
     files.append(
         write_parquet(
+            [audio_segment_core],
+            schema_for("AudioSegment", "core"),
+            paths.vertex("AudioSegment", "core", str(uuid.uuid4())),
+        )
+    )
+    files.append(
+        write_parquet(
+            [audio_segment_vector],
+            schema_for("AudioSegment", "vector"),
+            paths.vertex("AudioSegment", "vector", str(uuid.uuid4())),
+        )
+    )
+    files.append(
+        write_parquet(
             [
                 {"src_id": transcript_id, "dst_id": media_id, "schema_version": "1"},
                 {"src_id": audio_id, "dst_id": media_id, "schema_version": "1"},
+                {"src_id": audio_segment_id, "dst_id": media_id, "schema_version": "1"},
             ],
             schema_for("DerivedFrom", "adj_list"),
             edge_part_uri(output_root, "DerivedFrom", str(uuid.uuid4())),
@@ -340,7 +388,13 @@ def _write_audio_run(output_root: str, paths: GraphPaths) -> None:
     _write_manifest(
         output_root,
         files,
-        {"MediaAsset": 1, "Transcript": 1, "AudioClip": 1, "DerivedFrom": 2},
+        {
+            "MediaAsset": 1,
+            "Transcript": 1,
+            "AudioClip": 1,
+            "AudioSegment": 1,
+            "DerivedFrom": 3,
+        },
     )
 
 
@@ -378,6 +432,7 @@ def test_index_builder_creates_snapshot(tmp_path):
     assert report_payload["tables"]["transcripts"]["rows"] == 1
     assert report_payload["tables"]["image_assets"]["rows"] == 1
     assert report_payload["tables"]["audio_clips"]["rows"] == 1
+    assert report_payload["tables"]["audio_segments"]["rows"] == 1
     assert report_payload["manifest_count"] > 0
     assert report_payload["snapshot_manifest_count"] == report_payload["manifest_count"]
     assert report_payload["index_queue_length"] == 0
@@ -388,6 +443,7 @@ def test_index_builder_creates_snapshot(tmp_path):
         "transcripts_text_embedding": 768,
         "image_assets_clip_vector": 512,
         "audio_clips_clap_embedding": 512,
+        "audio_segments_clap_embedding": 512,
     }
     for index_name, dim in index_dims.items():
         info = report_payload["indexes"][index_name]
@@ -410,6 +466,7 @@ def test_index_builder_creates_snapshot(tmp_path):
     assert "transcripts_text_embedding" in index_names
     assert "image_assets_clip_vector" in index_names
     assert "audio_clips_clap_embedding" in index_names
+    assert "audio_segments_clap_embedding" in index_names
 
 
 def test_index_builder_parses_remote_uri():
@@ -543,6 +600,70 @@ def test_index_builder_incremental_appends(tmp_path):
     assert report.tables["doc_chunks"]["rows"] == 2
     assert report.snapshot_manifest_count == report.manifest_count
     assert report.index_queue_length == 0
+
+
+def test_index_builder_incremental_promotes_legacy_source_ref_id_type(tmp_path):
+    graph_root = tmp_path / "graph"
+    graph_root.mkdir()
+    output_root = str(graph_root)
+    paths = GraphPaths(base_uri=output_root)
+
+    # Simulate a legacy snapshot with integer source_ref_id values.
+    _write_doc_run(
+        output_root,
+        paths,
+        source_type="document",
+        source_ref_id=12345,
+        legacy_source_ref_int=True,
+    )
+
+    snapshot_uri = str(tmp_path / "snapshot" / "retikon.duckdb")
+    try:
+        build_snapshot(
+            graph_uri=output_root,
+            snapshot_uri=snapshot_uri,
+            work_dir=str(tmp_path / "work"),
+            copy_local=False,
+            fallback_local=False,
+            allow_install=True,
+        )
+    except RecoverableError as exc:
+        if "vss" in str(exc).lower():
+            pytest.skip("DuckDB vss extension unavailable")
+        raise
+
+    source_ref = str(uuid.uuid4())
+    _write_doc_run(
+        output_root,
+        paths,
+        source_type="image",
+        source_ref_id=source_ref,
+    )
+
+    report = build_snapshot(
+        graph_uri=output_root,
+        snapshot_uri=snapshot_uri,
+        work_dir=str(tmp_path / "work2"),
+        copy_local=False,
+        fallback_local=False,
+        allow_install=True,
+        incremental=True,
+    )
+
+    assert report.new_manifest_count == 1
+    conn = duckdb.connect(snapshot_uri)
+    try:
+        schema_rows = conn.execute("PRAGMA table_info('doc_chunks')").fetchall()
+        type_by_name = {str(row[1]): str(row[2]) for row in schema_rows}
+        assert type_by_name["source_ref_id"] == "VARCHAR"
+        row = conn.execute(
+            "SELECT source_ref_id FROM doc_chunks "
+            "WHERE source_type = 'image' ORDER BY source_ref_id DESC LIMIT 1"
+        ).fetchone()
+        assert row is not None
+        assert row[0] == source_ref
+    finally:
+        conn.close()
 
 
 def test_index_builder_uses_latest_compaction(tmp_path):

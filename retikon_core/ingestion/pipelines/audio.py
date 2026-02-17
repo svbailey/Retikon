@@ -16,6 +16,7 @@ from retikon_core.embeddings.timeout import run_inference
 from retikon_core.errors import PermanentError
 from retikon_core.ingestion.download import cleanup_tmp
 from retikon_core.ingestion.media import analyze_audio, normalize_audio, probe_media
+from retikon_core.ingestion.pipelines.audio_segments import extract_audio_windows
 from retikon_core.ingestion.pipelines.metrics import (
     CallTracker,
     StageTimer,
@@ -127,15 +128,36 @@ def ingest_audio(
             audio_has_speech = analysis.has_speech
         with timer.track("read_audio"):
             audio_bytes = open(normalized_path, "rb").read()
+        audio_embedder = get_audio_embedder(512)
         with timer.track("audio_embed"):
             audio_vector = timed_call(
                 calls,
                 "audio_embed",
                 lambda: run_inference(
                     "audio",
-                    lambda: get_audio_embedder(512).encode([audio_bytes])[0],
+                    lambda: audio_embedder.encode([audio_bytes])[0],
                 ),
             )
+        audio_window_batch = extract_audio_windows(
+            path=normalized_path,
+            window_s=config.audio_segment_window_s,
+            hop_s=config.audio_segment_hop_s,
+            max_segments=config.audio_segment_max_segments,
+            silence_db=config.audio_vad_silence_db,
+        )
+        audio_segment_vectors: list[list[float]] = []
+        if audio_window_batch.windows:
+            with timer.track("audio_embed"):
+                audio_segment_vectors = timed_call(
+                    calls,
+                    "audio_segment_embed",
+                    lambda: run_inference(
+                        "audio",
+                        lambda: audio_embedder.encode(
+                            [window.audio_bytes for window in audio_window_batch.windows]
+                        ),
+                    ),
+                )
 
         segments = []
         transcript_status = "skipped_by_policy"
@@ -251,6 +273,34 @@ def ingest_audio(
             "schema_version": schema_version,
         }
 
+        audio_segment_core_rows = []
+        audio_segment_vector_rows = []
+        for window, vector in zip(
+            audio_window_batch.windows,
+            audio_segment_vectors,
+            strict=False,
+        ):
+            segment_id = str(uuid.uuid4())
+            audio_segment_core_rows.append(
+                {
+                    "id": segment_id,
+                    "media_asset_id": media_asset_id,
+                    "start_ms": window.start_ms,
+                    "end_ms": window.end_ms,
+                    "embedding_model": _audio_model(),
+                    "embedding_backend": audio_embedding_backend,
+                    "embedding_artifact": audio_embedding_artifact,
+                    **tenancy_fields(
+                        org_id=source.org_id,
+                        site_id=source.site_id,
+                        stream_id=source.stream_id,
+                    ),
+                    "pipeline_version": pipeline_version,
+                    "schema_version": schema_version,
+                }
+            )
+            audio_segment_vector_rows.append({"clap_embedding": vector})
+
         transcript_core_rows = []
         transcript_text_rows = []
         transcript_vector_rows = []
@@ -263,6 +313,14 @@ def ingest_audio(
                 "schema_version": schema_version,
             }
         ]
+        for row in audio_segment_core_rows:
+            derived_edges.append(
+                {
+                    "src_id": row["id"],
+                    "dst_id": media_asset_id,
+                    "schema_version": schema_version,
+                }
+            )
 
         for segment, vector in zip(segments, text_vectors, strict=False):
             segment_id = str(uuid.uuid4())
@@ -365,6 +423,25 @@ def ingest_audio(
                     vertex_part_uri(output_root, "AudioClip", "vector", str(uuid.uuid4())),
                 )
             )
+            if audio_segment_core_rows:
+                files.append(
+                    write_parquet(
+                        audio_segment_core_rows,
+                        schema_for("AudioSegment", "core"),
+                        vertex_part_uri(
+                            output_root, "AudioSegment", "core", str(uuid.uuid4())
+                        ),
+                    )
+                )
+                files.append(
+                    write_parquet(
+                        audio_segment_vector_rows,
+                        schema_for("AudioSegment", "vector"),
+                        vertex_part_uri(
+                            output_root, "AudioSegment", "vector", str(uuid.uuid4())
+                        ),
+                    )
+                )
             files.append(
                 write_parquet(
                     derived_edges,
@@ -415,11 +492,16 @@ def ingest_audio(
                     "transcribed_ms": transcribed_ms,
                     "transcript_language": transcript_language,
                     "transcript_error_reason": transcript_error_reason,
+                    "audio_segment_count": len(audio_segment_core_rows),
+                    "audio_segment_candidates": audio_window_batch.candidate_count,
+                    "audio_segment_silence_skipped": (
+                        audio_window_batch.skipped_silence_count
+                    ),
                 },
                 "hashes": hashes_preview,
                 "embeddings": {
                     "audio": {
-                        "count": 1,
+                        "count": 1 + len(audio_segment_core_rows),
                         "dims": 512,
                     },
                     "text": {
@@ -430,7 +512,7 @@ def ingest_audio(
                 "evidence": {
                     "frames": 0,
                     "snippets": 0,
-                    "segments": len(transcript_core_rows),
+                    "segments": len(transcript_core_rows) + len(audio_segment_core_rows),
                 },
                 "stage_timings_ms": stage_timings_preview,
             }
@@ -445,6 +527,7 @@ def ingest_audio(
                     "MediaAsset": 1,
                     "Transcript": len(transcript_core_rows),
                     "AudioClip": 1,
+                    "AudioSegment": len(audio_segment_core_rows),
                     "DerivedFrom": len(derived_edges),
                     "NextTranscript": len(next_edges),
                 },
@@ -515,11 +598,16 @@ def ingest_audio(
                 "transcribed_ms": transcribed_ms,
                 "transcript_language": transcript_language,
                 "transcript_error_reason": transcript_error_reason,
+                "audio_segment_count": len(audio_segment_core_rows),
+                "audio_segment_candidates": audio_window_batch.candidate_count,
+                "audio_segment_silence_skipped": (
+                    audio_window_batch.skipped_silence_count
+                ),
             },
             "hashes": hashes,
             "embeddings": {
                 "audio": {
-                    "count": 1,
+                    "count": 1 + len(audio_segment_core_rows),
                     "dims": 512,
                 },
                 "text": {
@@ -530,7 +618,7 @@ def ingest_audio(
             "evidence": {
                 "frames": 0,
                 "snippets": 0,
-                "segments": len(transcript_core_rows),
+                "segments": len(transcript_core_rows) + len(audio_segment_core_rows),
             },
         }
 
@@ -539,6 +627,7 @@ def ingest_audio(
             profile["media_asset_id"] = media_asset_id
             profile["duration_ms"] = duration_ms
             profile["segments"] = len(segments)
+            profile["audio_segments"] = len(audio_segment_core_rows)
             profile["total_ms"] = round(
                 (time.monotonic() - pipeline_start) * 1000.0,
                 2,
@@ -550,6 +639,7 @@ def ingest_audio(
                 "MediaAsset": 1,
                 "Transcript": len(transcript_core_rows),
                 "AudioClip": 1,
+                "AudioSegment": len(audio_segment_core_rows),
                 "DerivedFrom": len(derived_edges),
                 "NextTranscript": len(next_edges),
             },

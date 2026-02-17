@@ -4,6 +4,7 @@ import base64
 import io
 import json
 import os
+import re
 import threading
 import time
 from dataclasses import dataclass, field, replace
@@ -128,6 +129,7 @@ class QueryResult:
     media_asset_id: str | None
     media_type: str | None
     primary_evidence_id: str
+    source_type: str | None = None
     evidence_refs: list[dict[str, str]] = field(default_factory=list)
     why: list[dict[str, object]] = field(default_factory=list)
 
@@ -325,6 +327,103 @@ def _result_key(item: QueryResult) -> tuple[str, str, str, int | None, int | Non
     )
 
 
+def _audio_segment_merge_gap_ms() -> int:
+    raw = os.getenv("AUDIO_SEGMENT_MERGE_GAP_MS", "250")
+    try:
+        value = int(raw)
+    except ValueError:
+        value = 250
+    return max(0, value)
+
+
+def _merge_adjacent_audio_results(
+    rows: Sequence[QueryResult],
+    *,
+    gap_ms: int,
+) -> list[QueryResult]:
+    if not rows:
+        return []
+
+    grouped: dict[str, list[QueryResult]] = {}
+    passthrough: list[QueryResult] = []
+    for row in rows:
+        if row.start_ms is None or row.end_ms is None:
+            passthrough.append(row)
+            continue
+        key = row.media_asset_id or row.uri
+        grouped.setdefault(key, []).append(row)
+
+    merged: list[QueryResult] = []
+    for group_rows in grouped.values():
+        ordered = sorted(
+            group_rows,
+            key=lambda item: (
+                item.start_ms if item.start_ms is not None else -1,
+                item.end_ms if item.end_ms is not None else -1,
+            ),
+        )
+        cluster: list[QueryResult] = []
+        cluster_start = 0
+        cluster_end = 0
+
+        def flush_cluster() -> None:
+            nonlocal cluster, cluster_start, cluster_end
+            if not cluster:
+                return
+            best = max(cluster, key=lambda item: item.score)
+            merged_refs: list[dict[str, str]] = []
+            seen_ref_ids: set[tuple[str, str]] = set()
+            for item in cluster:
+                for ref in item.evidence_refs:
+                    if not isinstance(ref, dict):
+                        continue
+                    for key_name, key_value in ref.items():
+                        marker = (str(key_name), str(key_value))
+                        if marker in seen_ref_ids:
+                            continue
+                        seen_ref_ids.add(marker)
+                        merged_refs.append({str(key_name): str(key_value)})
+
+            merged_item = replace(best)
+            merged_item.start_ms = cluster_start
+            merged_item.end_ms = cluster_end
+            merged_item.evidence_refs = merged_refs or list(best.evidence_refs)
+            merged_item.why = list(best.why)
+            if len(cluster) > 1:
+                merged_item.why.append(
+                    {
+                        "modality": "audio",
+                        "source": "audio_segment_merge",
+                        "reason": "merged_adjacent_segments",
+                        "raw_score": round(float(best.score), 6),
+                    }
+                )
+            merged.append(merged_item)
+            cluster = []
+
+        for item in ordered:
+            if not cluster:
+                cluster = [item]
+                cluster_start = int(item.start_ms or 0)
+                cluster_end = int(item.end_ms or cluster_start)
+                continue
+            item_start = int(item.start_ms or 0)
+            item_end = int(item.end_ms or item_start)
+            if item_start <= (cluster_end + gap_ms):
+                cluster.append(item)
+                cluster_end = max(cluster_end, item_end)
+                continue
+            flush_cluster()
+            cluster = [item]
+            cluster_start = item_start
+            cluster_end = item_end
+        flush_cluster()
+
+    merged.extend(passthrough)
+    merged.sort(key=lambda item: item.score, reverse=True)
+    return merged
+
+
 def _safe_float(value: str | None, default: float) -> float:
     if value is None or value == "":
         return default
@@ -427,6 +526,14 @@ def _connect(snapshot_path: str) -> duckdb.DuckDBPyConnection:
     conn = duckdb.connect(snapshot_path, read_only=True)
     allow_install = os.getenv("DUCKDB_ALLOW_INSTALL", "0") == "1"
     load_extensions(conn, ("vss",), allow_install)
+    if _fts_enabled():
+        try:
+            load_extensions(conn, ("fts",), allow_install)
+        except Exception as exc:
+            logger.warning(
+                "DuckDB optional extension load failed",
+                extra={"extension": "fts", "error_message": str(exc)},
+            )
     if signature is None:
         cache[snapshot_path] = (-1, -1, conn)
     else:
@@ -513,6 +620,45 @@ def top_k_overlap(results: Sequence[str], expected: Sequence[str], top_k: int) -
 
 def _keyword_pattern(query_text: str) -> str:
     return f"%{query_text.strip()}%"
+
+
+def _fts_enabled() -> bool:
+    return os.getenv("QUERY_FTS_ENABLED", "1").strip().lower() in {
+        "1",
+        "true",
+        "yes",
+        "on",
+    }
+
+
+def _is_id_like_query(query_text: str) -> bool:
+    def _token_looks_like_id(token: str) -> bool:
+        if not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9._:/-]{3,}", token):
+            return False
+        has_digit = any(ch.isdigit() for ch in token)
+        has_symbol = any(ch in "._:/-" for ch in token)
+        if has_digit or has_symbol:
+            return True
+        # Uppercase alpha tokens are often reference codes.
+        return token.isalpha() and token.isupper() and len(token) >= 6
+
+    text = query_text.strip()
+    if len(text) < 4 or len(text) > 128:
+        return False
+    if " " not in text:
+        return _token_looks_like_id(text)
+
+    tokens = [token for token in re.split(r"\s+", text) if token]
+    if len(tokens) > 3:
+        return False
+    matching = [token for token in tokens if _token_looks_like_id(token)]
+    return bool(matching) and len(matching) == len(tokens)
+
+
+def _bm25_to_score(score: float) -> float:
+    if score <= 0:
+        return 0.0
+    return _clamp_score(score / (score + 1.0))
 
 
 def _table_has_column(
@@ -646,12 +792,18 @@ def search_by_text(
         thumbnail_expr = "i.thumbnail_uri" if has_thumbnail else "NULL AS thumbnail_uri"
         doc_has_id = _table_has_column(conn, "doc_chunks", "id")
         doc_has_chunk_index = _table_has_column(conn, "doc_chunks", "chunk_index")
+        doc_has_source_type = _table_has_column(conn, "doc_chunks", "source_type")
+        doc_has_source_time_ms = _table_has_column(conn, "doc_chunks", "source_time_ms")
         transcript_has_id = _table_has_column(conn, "transcripts", "id")
         transcript_has_end_ms = _table_has_column(conn, "transcripts", "end_ms")
         image_has_id = _table_has_column(conn, "image_assets", "id")
-        audio_has_id = _table_has_column(conn, "audio_clips", "id")
-        audio_has_start_ms = _table_has_column(conn, "audio_clips", "start_ms")
-        audio_has_end_ms = _table_has_column(conn, "audio_clips", "end_ms")
+        has_audio_segments = _table_has_column(conn, "audio_segments", "clap_embedding")
+        has_audio_clips = _table_has_column(conn, "audio_clips", "clap_embedding")
+        audio_table = "audio_segments" if has_audio_segments else "audio_clips"
+        audio_source_type = "audio_segment" if has_audio_segments else "audio"
+        audio_has_id = _table_has_column(conn, audio_table, "id")
+        audio_has_start_ms = _table_has_column(conn, audio_table, "start_ms")
+        audio_has_end_ms = _table_has_column(conn, audio_table, "end_ms")
 
         doc_id_expr = "d.id" if doc_has_id else "CAST(d.media_asset_id AS VARCHAR)"
         if not doc_has_id and doc_has_chunk_index:
@@ -659,6 +811,16 @@ def search_by_text(
                 "CAST(d.media_asset_id AS VARCHAR) || ':doc:' || "
                 "CAST(d.chunk_index AS VARCHAR)"
             )
+        doc_source_type_expr = (
+            "COALESCE(d.source_type, 'document')"
+            if doc_has_source_type
+            else "'document'"
+        )
+        doc_source_time_expr = (
+            "d.source_time_ms"
+            if doc_has_source_time_ms
+            else "NULL"
+        )
         transcript_id_expr = (
             "t.id"
             if transcript_has_id
@@ -675,7 +837,7 @@ def search_by_text(
         audio_id_expr = "a.id" if audio_has_id else "CAST(a.media_asset_id AS VARCHAR)"
         if not audio_has_id and audio_has_start_ms:
             audio_id_expr = (
-                "CAST(a.media_asset_id AS VARCHAR) || ':audio:' || "
+                f"CAST(a.media_asset_id AS VARCHAR) || ':{audio_source_type}:' || "
                 "COALESCE(CAST(a.start_ms AS VARCHAR), '0')"
             )
         audio_start_expr = "a.start_ms" if audio_has_start_ms else "NULL AS start_ms"
@@ -685,6 +847,8 @@ def search_by_text(
         doc_sql = f"""
             SELECT m.uri, m.media_type, d.media_asset_id, d.content,
                    {doc_id_expr} AS evidence_id,
+                   {doc_source_type_expr} AS source_type,
+                   {doc_source_time_expr} AS source_time_ms,
                    (1.0 - list_cosine_similarity(d.text_vector, ?::FLOAT[])) AS distance
             FROM doc_chunks d
             JOIN media_assets m ON d.media_asset_id = m.id
@@ -705,21 +869,33 @@ def search_by_text(
                 "document",
                 doc_rows,
                 uri_index=0,
-                distance_index=5,
+                distance_index=7,
             )
             for row in doc_rows:
-                if len(row) >= 6:
+                if len(row) >= 8:
                     (
                         uri,
                         media_type,
                         media_asset_id,
                         content,
                         evidence_id,
+                        source_type,
+                        source_time_ms,
                         distance,
-                    ) = row[:6]
+                    ) = row[:8]
                 else:
                     uri, media_type, media_asset_id, content, distance = row[:5]
                     evidence_id = media_asset_id
+                    source_type = "document"
+                    source_time_ms = None
+                source_type_text = str(source_type or "document").strip().lower()
+                is_ocr = source_type_text in {"image", "keyframe", "pdf_page"}
+                modality = "ocr" if is_ocr else "document"
+                start_ms = (
+                    int(source_time_ms)
+                    if is_ocr and source_time_ms is not None
+                    else None
+                )
                 score = _boost_score(
                     _score_from_distance(distance),
                     modality="document",
@@ -727,19 +903,128 @@ def search_by_text(
                 )
                 results.append(
                     QueryResult(
-                        modality="document",
+                        modality=modality,
                         uri=uri,
                         snippet=content,
-                        start_ms=None,
-                        end_ms=None,
+                        start_ms=start_ms,
+                        end_ms=start_ms,
                         thumbnail_uri=None,
                         score=score,
                         media_asset_id=media_asset_id,
                         media_type=media_type,
                         primary_evidence_id=str(evidence_id),
-                        evidence_refs=_evidence_refs_for("document", str(evidence_id)),
+                        source_type=source_type_text,
+                        evidence_refs=_evidence_refs_for(modality, str(evidence_id)),
                     )
                 )
+
+        if need_text and _fts_enabled() and _is_id_like_query(query_text):
+            if not doc_has_id:
+                if trace is not None:
+                    trace["fts_status"] = "skipped_missing_doc_id"
+            else:
+                where_conditions = [
+                    f"{doc_source_type_expr} IN ('image', 'keyframe', 'pdf_page')"
+                ]
+                if scope_clause:
+                    where_conditions.append(scope_clause.replace("WHERE ", "", 1))
+                where_sql = "WHERE " + " AND ".join(where_conditions)
+                fts_sql = f"""
+                    WITH ranked AS (
+                        SELECT m.uri,
+                               m.media_type,
+                               d.media_asset_id,
+                               d.content,
+                               d.id AS evidence_id,
+                               {doc_source_type_expr} AS source_type,
+                               {doc_source_time_expr} AS source_time_ms,
+                               fts_main_doc_chunks.match_bm25(d.id, ?) AS bm25
+                        FROM doc_chunks d
+                        JOIN media_assets m ON d.media_asset_id = m.id
+                        {where_sql}
+                    )
+                    SELECT uri,
+                           media_type,
+                           media_asset_id,
+                           content,
+                           evidence_id,
+                           source_type,
+                           source_time_ms,
+                           bm25
+                    FROM ranked
+                    WHERE bm25 IS NOT NULL
+                    ORDER BY bm25 DESC
+                    LIMIT {int(top_k)}
+                """
+                fts_start = time.monotonic()
+                try:
+                    fts_rows = _query_rows(conn, fts_sql, [query_text, *scope_params])
+                except duckdb.Error:
+                    if trace is not None:
+                        trace["fts_status"] = "query_error"
+                else:
+                    if trace is not None:
+                        trace["fts_query_ms"] = round(
+                            (time.monotonic() - fts_start) * 1000.0, 2
+                        )
+                        trace["fts_rows"] = len(fts_rows)
+                    _record_hitlist(
+                        trace,
+                        "fts_ocr",
+                        fts_rows,
+                        uri_index=0,
+                    )
+                    for row in fts_rows:
+                        if len(row) >= 8:
+                            (
+                                uri,
+                                media_type,
+                                media_asset_id,
+                                content,
+                                evidence_id,
+                                source_type,
+                                source_time_ms,
+                                bm25,
+                            ) = row[:8]
+                        elif len(row) >= 5:
+                            uri, media_type, media_asset_id, content, bm25 = row[:5]
+                            evidence_id = media_asset_id
+                            source_type = "ocr"
+                            source_time_ms = None
+                        else:
+                            continue
+                        source_type_text = str(source_type or "ocr").strip().lower()
+                        start_ms = (
+                            int(source_time_ms)
+                            if source_time_ms is not None
+                            else None
+                        )
+                        results.append(
+                            QueryResult(
+                                modality="ocr",
+                                uri=uri,
+                                snippet=content,
+                                start_ms=start_ms,
+                                end_ms=start_ms,
+                                thumbnail_uri=None,
+                                score=_bm25_to_score(float(bm25)),
+                                media_asset_id=media_asset_id,
+                                media_type=media_type,
+                                primary_evidence_id=str(evidence_id),
+                                source_type=source_type_text,
+                                evidence_refs=_evidence_refs_for("ocr", str(evidence_id)),
+                                why=[
+                                    {
+                                        "modality": "fts",
+                                        "source": "fts",
+                                        "reason": "fts_hit",
+                                        "raw_score": round(float(bm25), 6),
+                                    }
+                                ],
+                            )
+                        )
+                    if trace is not None and "fts_status" not in trace:
+                        trace["fts_status"] = "applied"
 
         transcript_sql = f"""
             SELECT m.uri, m.media_type, t.media_asset_id, t.content, t.start_ms,
@@ -806,6 +1091,7 @@ def search_by_text(
                         media_asset_id=media_asset_id,
                         media_type=media_type,
                         primary_evidence_id=str(evidence_id),
+                        source_type="transcript",
                         evidence_refs=_evidence_refs_for("transcript", str(evidence_id)),
                     )
                 )
@@ -878,6 +1164,7 @@ def search_by_text(
                         media_asset_id=media_asset_id,
                         media_type=media_type,
                         primary_evidence_id=str(evidence_id),
+                        source_type="keyframe" if timestamp_ms is not None else "image",
                         evidence_refs=_evidence_refs_for("image", str(evidence_id)),
                     )
                 )
@@ -890,7 +1177,7 @@ def search_by_text(
                    (1.0 - list_cosine_similarity(
                        a.clap_embedding, ?::FLOAT[]
                    )) AS distance
-            FROM audio_clips a
+            FROM {audio_table} a
             JOIN media_assets m ON a.media_asset_id = m.id
             {scope_clause}
             ORDER BY distance
@@ -904,13 +1191,15 @@ def search_by_text(
                     (time.monotonic() - audio_start) * 1000.0, 2
                 )
                 trace["audio_rows"] = len(audio_rows)
+                trace["audio_source"] = audio_table
             _record_hitlist(
                 trace,
                 "audio",
                 audio_rows,
                 uri_index=0,
-                distance_index=7,
+                distance_index=6,
             )
+            audio_results: list[QueryResult] = []
             for row in audio_rows:
                 if len(row) >= 7:
                     (
@@ -932,7 +1221,7 @@ def search_by_text(
                     modality="audio",
                     query_text=query_text,
                 )
-                results.append(
+                audio_results.append(
                     QueryResult(
                         modality="audio",
                         uri=uri,
@@ -944,9 +1233,104 @@ def search_by_text(
                         media_asset_id=media_asset_id,
                         media_type=media_type,
                         primary_evidence_id=str(evidence_id),
+                        source_type=audio_source_type,
                         evidence_refs=_evidence_refs_for("audio", str(evidence_id)),
                     )
                 )
+            if has_audio_segments:
+                merge_gap_ms = _audio_segment_merge_gap_ms()
+                merged_audio_results = _merge_adjacent_audio_results(
+                    audio_results,
+                    gap_ms=merge_gap_ms,
+                )
+                if trace is not None:
+                    trace["audio_rows_merged"] = len(merged_audio_results)
+                    trace["audio_merge_gap_ms"] = merge_gap_ms
+                audio_results = merged_audio_results
+            if has_audio_segments and has_audio_clips and len(audio_results) < int(top_k):
+                clip_has_id = _table_has_column(conn, "audio_clips", "id")
+                clip_has_start_ms = _table_has_column(conn, "audio_clips", "start_ms")
+                clip_has_end_ms = _table_has_column(conn, "audio_clips", "end_ms")
+                clip_id_expr = (
+                    "a.id"
+                    if clip_has_id
+                    else "CAST(a.media_asset_id AS VARCHAR)"
+                )
+                if not clip_has_id and clip_has_start_ms:
+                    clip_id_expr = (
+                        "CAST(a.media_asset_id AS VARCHAR) || ':audio:' || "
+                        "COALESCE(CAST(a.start_ms AS VARCHAR), '0')"
+                    )
+                clip_start_expr = (
+                    "a.start_ms" if clip_has_start_ms else "NULL AS start_ms"
+                )
+                clip_end_expr = "a.end_ms" if clip_has_end_ms else "NULL AS end_ms"
+                audio_asset_ids = {
+                    row.media_asset_id for row in audio_results if row.media_asset_id
+                }
+                fill_limit = max(0, int(top_k) - len(audio_results))
+                # Overfetch slightly to account for skipping clip rows that belong to
+                # assets already represented by audio segment results.
+                clip_limit = fill_limit + len(audio_asset_ids)
+                clip_sql = f"""
+                    SELECT m.uri, m.media_type, a.media_asset_id,
+                           {clip_start_expr},
+                           {clip_end_expr},
+                           {clip_id_expr} AS evidence_id,
+                           (1.0 - list_cosine_similarity(
+                               a.clap_embedding, ?::FLOAT[]
+                           )) AS distance
+                    FROM audio_clips a
+                    JOIN media_assets m ON a.media_asset_id = m.id
+                    {scope_clause}
+                    ORDER BY distance
+                    LIMIT {int(clip_limit)}
+                """
+                clip_rows = _query_rows(conn, clip_sql, [audio_text_vec, *scope_params])
+                if trace is not None:
+                    trace["audio_clip_fallback_rows"] = len(clip_rows)
+                for row in clip_rows:
+                    if len(audio_results) >= int(top_k):
+                        break
+                    if len(row) >= 7:
+                        (
+                            uri,
+                            media_type,
+                            media_asset_id,
+                            start_ms,
+                            end_ms,
+                            evidence_id,
+                            distance,
+                        ) = row[:7]
+                    else:
+                        uri, media_type, media_asset_id, distance = row[:4]
+                        start_ms = None
+                        end_ms = None
+                        evidence_id = media_asset_id
+                    if media_asset_id in audio_asset_ids:
+                        continue
+                    score = _boost_score(
+                        _score_from_distance(distance),
+                        modality="audio",
+                        query_text=query_text,
+                    )
+                    audio_results.append(
+                        QueryResult(
+                            modality="audio",
+                            uri=uri,
+                            snippet=None,
+                            start_ms=int(start_ms) if start_ms is not None else None,
+                            end_ms=int(end_ms) if end_ms is not None else None,
+                            thumbnail_uri=None,
+                            score=score,
+                            media_asset_id=media_asset_id,
+                            media_type=media_type,
+                            primary_evidence_id=str(evidence_id),
+                            source_type="audio",
+                            evidence_refs=_evidence_refs_for("audio", str(evidence_id)),
+                        )
+                    )
+            results.extend(audio_results)
     finally:
         _release_conn(snapshot_path, conn)
 
@@ -975,6 +1359,8 @@ def search_by_keyword(
     try:
         doc_has_id = _table_has_column(conn, "doc_chunks", "id")
         doc_has_chunk_index = _table_has_column(conn, "doc_chunks", "chunk_index")
+        doc_has_source_type = _table_has_column(conn, "doc_chunks", "source_type")
+        doc_has_source_time_ms = _table_has_column(conn, "doc_chunks", "source_time_ms")
         transcript_has_id = _table_has_column(conn, "transcripts", "id")
         transcript_has_end_ms = _table_has_column(conn, "transcripts", "end_ms")
 
@@ -984,6 +1370,16 @@ def search_by_keyword(
                 "CAST(d.media_asset_id AS VARCHAR) || ':doc:' || "
                 "CAST(d.chunk_index AS VARCHAR)"
             )
+        doc_source_type_expr = (
+            "COALESCE(d.source_type, 'document')"
+            if doc_has_source_type
+            else "'document'"
+        )
+        doc_source_time_expr = (
+            "d.source_time_ms"
+            if doc_has_source_time_ms
+            else "NULL"
+        )
         transcript_id_expr = (
             "t.id"
             if transcript_has_id
@@ -997,7 +1393,9 @@ def search_by_keyword(
         scope_sql = f" AND {scope_filter}" if scope_filter else ""
         doc_sql = f"""
             SELECT m.uri, m.media_type, d.media_asset_id, d.content,
-                   {doc_id_expr} AS evidence_id
+                   {doc_id_expr} AS evidence_id,
+                   {doc_source_type_expr} AS source_type,
+                   {doc_source_time_expr} AS source_time_ms
             FROM doc_chunks d
             JOIN media_assets m ON d.media_asset_id = m.id
             WHERE d.content ILIKE ?{scope_sql}
@@ -1016,20 +1414,37 @@ def search_by_keyword(
             doc_rows,
             uri_index=0,
         )
-        for uri, media_type, media_asset_id, content, evidence_id in doc_rows:
+        for (
+            uri,
+            media_type,
+            media_asset_id,
+            content,
+            evidence_id,
+            source_type,
+            source_time_ms,
+        ) in doc_rows:
+            source_type_text = str(source_type or "document").strip().lower()
+            is_ocr = source_type_text in {"image", "keyframe", "pdf_page"}
+            modality = "ocr" if is_ocr else "document"
+            start_ms = (
+                int(source_time_ms)
+                if is_ocr and source_time_ms is not None
+                else None
+            )
             results.append(
                 QueryResult(
-                    modality="document",
+                    modality=modality,
                     uri=uri,
                     snippet=content,
-                    start_ms=None,
-                    end_ms=None,
+                    start_ms=start_ms,
+                    end_ms=start_ms,
                     thumbnail_uri=None,
                     score=1.0,
                     media_asset_id=media_asset_id,
                     media_type=media_type,
                     primary_evidence_id=str(evidence_id),
-                    evidence_refs=_evidence_refs_for("document", str(evidence_id)),
+                    source_type=source_type_text,
+                    evidence_refs=_evidence_refs_for(modality, str(evidence_id)),
                 )
             )
 
@@ -1076,6 +1491,7 @@ def search_by_keyword(
                     media_asset_id=media_asset_id,
                     media_type=media_type,
                     primary_evidence_id=str(evidence_id),
+                    source_type="transcript",
                     evidence_refs=_evidence_refs_for("transcript", str(evidence_id)),
                 )
             )
@@ -1158,6 +1574,7 @@ def search_by_metadata(
                 media_asset_id=media_asset_id,
                 media_type=media_type,
                 primary_evidence_id=str(media_asset_id),
+                source_type="metadata",
                 evidence_refs=[],
                 why=[
                     {
@@ -1256,6 +1673,7 @@ def search_by_image(
                 media_asset_id=media_asset_id,
                 media_type=media_type,
                 primary_evidence_id=str(evidence_id),
+                source_type="keyframe" if timestamp_ms is not None else "image",
                 evidence_refs=_evidence_refs_for("image", str(evidence_id)),
             )
             for (

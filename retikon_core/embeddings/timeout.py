@@ -40,6 +40,10 @@ def inference_timeout_seconds(kind: str) -> float:
         legacy = _parse_timeout(os.getenv("RERANK_TIMEOUT_S"))
         if legacy > 0:
             return legacy
+    if normalized == "ocr":
+        legacy = _parse_timeout(os.getenv("OCR_TIMEOUT_S"))
+        if legacy > 0:
+            return legacy
     return _parse_timeout(os.getenv("MODEL_INFERENCE_TIMEOUT_S", "0"))
 
 

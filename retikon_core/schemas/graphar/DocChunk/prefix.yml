@@ -41,6 +41,18 @@ fields:
   - name: token_count
     type: int32
     nullable: false
+  - name: source_type
+    type: string
+    nullable: true
+  - name: source_ref_id
+    type: string
+    nullable: true
+  - name: source_time_ms
+    type: int64
+    nullable: true
+  - name: ocr_conf_avg
+    type: int32
+    nullable: true
   - name: embedding_model
     type: string
     nullable: false

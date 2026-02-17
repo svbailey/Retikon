@@ -6,12 +6,21 @@ import os
 import shutil
 import urllib.error
 import urllib.request
+from dataclasses import dataclass
 
 import fitz
 from PIL import Image
 
 from retikon_core.connectors.ocr import load_ocr_connectors
 from retikon_core.errors import PermanentError, RecoverableError
+
+
+@dataclass(frozen=True)
+class OcrImageResult:
+    text: str
+    conf_avg: int | None
+    kept_tokens: int
+    raw_tokens: int
 
 
 def _load_pytesseract():
@@ -27,8 +36,86 @@ def _load_pytesseract():
 
 
 def ocr_text_from_image(image: Image.Image) -> str:
+    return ocr_result_from_image(image).text
+
+
+def ocr_result_from_image(
+    image: Image.Image,
+    *,
+    min_confidence: int = 0,
+    min_text_len: int = 0,
+) -> OcrImageResult:
     pytesseract = _load_pytesseract()
-    return (pytesseract.image_to_string(image) or "").strip()
+    text_tokens: list[str] = []
+    conf_values: list[float] = []
+
+    try:
+        data = pytesseract.image_to_data(
+            image,
+            output_type=pytesseract.Output.DICT,
+        )
+    except Exception:
+        raw = (pytesseract.image_to_string(image) or "").strip()
+        if min_text_len > 0 and len(raw) < min_text_len:
+            return OcrImageResult(text="", conf_avg=None, kept_tokens=0, raw_tokens=0)
+        return OcrImageResult(
+            text=raw,
+            conf_avg=None,
+            kept_tokens=1 if raw else 0,
+            raw_tokens=1 if raw else 0,
+        )
+
+    words = data.get("text", [])
+    confidences = data.get("conf", [])
+    raw_tokens = 0
+    for token_raw, conf_raw in zip(words, confidences, strict=False):
+        token = str(token_raw or "").strip()
+        if not token:
+            continue
+        raw_tokens += 1
+        try:
+            confidence = float(conf_raw)
+        except (TypeError, ValueError):
+            continue
+        if confidence < float(min_confidence):
+            continue
+        text_tokens.append(token)
+        conf_values.append(confidence)
+
+    text = " ".join(text_tokens).strip()
+    if min_text_len > 0 and len(text) < min_text_len:
+        return OcrImageResult(
+            text="",
+            conf_avg=None,
+            kept_tokens=0,
+            raw_tokens=raw_tokens,
+        )
+
+    conf_avg = None
+    if conf_values:
+        conf_avg = int(round(sum(conf_values) / float(len(conf_values))))
+    return OcrImageResult(
+        text=text,
+        conf_avg=conf_avg,
+        kept_tokens=len(text_tokens),
+        raw_tokens=raw_tokens,
+    )
+
+
+def ocr_results_from_keyframes(
+    images: list[Image.Image],
+    *,
+    min_confidence: int = 0,
+    min_text_len: int = 0,
+) -> list[OcrImageResult]:
+    return [
+        ocr_result_from_image(
+            image,
+            min_confidence=min_confidence,
+            min_text_len=min_text_len,
+        )
+        for image in images
+    ]
 
 
 def ocr_text_from_pdf(

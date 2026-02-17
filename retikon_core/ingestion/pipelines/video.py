@@ -3,6 +3,7 @@ from __future__ import annotations
 import os
 import shutil
 import tempfile
+import time
 import uuid
 from datetime import datetime, timezone
 from pathlib import Path
@@ -19,7 +20,7 @@ from retikon_core.embeddings import (
     get_text_embedder,
 )
 from retikon_core.embeddings.timeout import run_inference
-from retikon_core.errors import PermanentError
+from retikon_core.errors import InferenceTimeoutError, PermanentError
 from retikon_core.ingestion.download import cleanup_tmp
 from retikon_core.ingestion.media import (
     analyze_audio,
@@ -33,12 +34,14 @@ from retikon_core.ingestion.pipelines.metrics import (
     build_stage_timings,
     timed_call,
 )
+from retikon_core.ingestion.pipelines.audio_segments import extract_audio_windows
 from retikon_core.ingestion.pipelines.embedding_utils import (
     image_embed_batch_size,
     prepare_video_image_for_embed,
     thumbnail_jpeg_quality,
     video_embed_max_dim,
 )
+from retikon_core.ingestion.ocr import ocr_result_from_image
 from retikon_core.ingestion.pipelines.types import PipelineResult
 from retikon_core.ingestion.transcription_policy import (
     resolve_transcribe_policy,
@@ -131,6 +134,33 @@ def _write_thumbnail(
     return bytes_written
 
 
+def _sample_positions(total: int, limit: int) -> list[int]:
+    if total <= 0 or limit <= 0:
+        return []
+    if total <= limit:
+        return list(range(total))
+    if limit == 1:
+        return [0]
+    step = (total - 1) / float(limit - 1)
+    positions: list[int] = []
+    seen: set[int] = set()
+    for idx in range(limit):
+        pos = int(round(idx * step))
+        pos = max(0, min(total - 1, pos))
+        if pos in seen:
+            continue
+        seen.add(pos)
+        positions.append(pos)
+    if len(positions) < limit:
+        for pos in range(total):
+            if pos in seen:
+                continue
+            positions.append(pos)
+            if len(positions) >= limit:
+                break
+    return positions
+
+
 def ingest_video(
     *,
     source: IngestSource,
@@ -221,6 +251,7 @@ def ingest_video(
         derived_edges = []
         next_keyframe_edges = []
         image_ids: list[str] = []
+        image_id_by_frame_index: dict[int, str] = {}
 
         embedder = get_image_embedder(512)
         batch_size = image_embed_batch_size()
@@ -277,6 +308,7 @@ def ingest_video(
                 image_vectors.append(vector)
                 image_id = str(uuid.uuid4())
                 image_ids.append(image_id)
+                image_id_by_frame_index[idx] = image_id
                 image_core_rows.append(
                     {
                         "id": image_id,
@@ -315,6 +347,115 @@ def ingest_video(
                 }
             )
 
+        ocr_chunk_core_rows: list[dict[str, object]] = []
+        ocr_chunk_text_rows: list[dict[str, object]] = []
+        ocr_chunk_vector_rows: list[dict[str, object]] = []
+        ocr_candidates = 0
+        ocr_processed = 0
+        ocr_status = "disabled"
+        if config.ocr_keyframes and frame_infos and image_id_by_frame_index:
+            selected_positions = _sample_positions(
+                len(frame_infos),
+                config.ocr_max_keyframes if config.ocr_max_keyframes > 0 else len(frame_infos),
+            )
+            ocr_candidates = len(selected_positions)
+            ocr_items: list[tuple[str, int | None, int | None, str]] = []
+            ocr_status = "empty"
+            budget_start = time.monotonic()
+            for pos in selected_positions:
+                source_ref_id = image_id_by_frame_index.get(pos)
+                if source_ref_id is None:
+                    continue
+                elapsed_ms = (time.monotonic() - budget_start) * 1000.0
+                if config.ocr_total_budget_ms > 0 and elapsed_ms >= float(config.ocr_total_budget_ms):
+                    if ocr_items:
+                        ocr_status = "partial_budget"
+                    else:
+                        ocr_status = "budget_exhausted"
+                    break
+                frame_info = frame_infos[pos]
+                try:
+                    with Image.open(frame_info.path) as frame_image:
+                        rgb = frame_image.convert("RGB")
+                except Exception:
+                    continue
+                try:
+                    with timer.track("ocr"):
+                        ocr_result = run_inference(
+                            "ocr",
+                            lambda: ocr_result_from_image(
+                                rgb,
+                                min_confidence=config.ocr_min_confidence,
+                                min_text_len=config.ocr_min_text_len,
+                            ),
+                        )
+                except (InferenceTimeoutError, PermanentError):
+                    continue
+                except Exception:
+                    continue
+                ocr_processed += 1
+                if not ocr_result.text:
+                    continue
+                ocr_items.append(
+                    (
+                        source_ref_id,
+                        frame_info.timestamp_ms,
+                        ocr_result.conf_avg,
+                        ocr_result.text,
+                    )
+                )
+            if ocr_items:
+                with timer.track("ocr_text_embed"):
+                    ocr_vectors = run_inference(
+                        "text",
+                        lambda: get_text_embedder(768).encode(
+                            [item[3] for item in ocr_items]
+                        ),
+                    )
+                for chunk_index, (item, vector) in enumerate(
+                    zip(ocr_items, ocr_vectors, strict=False)
+                ):
+                    source_ref_id, source_time_ms, conf_avg, text = item
+                    chunk_id = str(uuid.uuid4())
+                    token_count = len([token for token in text.split() if token.strip()])
+                    ocr_chunk_core_rows.append(
+                        {
+                            "id": chunk_id,
+                            "media_asset_id": media_asset_id,
+                            "chunk_index": chunk_index,
+                            "char_start": 0,
+                            "char_end": len(text),
+                            "token_start": 0,
+                            "token_end": token_count,
+                            "token_count": token_count,
+                            "source_type": "keyframe",
+                            "source_ref_id": source_ref_id,
+                            "source_time_ms": source_time_ms,
+                            "ocr_conf_avg": conf_avg,
+                            "embedding_model": _text_model(),
+                            "embedding_backend": text_embedding_backend,
+                            "embedding_artifact": text_embedding_artifact,
+                            **tenancy_fields(
+                                org_id=source.org_id,
+                                site_id=source.site_id,
+                                stream_id=source.stream_id,
+                            ),
+                            "pipeline_version": pipeline_version,
+                            "schema_version": schema_version,
+                        }
+                    )
+                    ocr_chunk_text_rows.append({"content": text})
+                    ocr_chunk_vector_rows.append({"text_vector": vector})
+                    derived_edges.append(
+                        {
+                            "src_id": chunk_id,
+                            "dst_id": media_asset_id,
+                            "schema_version": schema_version,
+                        }
+                    )
+                if ocr_status == "empty":
+                    ocr_status = "ok"
+
         transcript_core_rows = []
         transcript_text_rows = []
         transcript_vector_rows = []
@@ -322,6 +463,10 @@ def ingest_video(
         segment_ids: list[str] = []
         audio_clip_core = None
         audio_vector = None
+        audio_segment_core_rows = []
+        audio_segment_vector_rows = []
+        audio_segment_candidates = 0
+        audio_segment_silence_skipped = 0
 
         segments = []
         text_vectors: list[list[float]] = []
@@ -358,15 +503,65 @@ def ingest_video(
                 )
             else:
                 transcript_status = "ok"
+            audio_embedder = get_audio_embedder(512)
             with timer.track("audio_embed"):
                 audio_vector = timed_call(
                     calls,
                     "audio_embed",
                     lambda: run_inference(
                         "audio",
-                        lambda: get_audio_embedder(512).encode([audio_bytes])[0],
+                        lambda: audio_embedder.encode([audio_bytes])[0],
                     ),
                 )
+            audio_window_batch = extract_audio_windows(
+                path=audio_path,
+                window_s=config.audio_segment_window_s,
+                hop_s=config.audio_segment_hop_s,
+                max_segments=config.audio_segment_max_segments,
+                silence_db=config.audio_vad_silence_db,
+            )
+            audio_segment_candidates = audio_window_batch.candidate_count
+            audio_segment_silence_skipped = audio_window_batch.skipped_silence_count
+            if audio_window_batch.windows:
+                with timer.track("audio_embed"):
+                    segment_vectors = timed_call(
+                        calls,
+                        "audio_segment_embed",
+                        lambda: run_inference(
+                            "audio",
+                            lambda: audio_embedder.encode(
+                                [
+                                    window.audio_bytes
+                                    for window in audio_window_batch.windows
+                                ]
+                            ),
+                        ),
+                    )
+                for window, vector in zip(
+                    audio_window_batch.windows,
+                    segment_vectors,
+                    strict=False,
+                ):
+                    segment_id = str(uuid.uuid4())
+                    audio_segment_core_rows.append(
+                        {
+                            "id": segment_id,
+                            "media_asset_id": media_asset_id,
+                            "start_ms": window.start_ms,
+                            "end_ms": window.end_ms,
+                            "embedding_model": _audio_model(),
+                            "embedding_backend": audio_embedding_backend,
+                            "embedding_artifact": audio_embedding_artifact,
+                            **tenancy_fields(
+                                org_id=source.org_id,
+                                site_id=source.site_id,
+                                stream_id=source.stream_id,
+                            ),
+                            "pipeline_version": pipeline_version,
+                            "schema_version": schema_version,
+                        }
+                    )
+                    audio_segment_vector_rows.append({"clap_embedding": vector})
             if (
                 transcribe_enabled
                 and audio_has_speech
@@ -435,6 +630,14 @@ def ingest_video(
                         "schema_version": schema_version,
                     }
                 )
+                for segment_row in audio_segment_core_rows:
+                    derived_edges.append(
+                        {
+                            "src_id": segment_row["id"],
+                            "dst_id": media_asset_id,
+                            "schema_version": schema_version,
+                        }
+                    )
         else:
             transcript_status = "no_audio_track"
 
@@ -570,6 +773,52 @@ def ingest_video(
                         ),
                     )
                 )
+            if audio_segment_core_rows:
+                files.append(
+                    write_parquet(
+                        audio_segment_core_rows,
+                        schema_for("AudioSegment", "core"),
+                        vertex_part_uri(
+                            output_root, "AudioSegment", "core", str(uuid.uuid4())
+                        ),
+                    )
+                )
+                files.append(
+                    write_parquet(
+                        audio_segment_vector_rows,
+                        schema_for("AudioSegment", "vector"),
+                        vertex_part_uri(
+                            output_root, "AudioSegment", "vector", str(uuid.uuid4())
+                        ),
+                    )
+                )
+            if ocr_chunk_core_rows:
+                files.append(
+                    write_parquet(
+                        ocr_chunk_core_rows,
+                        schema_for("DocChunk", "core"),
+                        vertex_part_uri(output_root, "DocChunk", "core", str(uuid.uuid4())),
+                    )
+                )
+                files.append(
+                    write_parquet(
+                        ocr_chunk_text_rows,
+                        schema_for("DocChunk", "text"),
+                        vertex_part_uri(output_root, "DocChunk", "text", str(uuid.uuid4())),
+                    )
+                )
+                files.append(
+                    write_parquet(
+                        ocr_chunk_vector_rows,
+                        schema_for("DocChunk", "vector"),
+                        vertex_part_uri(
+                            output_root,
+                            "DocChunk",
+                            "vector",
+                            str(uuid.uuid4()),
+                        ),
+                    )
+                )
             if derived_edges:
                 files.append(
                     write_parquet(
@@ -594,6 +843,8 @@ def ingest_video(
                 "probe": "decode_ms",
                 "extract_keyframes": "extract_frames_ms",
                 "image_embed": "embed_image_ms",
+                "ocr": "decode_ms",
+                "ocr_text_embed": "embed_text_ms",
                 "write_thumbnail": "write_blobs_ms",
                 "extract_audio": "extract_audio_ms",
                 "vad": "vad_ms",
@@ -623,6 +874,13 @@ def ingest_video(
                     "transcribed_ms": transcribed_ms,
                     "transcript_language": transcript_language,
                     "transcript_error_reason": transcript_error_reason,
+                    "ocr_status": ocr_status,
+                    "ocr_candidates": ocr_candidates,
+                    "ocr_processed": ocr_processed,
+                    "ocr_snippet_count": len(ocr_chunk_core_rows),
+                    "audio_segment_count": len(audio_segment_core_rows),
+                    "audio_segment_candidates": audio_segment_candidates,
+                    "audio_segment_silence_skipped": audio_segment_silence_skipped,
                 },
                 "hashes": hashes_preview,
                 "embeddings": {
@@ -631,18 +889,21 @@ def ingest_video(
                         "dims": 512,
                     },
                     "audio": {
-                        "count": 1 if audio_vector is not None else 0,
+                        "count": (
+                            (1 if audio_vector is not None else 0)
+                            + len(audio_segment_core_rows)
+                        ),
                         "dims": 512,
                     },
                     "text": {
-                        "count": len(transcript_core_rows),
+                        "count": len(transcript_core_rows) + len(ocr_chunk_core_rows),
                         "dims": 768,
                     },
                 },
                 "evidence": {
                     "frames": len(image_core_rows),
-                    "snippets": 0,
-                    "segments": len(transcript_core_rows),
+                    "snippets": len(ocr_chunk_core_rows),
+                    "segments": len(transcript_core_rows) + len(audio_segment_core_rows),
                 },
                 "stage_timings_ms": stage_timings_preview,
             }
@@ -656,8 +917,10 @@ def ingest_video(
                 counts={
                     "MediaAsset": 1,
                     "ImageAsset": len(image_core_rows),
+                    "DocChunk": len(ocr_chunk_core_rows),
                     "Transcript": len(transcript_core_rows),
                     "AudioClip": 1 if audio_clip_core else 0,
+                    "AudioSegment": len(audio_segment_core_rows),
                     "DerivedFrom": len(derived_edges),
                     "NextKeyframe": len(next_keyframe_edges),
                     "NextTranscript": len(next_transcript_edges),
@@ -686,6 +949,8 @@ def ingest_video(
                 "probe": "decode_ms",
                 "extract_keyframes": "extract_frames_ms",
                 "image_embed": "embed_image_ms",
+                "ocr": "decode_ms",
+                "ocr_text_embed": "embed_text_ms",
                 "write_thumbnail": "write_blobs_ms",
                 "extract_audio": "extract_audio_ms",
                 "vad": "vad_ms",
@@ -731,6 +996,13 @@ def ingest_video(
                 "transcribed_ms": transcribed_ms,
                 "transcript_language": transcript_language,
                 "transcript_error_reason": transcript_error_reason,
+                "ocr_status": ocr_status,
+                "ocr_candidates": ocr_candidates,
+                "ocr_processed": ocr_processed,
+                "ocr_snippet_count": len(ocr_chunk_core_rows),
+                "audio_segment_count": len(audio_segment_core_rows),
+                "audio_segment_candidates": audio_segment_candidates,
+                "audio_segment_silence_skipped": audio_segment_silence_skipped,
             },
             "hashes": hashes,
             "embeddings": {
@@ -739,18 +1011,21 @@ def ingest_video(
                     "dims": 512,
                 },
                 "audio": {
-                    "count": 1 if audio_vector is not None else 0,
+                    "count": (
+                        (1 if audio_vector is not None else 0)
+                        + len(audio_segment_core_rows)
+                    ),
                     "dims": 512,
                 },
                 "text": {
-                    "count": len(transcript_core_rows),
+                    "count": len(transcript_core_rows) + len(ocr_chunk_core_rows),
                     "dims": 768,
                 },
             },
             "evidence": {
                 "frames": len(image_core_rows),
-                "snippets": 0,
-                "segments": len(transcript_core_rows),
+                "snippets": len(ocr_chunk_core_rows),
+                "segments": len(transcript_core_rows) + len(audio_segment_core_rows),
             },
         }
 
@@ -758,8 +1033,10 @@ def ingest_video(
             counts={
                 "MediaAsset": 1,
                 "ImageAsset": len(image_core_rows),
+                "DocChunk": len(ocr_chunk_core_rows),
                 "Transcript": len(transcript_core_rows),
                 "AudioClip": 1 if audio_clip_core else 0,
+                "AudioSegment": len(audio_segment_core_rows),
                 "DerivedFrom": len(derived_edges),
                 "NextKeyframe": len(next_keyframe_edges),
                 "NextTranscript": len(next_transcript_edges),

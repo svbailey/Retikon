@@ -14,10 +14,12 @@ from retikon_core.config import Config
 from retikon_core.embeddings import (
     get_embedding_artifact,
     get_image_embedder,
+    get_text_embedder,
     get_runtime_embedding_backend,
 )
 from retikon_core.embeddings.timeout import run_inference
-from retikon_core.errors import PermanentError
+from retikon_core.errors import InferenceTimeoutError, PermanentError
+from retikon_core.ingestion.ocr import ocr_result_from_image
 from retikon_core.ingestion.pipelines.metrics import (
     CallTracker,
     StageTimer,
@@ -203,14 +205,50 @@ def ingest_image(
     with timer.track("image_embed"):
         vector = _embed_images([embed_image], calls)[0]
 
+    ocr_chunk_core_rows: list[dict[str, object]] = []
+    ocr_chunk_text_rows: list[dict[str, object]] = []
+    ocr_chunk_vector_rows: list[dict[str, object]] = []
+    ocr_edge_rows: list[dict[str, object]] = []
+    ocr_conf_avg: int | None = None
+    ocr_status = "disabled"
+    ocr_text = ""
+    if config.ocr_images:
+        try:
+            with timer.track("ocr"):
+                ocr_result = run_inference(
+                    "ocr",
+                    lambda: ocr_result_from_image(
+                        rgb,
+                        min_confidence=config.ocr_min_confidence,
+                        min_text_len=config.ocr_min_text_len,
+                    ),
+                )
+        except (InferenceTimeoutError, PermanentError):
+            ocr_result = None
+            ocr_status = "error"
+        except Exception:
+            ocr_result = None
+            ocr_status = "error"
+        if ocr_result is not None:
+            ocr_text = ocr_result.text
+            ocr_conf_avg = ocr_result.conf_avg
+            if ocr_text:
+                ocr_status = "ok"
+            else:
+                ocr_status = "empty"
+
     media_asset_id = str(uuid.uuid4())
     image_asset_id = str(uuid.uuid4())
     now = datetime.now(timezone.utc)
     embedding_backend = None
     embedding_artifact = None
+    text_embedding_backend = None
+    text_embedding_artifact = None
     if config.embedding_metadata_enabled:
         embedding_backend = get_runtime_embedding_backend("image")
         embedding_artifact = get_embedding_artifact("image")
+        text_embedding_backend = get_runtime_embedding_backend("text")
+        text_embedding_artifact = get_embedding_artifact("text")
     thumb_uri = None
     thumb_bytes = 0
     if config.video_thumbnail_width > 0:
@@ -264,10 +302,62 @@ def ingest_image(
         "schema_version": schema_version,
     }
 
+    if ocr_text:
+        with timer.track("ocr_text_embed"):
+            ocr_vector = run_inference(
+                "text",
+                lambda: get_text_embedder(768).encode([ocr_text])[0],
+            )
+        chunk_id = str(uuid.uuid4())
+        token_count = len([token for token in ocr_text.split() if token.strip()])
+        ocr_chunk_core_rows.append(
+            {
+                "id": chunk_id,
+                "media_asset_id": media_asset_id,
+                "chunk_index": 0,
+                "char_start": 0,
+                "char_end": len(ocr_text),
+                "token_start": 0,
+                "token_end": token_count,
+                "token_count": token_count,
+                "source_type": "image",
+                "source_ref_id": image_asset_id,
+                "source_time_ms": None,
+                "ocr_conf_avg": ocr_conf_avg,
+                "embedding_model": os.getenv("TEXT_MODEL_NAME", "BAAI/bge-base-en-v1.5"),
+                "embedding_backend": text_embedding_backend,
+                "embedding_artifact": text_embedding_artifact,
+                **tenancy_fields(
+                    org_id=source.org_id,
+                    site_id=source.site_id,
+                    stream_id=source.stream_id,
+                ),
+                "pipeline_version": pipeline_version,
+                "schema_version": schema_version,
+            }
+        )
+        ocr_chunk_text_rows.append({"content": ocr_text})
+        ocr_chunk_vector_rows.append({"text_vector": ocr_vector})
+        ocr_edge_rows.append(
+            {
+                "src_id": chunk_id,
+                "dst_id": media_asset_id,
+                "schema_version": schema_version,
+            }
+        )
+
     files: list[WriteResult] = []
     with timer.track("write_parquet"):
         compression = _image_parquet_compression()
         row_group_size = _image_parquet_row_group_size()
+        derived_rows = [
+            {
+                "src_id": image_asset_id,
+                "dst_id": media_asset_id,
+                "schema_version": schema_version,
+            }
+        ]
+        derived_rows.extend(ocr_edge_rows)
         jobs = [
             (
                 [media_row],
@@ -288,18 +378,36 @@ def ingest_image(
                     output_root, "ImageAsset", "vector", str(uuid.uuid4())
                 ),
             ),
-            (
+        ]
+        if ocr_chunk_core_rows:
+            jobs.extend(
                 [
-                    {
-                        "src_id": image_asset_id,
-                        "dst_id": media_asset_id,
-                        "schema_version": schema_version,
-                    }
-                ],
+                    (
+                        ocr_chunk_core_rows,
+                        schema_for("DocChunk", "core"),
+                        vertex_part_uri(output_root, "DocChunk", "core", str(uuid.uuid4())),
+                    ),
+                    (
+                        ocr_chunk_text_rows,
+                        schema_for("DocChunk", "text"),
+                        vertex_part_uri(output_root, "DocChunk", "text", str(uuid.uuid4())),
+                    ),
+                    (
+                        ocr_chunk_vector_rows,
+                        schema_for("DocChunk", "vector"),
+                        vertex_part_uri(
+                            output_root, "DocChunk", "vector", str(uuid.uuid4())
+                        ),
+                    ),
+                ]
+            )
+        jobs.append(
+            (
+                derived_rows,
                 schema_for("DerivedFrom", "adj_list"),
                 edge_part_uri(output_root, "DerivedFrom", str(uuid.uuid4())),
-            ),
-        ]
+            )
+        )
         files.extend(
             _write_parquet_parallel(
                 jobs,
@@ -333,36 +441,45 @@ def ingest_image(
                 "bytes_thumbnails": thumb_bytes,
                 "bytes_derived": parquet_bytes + thumb_bytes,
             },
-            "quality": {
-                "width_px": width,
-                "height_px": height,
-            },
-            "hashes": hashes,
-            "embeddings": {
-                "image": {
-                    "count": 1,
-                    "dims": vector_dims,
-                }
-            },
-            "evidence": {
-                "frames": 1,
-                "snippets": 0,
-                "segments": 0,
-            },
-            "stage_timings_ms": stage_timings_preview,
+                "quality": {
+                    "width_px": width,
+                    "height_px": height,
+                    "ocr_status": ocr_status,
+                    "ocr_conf_avg": ocr_conf_avg,
+                },
+                "hashes": hashes,
+                "embeddings": {
+                    "image": {
+                        "count": 1,
+                        "dims": vector_dims,
+                    },
+                    "text": {
+                        "count": len(ocr_chunk_vector_rows),
+                        "dims": 768 if ocr_chunk_vector_rows else 0,
+                    },
+                },
+                "evidence": {
+                    "frames": 1,
+                    "snippets": len(ocr_chunk_core_rows),
+                    "segments": 0,
+                },
+                "stage_timings_ms": stage_timings_preview,
         }
     )
+    counts = {
+        "MediaAsset": 1,
+        "ImageAsset": 1,
+        "DerivedFrom": 1 + len(ocr_edge_rows),
+    }
+    if ocr_chunk_core_rows:
+        counts["DocChunk"] = len(ocr_chunk_core_rows)
     completed_at = datetime.now(timezone.utc)
     run_id = str(uuid.uuid4())
     with timer.track("write_manifest"):
         manifest = build_manifest(
             pipeline_version=pipeline_version,
             schema_version=schema_version,
-            counts={
-                "MediaAsset": 1,
-                "ImageAsset": 1,
-                "DerivedFrom": 1,
-            },
+            counts=counts,
             files=files,
             started_at=started_at,
             completed_at=completed_at,
@@ -376,6 +493,8 @@ def ingest_image(
         raw_timings,
         {
             "load_image": "decode_ms",
+            "ocr": "decode_ms",
+            "ocr_text_embed": "embed_text_ms",
             "image_embed": "embed_image_ms",
             "write_thumbnail": "write_blobs_ms",
             "write_parquet": "write_parquet_ms",
@@ -409,27 +528,29 @@ def ingest_image(
         "quality": {
             "width_px": width,
             "height_px": height,
+            "ocr_status": ocr_status,
+            "ocr_conf_avg": ocr_conf_avg,
         },
         "hashes": hashes,
         "embeddings": {
             "image": {
                 "count": 1,
                 "dims": vector_dims,
-            }
+            },
+            "text": {
+                "count": len(ocr_chunk_vector_rows),
+                "dims": 768 if ocr_chunk_vector_rows else 0,
+            },
         },
         "evidence": {
             "frames": 1,
-            "snippets": 0,
+            "snippets": len(ocr_chunk_core_rows),
             "segments": 0,
         },
     }
 
     return PipelineResult(
-        counts={
-            "MediaAsset": 1,
-            "ImageAsset": 1,
-            "DerivedFrom": 1,
-        },
+        counts=counts,
         manifest_uri=manifest_path,
         media_asset_id=media_asset_id,
         metrics=metrics,
