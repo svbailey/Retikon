@@ -76,6 +76,13 @@ def test_image_pipeline_writes_graphar(tmp_path):
     assert set(image_table.column("embedding_artifact").to_pylist()) == {
         "stub:deterministic"
     }
+    assert image_table.column("embedding_model_v2").to_pylist() == [
+        "google/siglip2-base-patch16-224"
+    ]
+    assert set(image_table.column("embedding_backend_v2").to_pylist()) == {"stub"}
+    assert set(image_table.column("embedding_artifact_v2").to_pylist()) == {
+        "stub:deterministic"
+    }
     for value in edge_table.column("src_id").to_pylist():
         assert _is_uuid4(value)
     for value in edge_table.column("dst_id").to_pylist():

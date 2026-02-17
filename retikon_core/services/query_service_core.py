@@ -16,6 +16,8 @@ from retikon_core.embeddings import (
     get_audio_text_embedder,
     get_image_embedder,
     get_image_text_embedder,
+    get_image_embedder_v2,
+    get_image_text_embedder_v2,
     get_reranker,
     get_text_embedder,
 )
@@ -943,6 +945,8 @@ def warm_query_models(
         "image_text": "image_text_embed_ms",
         "audio_text": "audio_text_embed_ms",
         "image": "image_embed_ms",
+        "vision_v2_text": "vision_v2_text_embed_ms",
+        "vision_v2_image": "vision_v2_image_embed_ms",
         "rerank": "rerank_warmup_ms",
     }
 
@@ -990,6 +994,23 @@ def warm_query_models(
             ),
         ),
     )
+    if os.getenv("VISION_V2_ENABLED", "1").strip().lower() in {"1", "true", "yes", "on"}:
+        _run_step(
+            "vision_v2_text",
+            lambda: run_inference(
+                "warmup_vision_v2",
+                lambda: get_image_text_embedder_v2(768).encode([warmup_text]),
+            ),
+        )
+        _run_step(
+            "vision_v2_image",
+            lambda: run_inference(
+                "warmup_vision_v2",
+                lambda: get_image_embedder_v2(768).encode(
+                    [Image.new("RGB", (1, 1), color=(0, 0, 0))]
+                ),
+            ),
+        )
     if os.getenv("RERANK_ENABLED", "0") == "1":
         _run_step(
             "rerank",

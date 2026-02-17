@@ -64,8 +64,11 @@ def _field_type(field: dict[str, Any]) -> pa.DataType:
         length = field.get("vector_length")
         if length is None:
             raise ValueError("vector_length is required for list<float32> fields")
-        if hasattr(pa, "fixed_size_list"):
-            return pa.fixed_size_list(pa.float32(), int(length))
+        # Nullable fixed-size lists written to parquet can fail to round-trip in
+        # pyarrow. Store nullable vectors as variable-length lists and enforce
+        # vector_length at the application/index layer instead.
+        if bool(field.get("nullable")):
+            return pa.list_(pa.float32())
         return pa.list_(pa.float32(), list_size=int(length))
     try:
         return _TYPE_MAP[type_name]

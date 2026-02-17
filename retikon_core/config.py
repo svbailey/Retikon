@@ -77,6 +77,7 @@ class Config:
     redis_password: str | None
     dlq_topic: str | None
     embedding_metadata_enabled: bool
+    vision_v2_enabled: bool
     enable_ocr: bool
     ocr_max_pages: int
     ocr_images: bool
@@ -289,6 +290,7 @@ class Config:
             os.getenv("EMBEDDING_METADATA_ENABLED"),
             True,
         )
+        vision_v2_enabled = _parse_bool(os.getenv("VISION_V2_ENABLED"), True)
         enable_ocr = os.getenv("ENABLE_OCR", "0") == "1"
         ocr_max_pages = int(os.getenv("OCR_MAX_PAGES", "5"))
         ocr_images = _parse_bool(os.getenv("OCR_IMAGES"), True)
@@ -387,6 +389,7 @@ class Config:
             redis_password=redis_password,
             dlq_topic=dlq_topic,
             embedding_metadata_enabled=embedding_metadata_enabled,
+            vision_v2_enabled=vision_v2_enabled,
             enable_ocr=enable_ocr,
             ocr_max_pages=ocr_max_pages,
             ocr_images=ocr_images,

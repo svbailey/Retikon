@@ -14,6 +14,7 @@ from retikon_core.config import Config
 from retikon_core.embeddings import (
     get_embedding_artifact,
     get_image_embedder,
+    get_image_embedder_v2,
     get_text_embedder,
     get_runtime_embedding_backend,
 )
@@ -53,6 +54,9 @@ from retikon_core.tenancy import tenancy_fields
 
 def _pipeline_model() -> str:
     return os.getenv("IMAGE_MODEL_NAME", "openai/clip-vit-base-patch32")
+
+def _pipeline_model_v2() -> str:
+    return os.getenv("VISION_V2_MODEL_NAME", "google/siglip2-base-patch16-224")
 
 
 def _image_parquet_compression() -> str:
@@ -181,6 +185,48 @@ def _embed_images(
     return vectors
 
 
+def _embed_images_v2(
+    images: list[Image.Image],
+    tracker: CallTracker | None = None,
+) -> list[list[float]] | None:
+    if not images:
+        return []
+    embedder = get_image_embedder_v2(768)
+    batch_size = image_embed_batch_size()
+    if tracker is not None:
+        tracker.set_context(
+            "image_embed_v2",
+            {
+                "batch_size": batch_size,
+                "backend": get_runtime_embedding_backend("vision_v2"),
+                "max_dim": image_embed_max_dim(),
+            },
+        )
+    vectors: list[list[float]] = []
+    for start in range(0, len(images), batch_size):
+        batch = images[start : start + batch_size]
+        if tracker is None:
+            batch_vectors = run_inference(
+                "vision_v2",
+                lambda batch=batch: embedder.encode(batch),
+            )
+        else:
+            batch_vectors = timed_call(
+                tracker,
+                "image_embed_v2",
+                lambda batch=batch: run_inference(
+                    "vision_v2",
+                    lambda batch=batch: embedder.encode(batch),
+                ),
+            )
+        if not batch_vectors:
+            return None
+        vectors.extend(batch_vectors)
+    if len(vectors) != len(images):
+        return None
+    return vectors
+
+
 def ingest_image(
     *,
     source: IngestSource,
@@ -204,6 +250,17 @@ def ingest_image(
     embed_image = prepare_image_for_embed(rgb)
     with timer.track("image_embed"):
         vector = _embed_images([embed_image], calls)[0]
+    vector_v2: list[float] | None = None
+    if config.vision_v2_enabled:
+        try:
+            with timer.track("image_embed_v2"):
+                vectors_v2 = _embed_images_v2([embed_image], calls)
+        except InferenceTimeoutError:
+            vectors_v2 = None
+        except Exception:
+            vectors_v2 = None
+        if vectors_v2:
+            vector_v2 = vectors_v2[0]
 
     ocr_chunk_core_rows: list[dict[str, object]] = []
     ocr_chunk_text_rows: list[dict[str, object]] = []
@@ -242,11 +299,16 @@ def ingest_image(
     now = datetime.now(timezone.utc)
     embedding_backend = None
     embedding_artifact = None
+    embedding_backend_v2 = None
+    embedding_artifact_v2 = None
     text_embedding_backend = None
     text_embedding_artifact = None
     if config.embedding_metadata_enabled:
         embedding_backend = get_runtime_embedding_backend("image")
         embedding_artifact = get_embedding_artifact("image")
+        if config.vision_v2_enabled and vector_v2 is not None:
+            embedding_backend_v2 = get_runtime_embedding_backend("vision_v2")
+            embedding_artifact_v2 = get_embedding_artifact("vision_v2")
         text_embedding_backend = get_runtime_embedding_backend("text")
         text_embedding_artifact = get_embedding_artifact("text")
     thumb_uri = None
@@ -293,6 +355,11 @@ def ingest_image(
         "embedding_model": _pipeline_model(),
         "embedding_backend": embedding_backend,
         "embedding_artifact": embedding_artifact,
+        "embedding_model_v2": (
+            _pipeline_model_v2() if config.vision_v2_enabled and vector_v2 is not None else None
+        ),
+        "embedding_backend_v2": embedding_backend_v2,
+        "embedding_artifact_v2": embedding_artifact_v2,
         **tenancy_fields(
             org_id=source.org_id,
             site_id=source.site_id,
@@ -372,7 +439,12 @@ def ingest_image(
                 vertex_part_uri(output_root, "ImageAsset", "core", str(uuid.uuid4())),
             ),
             (
-                [{"clip_vector": vector}],
+                [
+                    {
+                        "clip_vector": vector,
+                        "vision_vector_v2": vector_v2,
+                    }
+                ],
                 schema_for("ImageAsset", "vector"),
                 vertex_part_uri(
                     output_root, "ImageAsset", "vector", str(uuid.uuid4())
@@ -419,6 +491,7 @@ def ingest_image(
     parquet_bytes = sum(item.bytes_written for item in files)
     bytes_raw = source.size_bytes or 0
     vector_dims = len(vector) if vector is not None else 0
+    vector_v2_dims = len(vector_v2) if vector_v2 is not None else 0
     hashes: dict[str, str] = {}
     if source.content_hash_sha256:
         hashes["content_sha256"] = source.content_hash_sha256
@@ -428,6 +501,7 @@ def ingest_image(
         {
             "load_image": "decode_ms",
             "image_embed": "embed_image_ms",
+            "image_embed_v2": "embed_image_ms",
             "write_thumbnail": "write_blobs_ms",
             "write_parquet": "write_parquet_ms",
             "write_manifest": "write_manifest_ms",
@@ -452,6 +526,10 @@ def ingest_image(
                     "image": {
                         "count": 1,
                         "dims": vector_dims,
+                    },
+                    "vision_v2": {
+                        "count": 1 if vector_v2 is not None else 0,
+                        "dims": vector_v2_dims,
                     },
                     "text": {
                         "count": len(ocr_chunk_vector_rows),
@@ -496,6 +574,7 @@ def ingest_image(
             "ocr": "decode_ms",
             "ocr_text_embed": "embed_text_ms",
             "image_embed": "embed_image_ms",
+            "image_embed_v2": "embed_image_ms",
             "write_thumbnail": "write_blobs_ms",
             "write_parquet": "write_parquet_ms",
             "write_manifest": "write_manifest_ms",
@@ -536,6 +615,10 @@ def ingest_image(
             "image": {
                 "count": 1,
                 "dims": vector_dims,
+            },
+            "vision_v2": {
+                "count": 1 if vector_v2 is not None else 0,
+                "dims": vector_v2_dims,
             },
             "text": {
                 "count": len(ocr_chunk_vector_rows),

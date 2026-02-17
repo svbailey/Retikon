@@ -12,6 +12,13 @@ def main() -> None:
     model_dir = _env("MODEL_DIR", "/app/models")
     text_model = _env("TEXT_MODEL_NAME", "BAAI/bge-base-en-v1.5")
     image_model = _env("IMAGE_MODEL_NAME", "openai/clip-vit-base-patch32")
+    vision_v2_enabled = _env("VISION_V2_ENABLED", "1").strip().lower() in {
+        "1",
+        "true",
+        "yes",
+        "on",
+    }
+    vision_v2_model = _env("VISION_V2_MODEL_NAME", "google/siglip2-base-patch16-224")
     audio_model = _env("AUDIO_MODEL_NAME", "laion/clap-htsat-fused")
     whisper_model = _env("WHISPER_MODEL_NAME", "small")
     rerank_enabled = _env("RERANK_ENABLED", "0").strip().lower() in {
@@ -60,6 +67,13 @@ def main() -> None:
 
     CLIPModel.from_pretrained(image_model, cache_dir=model_dir)
     CLIPProcessor.from_pretrained(image_model, cache_dir=model_dir)
+
+    if vision_v2_enabled:
+        print(f"Downloading vision v2 model: {vision_v2_model}")
+        from transformers import AutoModel, SiglipProcessor
+
+        AutoModel.from_pretrained(vision_v2_model, cache_dir=model_dir)
+        SiglipProcessor.from_pretrained(vision_v2_model, cache_dir=model_dir)
 
     print(f"Downloading CLAP model: {audio_model}")
     from transformers import ClapModel, ClapProcessor

@@ -131,13 +131,22 @@ def _image_model_name() -> str:
 def _audio_model_name() -> str:
     return os.getenv("AUDIO_MODEL_NAME", "laion/clap-htsat-fused")
 
+def _vision_v2_model_name() -> str:
+    return os.getenv("VISION_V2_MODEL_NAME", "google/siglip2-base-patch16-224")
+
 
 def _embedding_device() -> str:
     return os.getenv("EMBEDDING_DEVICE", "cpu")
 
+def _vision_v2_backend() -> str:
+    # Vision v2 is HF-only for now, so default to HF when USE_REAL_MODELS=1
+    # regardless of the global EMBEDDING_BACKEND setting.
+    return _normalize_backend(os.getenv("VISION_V2_EMBED_BACKEND"))
+
 
 _CLIP_BUNDLE: tuple[Any, Any, str] | None = None
 _CLAP_BUNDLE: tuple[Any, Any, str] | None = None
+_VISION_V2_BUNDLE: tuple[Any, Any, str] | None = None
 
 
 def _get_clip_bundle() -> tuple[Any, Any, str]:
@@ -170,6 +179,21 @@ def _get_clap_bundle() -> tuple[Any, Any, str]:
         model.eval()
         _CLAP_BUNDLE = (model, processor, device)
     return _CLAP_BUNDLE
+
+def _get_vision_v2_bundle() -> tuple[Any, Any, str]:
+    global _VISION_V2_BUNDLE
+    device = _embedding_device()
+    if _VISION_V2_BUNDLE is None or _VISION_V2_BUNDLE[2] != device:
+        from transformers import AutoModel, SiglipProcessor
+
+        model_name = _vision_v2_model_name()
+        cache_dir = _model_dir()
+        model = AutoModel.from_pretrained(model_name, cache_dir=cache_dir)
+        processor = SiglipProcessor.from_pretrained(model_name, cache_dir=cache_dir)
+        model.to(device)
+        model.eval()
+        _VISION_V2_BUNDLE = (model, processor, device)
+    return _VISION_V2_BUNDLE
 
 
 def _seed_from_bytes(payload: bytes) -> int:
@@ -364,6 +388,47 @@ class RealClapTextEmbedder:
         return features.cpu().numpy().tolist()
 
 
+class RealVisionV2ImageEmbedder:
+    def __init__(self) -> None:
+        model, processor, device = _get_vision_v2_bundle()
+        self.model = model
+        self.processor = processor
+        self.device = device
+
+    def encode(self, images: Iterable[Image.Image]) -> list[list[float]]:
+        import torch
+
+        inputs = self.processor(images=list(images), return_tensors="pt")
+        inputs = {key: value.to(self.device) for key, value in inputs.items()}
+        with torch.no_grad():
+            features = self.model.get_image_features(**inputs)
+            features = torch.nn.functional.normalize(features, p=2, dim=-1)
+        return features.cpu().numpy().tolist()
+
+
+class RealVisionV2TextEmbedder:
+    def __init__(self) -> None:
+        model, processor, device = _get_vision_v2_bundle()
+        self.model = model
+        self.processor = processor
+        self.device = device
+
+    def encode(self, texts: Iterable[str]) -> list[list[float]]:
+        import torch
+
+        inputs = self.processor(
+            text=list(texts),
+            return_tensors="pt",
+            padding=True,
+            truncation=True,
+        )
+        inputs = {key: value.to(self.device) for key, value in inputs.items()}
+        with torch.no_grad():
+            features = self.model.get_text_features(**inputs)
+            features = torch.nn.functional.normalize(features, p=2, dim=-1)
+        return features.cpu().numpy().tolist()
+
+
 def _require_onnxruntime() -> None:
     try:
         import importlib
@@ -459,6 +524,8 @@ _REAL_IMAGE: RealClipImageEmbedder | None = None
 _REAL_IMAGE_TEXT: RealClipTextEmbedder | None = None
 _REAL_AUDIO: RealClapAudioEmbedder | None = None
 _REAL_AUDIO_TEXT: RealClapTextEmbedder | None = None
+_REAL_VISION_V2_IMAGE: RealVisionV2ImageEmbedder | None = None
+_REAL_VISION_V2_TEXT: RealVisionV2TextEmbedder | None = None
 
 _ONNX_TEXT: "OnnxTextEmbedder | None" = None
 _ONNX_IMAGE: "OnnxClipImageEmbedder | None" = None
@@ -520,6 +587,19 @@ def _get_real_audio_text_embedder() -> TextEmbedder:
     if _REAL_AUDIO_TEXT is None:
         _REAL_AUDIO_TEXT = RealClapTextEmbedder()
     return _REAL_AUDIO_TEXT
+
+def _get_real_vision_v2_image_embedder() -> ImageEmbedder:
+    global _REAL_VISION_V2_IMAGE
+    if _REAL_VISION_V2_IMAGE is None:
+        _REAL_VISION_V2_IMAGE = RealVisionV2ImageEmbedder()
+    return _REAL_VISION_V2_IMAGE
+
+
+def _get_real_vision_v2_text_embedder() -> TextEmbedder:
+    global _REAL_VISION_V2_TEXT
+    if _REAL_VISION_V2_TEXT is None:
+        _REAL_VISION_V2_TEXT = RealVisionV2TextEmbedder()
+    return _REAL_VISION_V2_TEXT
 
 
 def get_text_embedder(dim: int) -> TextEmbedder:
@@ -616,11 +696,30 @@ def get_audio_text_embedder(dim: int) -> TextEmbedder:
         return _QUANT_AUDIO_TEXT
     return _get_real_audio_text_embedder()
 
+def get_image_embedder_v2(dim: int) -> ImageEmbedder:
+    backend = _vision_v2_backend()
+    if backend == BACKEND_STUB or not _use_real_models():
+        return _get_cached_embedder(_IMAGE_CACHE, StubImageEmbedder, dim)
+    if backend == BACKEND_HF:
+        return _get_real_vision_v2_image_embedder()
+    raise ValueError(f"Unsupported vision v2 embedding backend: {backend}")
+
+
+def get_image_text_embedder_v2(dim: int) -> TextEmbedder:
+    backend = _vision_v2_backend()
+    if backend == BACKEND_STUB or not _use_real_models():
+        return _get_cached_embedder(_TEXT_CACHE, StubTextEmbedder, dim)
+    if backend == BACKEND_HF:
+        return _get_real_vision_v2_text_embedder()
+    raise ValueError(f"Unsupported vision v2 embedding backend: {backend}")
+
 
 def get_embedding_backend(kind: str | None = None) -> str:
     normalized = _normalize_kind(kind)
     if normalized is None:
         return _embedding_backend()
+    if normalized == "vision_v2":
+        return _vision_v2_backend()
     if normalized == "image_text":
         return _embedding_backend_for("image_text", "image")
     if normalized == "audio_text":
@@ -655,6 +754,9 @@ def get_embedding_artifact(kind: str | None = None) -> str:
             return f"hf:{_image_model_name()}"
         if backend in {BACKEND_ONNX, BACKEND_QUANTIZED}:
             return "onnx:clip-image.onnx"
+    if normalized == "vision_v2":
+        if backend == BACKEND_HF:
+            return f"hf:{_vision_v2_model_name()}"
     if normalized in {"audio", "audio_text"}:
         if backend == BACKEND_HF:
             return f"hf:{_audio_model_name()}"
@@ -669,13 +771,18 @@ def reset_embedding_cache() -> None:
     _IMAGE_CACHE.clear()
     _AUDIO_CACHE.clear()
     global _REAL_TEXT, _REAL_IMAGE, _REAL_IMAGE_TEXT, _REAL_AUDIO, _REAL_AUDIO_TEXT
+    global _REAL_VISION_V2_IMAGE, _REAL_VISION_V2_TEXT
     global _ONNX_TEXT, _ONNX_IMAGE, _ONNX_IMAGE_TEXT, _ONNX_AUDIO, _ONNX_AUDIO_TEXT
     global _QUANT_TEXT, _QUANT_IMAGE, _QUANT_IMAGE_TEXT, _QUANT_AUDIO, _QUANT_AUDIO_TEXT
+    global _VISION_V2_BUNDLE
     _REAL_TEXT = None
     _REAL_IMAGE = None
     _REAL_IMAGE_TEXT = None
     _REAL_AUDIO = None
     _REAL_AUDIO_TEXT = None
+    _REAL_VISION_V2_IMAGE = None
+    _REAL_VISION_V2_TEXT = None
+    _VISION_V2_BUNDLE = None
     _ONNX_TEXT = None
     _ONNX_IMAGE = None
     _ONNX_IMAGE_TEXT = None

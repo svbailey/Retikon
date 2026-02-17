@@ -1,0 +1,18 @@
+{
+  "missing": [],
+  "optional_present": {},
+  "present": {
+    "MODEL_INFERENCE_VISION_V2_TIMEOUT_S": "2",
+    "QUERY_FUSION_RRF_K": "60",
+    "QUERY_FUSION_WEIGHT_VERSION": "v1",
+    "RERANK_ENABLED": "1",
+    "SEARCH_GROUP_BY_ENABLED": "1",
+    "SEARCH_PAGINATION_ENABLED": "1",
+    "SEARCH_TYPED_ERRORS_ENABLED": "1",
+    "SEARCH_WHY_ENABLED": "1",
+    "VISION_V2_EMBED_BACKEND": "hf",
+    "VISION_V2_ENABLED": "1",
+    "VISION_V2_MODEL_NAME": "google/siglip2-base-patch16-224",
+    "VISION_V2_TIMEOUT_S": "2"
+  }
+}

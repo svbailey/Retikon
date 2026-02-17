@@ -816,6 +816,26 @@ resource "google_cloud_run_service" "ingestion" {
           value = var.image_model_name
         }
         env {
+          name  = "VISION_V2_ENABLED"
+          value = var.vision_v2_enabled ? "1" : "0"
+        }
+        env {
+          name  = "VISION_V2_MODEL_NAME"
+          value = var.vision_v2_model_name
+        }
+        env {
+          name  = "VISION_V2_EMBED_BACKEND"
+          value = var.vision_v2_embed_backend
+        }
+        env {
+          name  = "VISION_V2_TIMEOUT_S"
+          value = tostring(var.vision_v2_timeout_s)
+        }
+        env {
+          name  = "MODEL_INFERENCE_VISION_V2_TIMEOUT_S"
+          value = tostring(var.vision_v2_timeout_s)
+        }
+        env {
           name  = "AUDIO_MODEL_NAME"
           value = var.audio_model_name
         }
@@ -1445,6 +1465,26 @@ resource "google_cloud_run_service" "query" {
           value = var.image_model_name
         }
         env {
+          name  = "VISION_V2_ENABLED"
+          value = var.vision_v2_enabled ? "1" : "0"
+        }
+        env {
+          name  = "VISION_V2_MODEL_NAME"
+          value = var.vision_v2_model_name
+        }
+        env {
+          name  = "VISION_V2_EMBED_BACKEND"
+          value = var.vision_v2_embed_backend
+        }
+        env {
+          name  = "VISION_V2_TIMEOUT_S"
+          value = tostring(var.vision_v2_timeout_s)
+        }
+        env {
+          name  = "MODEL_INFERENCE_VISION_V2_TIMEOUT_S"
+          value = tostring(var.vision_v2_timeout_s)
+        }
+        env {
           name  = "AUDIO_MODEL_NAME"
           value = var.audio_model_name
         }
@@ -1971,6 +2011,26 @@ resource "google_cloud_run_service" "query_gpu" {
         env {
           name  = "IMAGE_MODEL_NAME"
           value = var.image_model_name
+        }
+        env {
+          name  = "VISION_V2_ENABLED"
+          value = var.vision_v2_enabled ? "1" : "0"
+        }
+        env {
+          name  = "VISION_V2_MODEL_NAME"
+          value = var.vision_v2_model_name
+        }
+        env {
+          name  = "VISION_V2_EMBED_BACKEND"
+          value = var.vision_v2_embed_backend
+        }
+        env {
+          name  = "VISION_V2_TIMEOUT_S"
+          value = tostring(var.vision_v2_timeout_s)
+        }
+        env {
+          name  = "MODEL_INFERENCE_VISION_V2_TIMEOUT_S"
+          value = tostring(var.vision_v2_timeout_s)
         }
         env {
           name  = "AUDIO_MODEL_NAME"
@@ -4007,6 +4067,26 @@ resource "google_cloud_run_service" "dev_console" {
           value = var.image_model_name
         }
         env {
+          name  = "VISION_V2_ENABLED"
+          value = var.vision_v2_enabled ? "1" : "0"
+        }
+        env {
+          name  = "VISION_V2_MODEL_NAME"
+          value = var.vision_v2_model_name
+        }
+        env {
+          name  = "VISION_V2_EMBED_BACKEND"
+          value = var.vision_v2_embed_backend
+        }
+        env {
+          name  = "VISION_V2_TIMEOUT_S"
+          value = tostring(var.vision_v2_timeout_s)
+        }
+        env {
+          name  = "MODEL_INFERENCE_VISION_V2_TIMEOUT_S"
+          value = tostring(var.vision_v2_timeout_s)
+        }
+        env {
           name  = "EMBEDDING_BACKEND"
           value = var.dev_console_embedding_backend
         }
@@ -4371,6 +4451,26 @@ resource "google_cloud_run_service" "stream_ingest" {
         env {
           name  = "IMAGE_MODEL_NAME"
           value = var.image_model_name
+        }
+        env {
+          name  = "VISION_V2_ENABLED"
+          value = var.vision_v2_enabled ? "1" : "0"
+        }
+        env {
+          name  = "VISION_V2_MODEL_NAME"
+          value = var.vision_v2_model_name
+        }
+        env {
+          name  = "VISION_V2_EMBED_BACKEND"
+          value = var.vision_v2_embed_backend
+        }
+        env {
+          name  = "VISION_V2_TIMEOUT_S"
+          value = tostring(var.vision_v2_timeout_s)
+        }
+        env {
+          name  = "MODEL_INFERENCE_VISION_V2_TIMEOUT_S"
+          value = tostring(var.vision_v2_timeout_s)
         }
         env {
           name  = "AUDIO_MODEL_NAME"
@@ -4819,6 +4919,26 @@ resource "google_cloud_run_service" "ingestion_media" {
         env {
           name  = "IMAGE_MODEL_NAME"
           value = var.image_model_name
+        }
+        env {
+          name  = "VISION_V2_ENABLED"
+          value = var.vision_v2_enabled ? "1" : "0"
+        }
+        env {
+          name  = "VISION_V2_MODEL_NAME"
+          value = var.vision_v2_model_name
+        }
+        env {
+          name  = "VISION_V2_EMBED_BACKEND"
+          value = var.vision_v2_embed_backend
+        }
+        env {
+          name  = "VISION_V2_TIMEOUT_S"
+          value = tostring(var.vision_v2_timeout_s)
+        }
+        env {
+          name  = "MODEL_INFERENCE_VISION_V2_TIMEOUT_S"
+          value = tostring(var.vision_v2_timeout_s)
         }
         env {
           name  = "AUDIO_MODEL_NAME"
@@ -5392,6 +5512,26 @@ resource "google_cloud_run_service" "ingestion_embed" {
         env {
           name  = "IMAGE_MODEL_NAME"
           value = var.image_model_name
+        }
+        env {
+          name  = "VISION_V2_ENABLED"
+          value = var.vision_v2_enabled ? "1" : "0"
+        }
+        env {
+          name  = "VISION_V2_MODEL_NAME"
+          value = var.vision_v2_model_name
+        }
+        env {
+          name  = "VISION_V2_EMBED_BACKEND"
+          value = var.vision_v2_embed_backend
+        }
+        env {
+          name  = "VISION_V2_TIMEOUT_S"
+          value = tostring(var.vision_v2_timeout_s)
+        }
+        env {
+          name  = "MODEL_INFERENCE_VISION_V2_TIMEOUT_S"
+          value = tostring(var.vision_v2_timeout_s)
         }
         env {
           name  = "AUDIO_MODEL_NAME"

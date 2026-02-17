@@ -17,8 +17,11 @@ from PIL import Image
 from retikon_core.embeddings import (
     get_audio_text_embedder,
     get_image_embedder,
+    get_image_embedder_v2,
     get_image_text_embedder,
+    get_image_text_embedder_v2,
     get_reranker,
+    get_runtime_embedding_backend,
     get_text_embedder,
     normalize_rerank_scores,
 )
@@ -132,6 +135,9 @@ class QueryResult:
     source_type: str | None = None
     evidence_refs: list[dict[str, str]] = field(default_factory=list)
     why: list[dict[str, object]] = field(default_factory=list)
+    embedding_model: str | None = None
+    embedding_backend: str | None = None
+    why_modality: str | None = None
 
     @property
     def timestamp_ms(self) -> int | None:
@@ -240,6 +246,18 @@ def _fuse_k() -> int:
 
 def _rerank_enabled() -> bool:
     return os.getenv("RERANK_ENABLED", "0").strip().lower() in {"1", "true", "yes", "on"}
+
+def _vision_v2_enabled() -> bool:
+    return os.getenv("VISION_V2_ENABLED", "1").strip().lower() in {
+        "1",
+        "true",
+        "yes",
+        "on",
+    }
+
+
+def _vision_v2_model_name() -> str:
+    return os.getenv("VISION_V2_MODEL_NAME", "google/siglip2-base-patch16-224")
 
 
 def _rerank_top_n() -> int:
@@ -730,6 +748,15 @@ def _cached_image_text_vector(text: str) -> tuple[float, ...]:
 
 
 @lru_cache(maxsize=256)
+def _cached_vision_v2_text_vector(text: str) -> tuple[float, ...]:
+    vector = run_inference(
+        "vision_v2",
+        lambda: get_image_text_embedder_v2(768).encode([text])[0],
+    )
+    return tuple(vector)
+
+
+@lru_cache(maxsize=256)
 def _cached_audio_text_vector(text: str) -> tuple[float, ...]:
     vector = run_inference(
         "audio_text",
@@ -755,7 +782,12 @@ def search_by_text(
     text_vec = None
     if need_text:
         embed_start = time.monotonic()
-        text_vec = list(_cached_text_vector(query_text))
+        try:
+            text_vec = list(_cached_text_vector(query_text))
+        except InferenceTimeoutError:
+            if trace is not None:
+                trace["text_embed_timeout"] = 1
+            raise
         if trace is not None:
             trace["text_embed_ms"] = round(
                 (time.monotonic() - embed_start) * 1000.0, 2
@@ -764,7 +796,12 @@ def search_by_text(
     image_text_vec = None
     if need_image:
         image_embed_start = time.monotonic()
-        image_text_vec = list(_cached_image_text_vector(query_text))
+        try:
+            image_text_vec = list(_cached_image_text_vector(query_text))
+        except InferenceTimeoutError:
+            image_text_vec = None
+            if trace is not None:
+                trace["image_text_embed_timeout"] = 1
         if trace is not None:
             trace["image_text_embed_ms"] = round(
                 (time.monotonic() - image_embed_start) * 1000.0, 2
@@ -773,7 +810,12 @@ def search_by_text(
     audio_text_vec = None
     if need_audio:
         audio_embed_start = time.monotonic()
-        audio_text_vec = list(_cached_audio_text_vector(query_text))
+        try:
+            audio_text_vec = list(_cached_audio_text_vector(query_text))
+        except InferenceTimeoutError:
+            audio_text_vec = None
+            if trace is not None:
+                trace["audio_text_embed_timeout"] = 1
         if trace is not None:
             trace["audio_text_embed_ms"] = round(
                 (time.monotonic() - audio_embed_start) * 1000.0, 2
@@ -797,6 +839,11 @@ def search_by_text(
         transcript_has_id = _table_has_column(conn, "transcripts", "id")
         transcript_has_end_ms = _table_has_column(conn, "transcripts", "end_ms")
         image_has_id = _table_has_column(conn, "image_assets", "id")
+        has_vision_v2_vectors = (
+            need_image
+            and _vision_v2_enabled()
+            and _table_has_column(conn, "image_assets", "vision_vector_v2")
+        )
         has_audio_segments = _table_has_column(conn, "audio_segments", "clap_embedding")
         has_audio_clips = _table_has_column(conn, "audio_clips", "clap_embedding")
         audio_table = "audio_segments" if has_audio_segments else "audio_clips"
@@ -843,6 +890,36 @@ def search_by_text(
         audio_start_expr = "a.start_ms" if audio_has_start_ms else "NULL AS start_ms"
         audio_end_expr = "a.end_ms" if audio_has_end_ms else "NULL AS end_ms"
         scope_clause, scope_params = _scope_filters(conn, scope)
+        image_text_vec_v2 = None
+        if has_vision_v2_vectors:
+            if scope_clause:
+                probe_sql = (
+                    "SELECT 1 FROM image_assets i "
+                    "JOIN media_assets m ON i.media_asset_id = m.id "
+                    f"{scope_clause} AND i.vision_vector_v2 IS NOT NULL "
+                    "LIMIT 1"
+                )
+            else:
+                probe_sql = (
+                    "SELECT 1 FROM image_assets i "
+                    "JOIN media_assets m ON i.media_asset_id = m.id "
+                    "WHERE i.vision_vector_v2 IS NOT NULL "
+                    "LIMIT 1"
+                )
+            has_vision_v2_vectors = bool(_query_rows(conn, probe_sql, scope_params))
+        if has_vision_v2_vectors:
+            image_v2_embed_start = time.monotonic()
+            try:
+                image_text_vec_v2 = list(_cached_vision_v2_text_vector(query_text))
+            except InferenceTimeoutError:
+                image_text_vec_v2 = None
+                has_vision_v2_vectors = False
+                if trace is not None:
+                    trace["vision_v2_text_embed_timeout"] = 1
+            if trace is not None:
+                trace["vision_v2_text_embed_ms"] = round(
+                    (time.monotonic() - image_v2_embed_start) * 1000.0, 2
+                )
 
         doc_sql = f"""
             SELECT m.uri, m.media_type, d.media_asset_id, d.content,
@@ -1166,6 +1243,94 @@ def search_by_text(
                         primary_evidence_id=str(evidence_id),
                         source_type="keyframe" if timestamp_ms is not None else "image",
                         evidence_refs=_evidence_refs_for("image", str(evidence_id)),
+                        embedding_model=os.getenv(
+                            "IMAGE_MODEL_NAME",
+                            "openai/clip-vit-base-patch32",
+                        ),
+                        embedding_backend=get_runtime_embedding_backend("image_text"),
+                        why_modality="vision_v1",
+                    )
+                )
+
+        if need_image and image_text_vec_v2 is not None:
+            if scope_clause:
+                image_scope_v2 = f"{scope_clause} AND i.vision_vector_v2 IS NOT NULL"
+            else:
+                image_scope_v2 = "WHERE i.vision_vector_v2 IS NOT NULL"
+            image_sql_v2 = f"""
+                SELECT m.uri, m.media_type, i.media_asset_id, i.timestamp_ms,
+                       {thumbnail_expr},
+                       {image_id_expr} AS evidence_id,
+                       (1.0 - list_cosine_similarity(
+                           i.vision_vector_v2, ?::FLOAT[]
+                       )) AS distance
+                FROM image_assets i
+                JOIN media_assets m ON i.media_asset_id = m.id
+                {image_scope_v2}
+                ORDER BY distance
+                LIMIT {int(top_k)}
+            """
+            image_v2_start = time.monotonic()
+            image_rows_v2 = _query_rows(conn, image_sql_v2, [image_text_vec_v2, *scope_params])
+            if trace is not None:
+                trace["vision_v2_query_ms"] = round(
+                    (time.monotonic() - image_v2_start) * 1000.0, 2
+                )
+                trace["vision_v2_rows"] = len(image_rows_v2)
+            _record_hitlist(
+                trace,
+                "vision_v2",
+                image_rows_v2,
+                uri_index=0,
+                distance_index=7,
+            )
+            for row in image_rows_v2:
+                if len(row) >= 7:
+                    (
+                        uri,
+                        media_type,
+                        media_asset_id,
+                        timestamp_ms,
+                        thumbnail_uri,
+                        evidence_id,
+                        distance,
+                    ) = row[:7]
+                else:
+                    (
+                        uri,
+                        media_type,
+                        media_asset_id,
+                        timestamp_ms,
+                        thumbnail_uri,
+                        distance,
+                    ) = row[:6]
+                    evidence_id = f"{media_asset_id}:image:{timestamp_ms}"
+                score = _boost_score(
+                    _score_from_distance(distance),
+                    modality="image",
+                    query_text=query_text,
+                )
+                results.append(
+                    QueryResult(
+                        modality="image",
+                        uri=uri,
+                        snippet=None,
+                        start_ms=(
+                            int(timestamp_ms) if timestamp_ms is not None else None
+                        ),
+                        end_ms=(
+                            int(timestamp_ms) if timestamp_ms is not None else None
+                        ),
+                        thumbnail_uri=thumbnail_uri,
+                        score=score,
+                        media_asset_id=media_asset_id,
+                        media_type=media_type,
+                        primary_evidence_id=str(evidence_id),
+                        source_type="keyframe" if timestamp_ms is not None else "image",
+                        evidence_refs=_evidence_refs_for("image", str(evidence_id)),
+                        embedding_model=_vision_v2_model_name(),
+                        embedding_backend=get_runtime_embedding_backend("vision_v2"),
+                        why_modality="vision_v2",
                     )
                 )
 
@@ -1609,11 +1774,16 @@ def search_by_image(
             )
     except Exception as exc:
         raise ValueError("Invalid image_base64 payload") from exc
+    vector = None
     embed_start = time.monotonic()
-    vector = run_inference(
-        "image",
-        lambda: get_image_embedder(512).encode([image])[0],
-    )
+    try:
+        vector = run_inference(
+            "image",
+            lambda: get_image_embedder(512).encode([image])[0],
+        )
+    except InferenceTimeoutError:
+        if trace is not None:
+            trace["image_embed_timeout"] = 1
     if trace is not None:
         trace["image_embed_ms"] = round((time.monotonic() - embed_start) * 1000.0, 2)
 
@@ -1635,6 +1805,43 @@ def search_by_image(
             "COALESCE(CAST(i.timestamp_ms AS VARCHAR), '0')"
         )
         scope_clause, scope_params = _scope_filters(conn, scope)
+        has_vision_v2_vectors = _vision_v2_enabled() and _table_has_column(
+            conn,
+            "image_assets",
+            "vision_vector_v2",
+        )
+        vector_v2 = None
+        if has_vision_v2_vectors:
+            if scope_clause:
+                probe_sql = (
+                    "SELECT 1 FROM image_assets i "
+                    "JOIN media_assets m ON i.media_asset_id = m.id "
+                    f"{scope_clause} AND i.vision_vector_v2 IS NOT NULL "
+                    "LIMIT 1"
+                )
+            else:
+                probe_sql = (
+                    "SELECT 1 FROM image_assets i "
+                    "JOIN media_assets m ON i.media_asset_id = m.id "
+                    "WHERE i.vision_vector_v2 IS NOT NULL "
+                    "LIMIT 1"
+                )
+            has_vision_v2_vectors = bool(_query_rows(conn, probe_sql, scope_params))
+        if has_vision_v2_vectors:
+            embed_v2_start = time.monotonic()
+            try:
+                vector_v2 = run_inference(
+                    "vision_v2",
+                    lambda: get_image_embedder_v2(768).encode([image])[0],
+                )
+            except InferenceTimeoutError:
+                vector_v2 = None
+                if trace is not None:
+                    trace["vision_v2_embed_timeout"] = 1
+            if trace is not None:
+                trace["vision_v2_embed_ms"] = round(
+                    (time.monotonic() - embed_v2_start) * 1000.0, 2
+                )
 
         image_sql = f"""
             SELECT m.uri, m.media_type, i.media_asset_id, i.timestamp_ms,
@@ -1647,47 +1854,122 @@ def search_by_image(
             ORDER BY distance
             LIMIT {int(top_k)}
         """
-        image_start = time.monotonic()
-        image_rows = _query_rows(conn, image_sql, [vector, *scope_params])
-        if trace is not None:
-            trace["image_query_ms"] = round(
-                (time.monotonic() - image_start) * 1000.0, 2
+        results: list[QueryResult] = []
+        if vector is not None:
+            image_start = time.monotonic()
+            image_rows = _query_rows(conn, image_sql, [vector, *scope_params])
+            if trace is not None:
+                trace["image_query_ms"] = round(
+                    (time.monotonic() - image_start) * 1000.0, 2
+                )
+                trace["image_rows"] = len(image_rows)
+            _record_hitlist(
+                trace,
+                "image",
+                image_rows,
+                uri_index=0,
+                distance_index=6,
             )
-            trace["image_rows"] = len(image_rows)
-        _record_hitlist(
-            trace,
-            "image",
-            image_rows,
-            uri_index=0,
-            distance_index=6,
-        )
-        results = [
-            QueryResult(
-                modality="image",
-                uri=uri,
-                snippet=None,
-                start_ms=int(timestamp_ms) if timestamp_ms is not None else None,
-                end_ms=int(timestamp_ms) if timestamp_ms is not None else None,
-                thumbnail_uri=thumbnail_uri,
-                score=_score_from_distance(distance),
-                media_asset_id=media_asset_id,
-                media_type=media_type,
-                primary_evidence_id=str(evidence_id),
-                source_type="keyframe" if timestamp_ms is not None else "image",
-                evidence_refs=_evidence_refs_for("image", str(evidence_id)),
+            results.extend(
+                [
+                    QueryResult(
+                        modality="image",
+                        uri=uri,
+                        snippet=None,
+                        start_ms=int(timestamp_ms) if timestamp_ms is not None else None,
+                        end_ms=int(timestamp_ms) if timestamp_ms is not None else None,
+                        thumbnail_uri=thumbnail_uri,
+                        score=_score_from_distance(distance),
+                        media_asset_id=media_asset_id,
+                        media_type=media_type,
+                        primary_evidence_id=str(evidence_id),
+                        source_type="keyframe" if timestamp_ms is not None else "image",
+                        evidence_refs=_evidence_refs_for("image", str(evidence_id)),
+                        embedding_model=os.getenv(
+                            "IMAGE_MODEL_NAME",
+                            "openai/clip-vit-base-patch32",
+                        ),
+                        embedding_backend=get_runtime_embedding_backend("image"),
+                        why_modality="vision_v1",
+                    )
+                    for (
+                        uri,
+                        media_type,
+                        media_asset_id,
+                        timestamp_ms,
+                        thumbnail_uri,
+                        evidence_id,
+                        distance,
+                    ) in image_rows
+                ]
             )
-            for (
-                uri,
-                media_type,
-                media_asset_id,
-                timestamp_ms,
-                thumbnail_uri,
-                evidence_id,
-                distance,
-            ) in image_rows
-        ]
+        if vector_v2 is not None:
+            if scope_clause:
+                image_scope_v2 = f"{scope_clause} AND i.vision_vector_v2 IS NOT NULL"
+            else:
+                image_scope_v2 = "WHERE i.vision_vector_v2 IS NOT NULL"
+            image_sql_v2 = f"""
+                SELECT m.uri, m.media_type, i.media_asset_id, i.timestamp_ms,
+                       {thumbnail_expr},
+                       {image_id_expr} AS evidence_id,
+                       (1.0 - list_cosine_similarity(
+                           i.vision_vector_v2, ?::FLOAT[]
+                       )) AS distance
+                FROM image_assets i
+                JOIN media_assets m ON i.media_asset_id = m.id
+                {image_scope_v2}
+                ORDER BY distance
+                LIMIT {int(top_k)}
+            """
+            image_v2_start = time.monotonic()
+            image_rows_v2 = _query_rows(conn, image_sql_v2, [vector_v2, *scope_params])
+            if trace is not None:
+                trace["vision_v2_query_ms"] = round(
+                    (time.monotonic() - image_v2_start) * 1000.0, 2
+                )
+                trace["vision_v2_rows"] = len(image_rows_v2)
+            _record_hitlist(
+                trace,
+                "vision_v2",
+                image_rows_v2,
+                uri_index=0,
+                distance_index=6,
+            )
+            results.extend(
+                [
+                    QueryResult(
+                        modality="image",
+                        uri=uri,
+                        snippet=None,
+                        start_ms=int(timestamp_ms) if timestamp_ms is not None else None,
+                        end_ms=int(timestamp_ms) if timestamp_ms is not None else None,
+                        thumbnail_uri=thumbnail_uri,
+                        score=_score_from_distance(distance),
+                        media_asset_id=media_asset_id,
+                        media_type=media_type,
+                        primary_evidence_id=str(evidence_id),
+                        source_type="keyframe" if timestamp_ms is not None else "image",
+                        evidence_refs=_evidence_refs_for("image", str(evidence_id)),
+                        embedding_model=_vision_v2_model_name(),
+                        embedding_backend=get_runtime_embedding_backend("vision_v2"),
+                        why_modality="vision_v2",
+                    )
+                    for (
+                        uri,
+                        media_type,
+                        media_asset_id,
+                        timestamp_ms,
+                        thumbnail_uri,
+                        evidence_id,
+                        distance,
+                    ) in image_rows_v2
+                ]
+            )
     finally:
         _release_conn(snapshot_path, conn)
+
+    if not results:
+        raise InferenceTimeoutError("image query produced no embeddings")
 
     results.sort(key=lambda item: item.score, reverse=True)
     return results[: int(top_k)]
@@ -1717,15 +1999,20 @@ def fuse_results(
         for idx, row in enumerate(rows, start=1):
             contribution = weight / float(k + idx)
             key = _result_key(row)
+            why_modality = row.why_modality or canonical
             existing = merged.get(key)
             detail = {
-                "modality": canonical,
+                "modality": why_modality,
                 "source": "vector",
                 "rank": idx,
                 "weight": round(weight, 6),
                 "contribution": round(contribution, 8),
                 "raw_score": round(float(row.score), 6),
             }
+            if row.embedding_model:
+                detail["model"] = row.embedding_model
+            if row.embedding_backend:
+                detail["backend"] = row.embedding_backend
             if existing is None:
                 item = replace(row)
                 item.score = contribution

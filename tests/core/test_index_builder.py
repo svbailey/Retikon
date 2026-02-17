@@ -223,10 +223,13 @@ def _write_image_run(output_root: str, paths: GraphPaths) -> None:
         "width_px": 640,
         "height_px": 480,
         "embedding_model": "stub",
+        "embedding_model_v2": "siglip2",
+        "embedding_backend_v2": "stub",
+        "embedding_artifact_v2": "stub:deterministic",
         "pipeline_version": "test",
         "schema_version": "1",
     }
-    image_vector = {"clip_vector": _vector(512, 2.0)}
+    image_vector = {"clip_vector": _vector(512, 2.0), "vision_vector_v2": _vector(768, 3.0)}
 
     files = []
     files.append(
@@ -442,6 +445,7 @@ def test_index_builder_creates_snapshot(tmp_path):
         "doc_chunks_text_vector": 768,
         "transcripts_text_embedding": 768,
         "image_assets_clip_vector": 512,
+        "image_assets_vision_vector_v2": 768,
         "audio_clips_clap_embedding": 512,
         "audio_segments_clap_embedding": 512,
     }
@@ -465,6 +469,7 @@ def test_index_builder_creates_snapshot(tmp_path):
     assert "doc_chunks_text_vector" in index_names
     assert "transcripts_text_embedding" in index_names
     assert "image_assets_clip_vector" in index_names
+    assert "image_assets_vision_vector_v2" in index_names
     assert "audio_clips_clap_embedding" in index_names
     assert "audio_segments_clap_embedding" in index_names
 

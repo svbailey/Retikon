@@ -16,6 +16,7 @@ from retikon_core.embeddings import (
     get_audio_embedder,
     get_embedding_artifact,
     get_image_embedder,
+    get_image_embedder_v2,
     get_runtime_embedding_backend,
     get_text_embedder,
 )
@@ -75,6 +76,9 @@ def _text_model() -> str:
 
 def _image_model() -> str:
     return os.getenv("IMAGE_MODEL_NAME", "openai/clip-vit-base-patch32")
+
+def _image_model_v2() -> str:
+    return os.getenv("VISION_V2_MODEL_NAME", "google/siglip2-base-patch16-224")
 
 
 def _audio_model() -> str:
@@ -195,6 +199,8 @@ def ingest_video(
     fps = _resolve_fps(config, probe.duration_seconds)
     image_embedding_backend = None
     image_embedding_artifact = None
+    image_embedding_backend_v2 = None
+    image_embedding_artifact_v2 = None
     audio_embedding_backend = None
     audio_embedding_artifact = None
     text_embedding_backend = None
@@ -202,6 +208,9 @@ def ingest_video(
     if config.embedding_metadata_enabled:
         image_embedding_backend = get_runtime_embedding_backend("image")
         image_embedding_artifact = get_embedding_artifact("image")
+        if config.vision_v2_enabled:
+            image_embedding_backend_v2 = get_runtime_embedding_backend("vision_v2")
+            image_embedding_artifact_v2 = get_embedding_artifact("vision_v2")
         audio_embedding_backend = get_runtime_embedding_backend("audio")
         audio_embedding_artifact = get_embedding_artifact("audio")
         text_embedding_backend = get_runtime_embedding_backend("text")
@@ -246,7 +255,8 @@ def ingest_video(
                 min_frames=config.video_scene_min_frames,
                 fallback_fps=fps,
             )
-        image_vectors = []
+        image_vectors: list[list[float]] = []
+        image_vectors_v2: list[list[float] | None] = []
         image_core_rows = []
         derived_edges = []
         next_keyframe_edges = []
@@ -254,6 +264,7 @@ def ingest_video(
         image_id_by_frame_index: dict[int, str] = {}
 
         embedder = get_image_embedder(512)
+        embedder_v2 = get_image_embedder_v2(768) if config.vision_v2_enabled else None
         batch_size = image_embed_batch_size()
         calls.set_context(
             "image_embed",
@@ -263,6 +274,15 @@ def ingest_video(
                 "max_dim": video_embed_max_dim(),
             },
         )
+        if embedder_v2 is not None:
+            calls.set_context(
+                "image_embed_v2",
+                {
+                    "batch_size": batch_size,
+                    "backend": get_runtime_embedding_backend("vision_v2"),
+                    "max_dim": video_embed_max_dim(),
+                },
+            )
 
         for batch_start in range(0, len(frame_infos), batch_size):
             batch_infos = frame_infos[batch_start : batch_start + batch_size]
@@ -288,14 +308,31 @@ def ingest_video(
                         lambda batch=batch: embedder.encode(batch),
                     ),
                 )
+            vectors_v2 = None
+            if embedder_v2 is not None:
+                try:
+                    with timer.track("image_embed_v2"):
+                        vectors_v2 = timed_call(
+                            calls,
+                            "image_embed_v2",
+                            lambda batch=batch_images: run_inference(
+                                "vision_v2",
+                                lambda batch=batch: embedder_v2.encode(batch),
+                            ),
+                        )
+                except InferenceTimeoutError:
+                    vectors_v2 = None
+                except Exception:
+                    vectors_v2 = None
+                if vectors_v2 is not None and len(vectors_v2) != len(batch_meta):
+                    vectors_v2 = None
             if len(vectors) != len(batch_meta):
                 raise PermanentError("Image embedding count mismatch")
 
-            for (idx, frame_info, width, height, thumb_source), vector in zip(
-                batch_meta,
-                vectors,
-                strict=False,
+            for pos, ((idx, frame_info, width, height, thumb_source), vector) in enumerate(
+                zip(batch_meta, vectors, strict=False)
             ):
+                vector_v2 = vectors_v2[pos] if vectors_v2 is not None else None
                 thumb_uri = None
                 if thumb_source is not None:
                     thumb_uri = _thumbnail_uri(output_root, media_asset_id, idx)
@@ -306,6 +343,7 @@ def ingest_video(
                             config.video_thumbnail_width,
                         )
                 image_vectors.append(vector)
+                image_vectors_v2.append(vector_v2)
                 image_id = str(uuid.uuid4())
                 image_ids.append(image_id)
                 image_id_by_frame_index[idx] = image_id
@@ -321,6 +359,15 @@ def ingest_video(
                         "embedding_model": _image_model(),
                         "embedding_backend": image_embedding_backend,
                         "embedding_artifact": image_embedding_artifact,
+                        "embedding_model_v2": _image_model_v2()
+                        if vector_v2 is not None
+                        else None,
+                        "embedding_backend_v2": image_embedding_backend_v2
+                        if vector_v2 is not None
+                        else None,
+                        "embedding_artifact_v2": image_embedding_artifact_v2
+                        if vector_v2 is not None
+                        else None,
                         **tenancy_fields(
                             org_id=source.org_id,
                             site_id=source.site_id,
@@ -703,7 +750,14 @@ def ingest_video(
                 )
                 files.append(
                     write_parquet(
-                        [{"clip_vector": vec} for vec in image_vectors],
+                        [
+                            {"clip_vector": vec, "vision_vector_v2": vec_v2}
+                            for vec, vec_v2 in zip(
+                                image_vectors,
+                                image_vectors_v2,
+                                strict=False,
+                            )
+                        ],
                         schema_for("ImageAsset", "vector"),
                         vertex_part_uri(
                             output_root, "ImageAsset", "vector", str(uuid.uuid4())
@@ -843,6 +897,7 @@ def ingest_video(
                 "probe": "decode_ms",
                 "extract_keyframes": "extract_frames_ms",
                 "image_embed": "embed_image_ms",
+                "image_embed_v2": "embed_image_ms",
                 "ocr": "decode_ms",
                 "ocr_text_embed": "embed_text_ms",
                 "write_thumbnail": "write_blobs_ms",
@@ -949,6 +1004,7 @@ def ingest_video(
                 "probe": "decode_ms",
                 "extract_keyframes": "extract_frames_ms",
                 "image_embed": "embed_image_ms",
+                "image_embed_v2": "embed_image_ms",
                 "ocr": "decode_ms",
                 "ocr_text_embed": "embed_text_ms",
                 "write_thumbnail": "write_blobs_ms",

@@ -1,0 +1,74 @@
+{
+  "all_passed": true,
+  "checks": [
+    {
+      "body": null,
+      "check": "basic_query_200",
+      "ok": true,
+      "status": 200
+    },
+    {
+      "body": null,
+      "check": "response_has_meta",
+      "ok": true,
+      "status": 200
+    },
+    {
+      "body": null,
+      "check": "next_page_token_present",
+      "ok": true,
+      "status": 200
+    },
+    {
+      "body": null,
+      "check": "grouping_present",
+      "ok": true,
+      "status": 200
+    },
+    {
+      "body": {
+        "error": {
+          "code": "UNSUPPORTED_MODE",
+          "details": [],
+          "message": "Unsupported mode: bogus"
+        }
+      },
+      "check": "typed_error_shape",
+      "ok": true,
+      "status": 400
+    },
+    {
+      "body": null,
+      "check": "image_query_200",
+      "ok": true,
+      "status": 200
+    },
+    {
+      "body": null,
+      "check": "image_grouping_present",
+      "ok": true,
+      "status": 200
+    },
+    {
+      "body": null,
+      "check": "image_query_has_video_moment",
+      "ok": true,
+      "status": 200
+    },
+    {
+      "body": null,
+      "check": "why_has_vision_v2",
+      "ok": true,
+      "status": 200
+    },
+    {
+      "body": null,
+      "check": "why_has_siglip2_model",
+      "ok": true,
+      "status": 200
+    }
+  ],
+  "passed": 10,
+  "query_url": "https://retikon-query-staging-yt27ougp4q-uc.a.run.app/query",
+  "total": 10
+}

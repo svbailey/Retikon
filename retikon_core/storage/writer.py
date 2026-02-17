@@ -49,6 +49,23 @@ def write_parquet(
     row_group_size: int | None = None,
 ) -> WriteResult:
     rows_list = rows if isinstance(rows, list) else list(rows)
+    # pyarrow can interpret missing fixed-size list fields as empty lists, which
+    # fails schema validation. Fill missing nullable fixed-size list fields with
+    # explicit nulls to keep additive schema changes safe.
+    nullable_fixed_lists = [
+        field.name
+        for field in schema
+        if field.nullable and pa.types.is_fixed_size_list(field.type)
+    ]
+    if rows_list and nullable_fixed_lists:
+        filled_rows = []
+        for row in rows_list:
+            updated = dict(row)
+            for name in nullable_fixed_lists:
+                if name not in updated:
+                    updated[name] = None
+            filled_rows.append(updated)
+        rows_list = filled_rows
     table = pa.Table.from_pylist(rows_list, schema=schema)
     with tempfile.NamedTemporaryFile(suffix=".parquet", delete=False) as tmp:
         tmp_path = tmp.name

@@ -1565,6 +1565,16 @@ def build_snapshot(
                                   union_by_name=true) AS c
                 """
             )
+            conn.execute(
+                f"""
+                CREATE TEMP TABLE image_asset_vector_raw AS
+                SELECT *
+                FROM read_parquet({_sql_list(vector_files)},
+                                  filename=true,
+                                  file_row_number=true,
+                                  union_by_name=true) AS v
+                """
+            )
             thumbnail_expr = (
                 "c.thumbnail_uri"
                 if _table_has_column(conn, "image_asset_core_raw", "thumbnail_uri")
@@ -1583,16 +1593,19 @@ def build_snapshot(
                   ON {_filename_basename_sql('c.filename')} = m.core
                 """
             )
+            vision_vector_expr = (
+                "v.vision_vector_v2"
+                if _table_has_column(conn, "image_asset_vector_raw", "vision_vector_v2")
+                else "NULL AS vision_vector_v2"
+            )
             conn.execute(
                 f"""
                 CREATE TEMP VIEW image_asset_vector AS
                 SELECT m.group_id,
                        v.file_row_number AS row_number,
-                       v.clip_vector
-                FROM read_parquet({_sql_list(vector_files)},
-                                  filename=true,
-                                  file_row_number=true,
-                                  union_by_name=true) AS v
+                       v.clip_vector,
+                       {vision_vector_expr}
+                FROM image_asset_vector_raw AS v
                 JOIN image_asset_map m
                   ON {_filename_basename_sql('v.filename')} = m.vector
                 """
@@ -1605,7 +1618,8 @@ def build_snapshot(
                 SELECT core.media_asset_id,
                        core.timestamp_ms,
                        core.thumbnail_uri,
-                       CAST(vector.clip_vector AS FLOAT[512]) AS clip_vector
+                       CAST(vector.clip_vector AS FLOAT[512]) AS clip_vector,
+                       CAST(vector.vision_vector_v2 AS FLOAT[768]) AS vision_vector_v2
                 FROM image_asset_core AS core
                 JOIN image_asset_vector AS vector
                   ON core.group_id = vector.group_id
@@ -1616,7 +1630,8 @@ def build_snapshot(
                   media_asset_id VARCHAR,
                   timestamp_ms BIGINT,
                   thumbnail_uri VARCHAR,
-                  clip_vector FLOAT[512]
+                  clip_vector FLOAT[512],
+                  vision_vector_v2 FLOAT[768]
                 )
                 """
         if incremental_mode:
@@ -1880,6 +1895,7 @@ def build_snapshot(
             ("doc_chunks_text_vector", "doc_chunks", "text_vector", 768),
             ("transcripts_text_embedding", "transcripts", "text_embedding", 768),
             ("image_assets_clip_vector", "image_assets", "clip_vector", 512),
+            ("image_assets_vision_vector_v2", "image_assets", "vision_vector_v2", 768),
             ("audio_clips_clap_embedding", "audio_clips", "clap_embedding", 512),
             ("audio_segments_clap_embedding", "audio_segments", "clap_embedding", 512),
         ]
@@ -1901,6 +1917,26 @@ def build_snapshot(
             )
 
         for index_name, table, column, dim in index_specs:
+            try:
+                non_null_rows = int(
+                    conn.execute(
+                        f"SELECT COUNT(*) FROM {table} WHERE {column} IS NOT NULL"
+                    ).fetchone()[0]
+                )
+            except Exception:
+                non_null_rows = 0
+            if non_null_rows <= 0:
+                indexes[index_name] = {
+                    "table": table,
+                    "column": column,
+                    "dim": dim,
+                    "ef_construction": hnsw_ef_value,
+                    "m": hnsw_m_value,
+                    "size_bytes": 0,
+                    "build_seconds": 0.0,
+                    "status": "skipped_empty",
+                }
+                continue
             index_start = time.monotonic()
             conn.execute(
                 f"CREATE INDEX {index_name} ON {table} USING HNSW ({column})"

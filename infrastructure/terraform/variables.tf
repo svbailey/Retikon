@@ -541,7 +541,7 @@ variable "query_warmup_text" {
 
 variable "query_warmup_steps" {
   type    = string
-  default = "text,image_text,audio_text,image,rerank"
+  default = "text,image_text,audio_text,image,vision_v2_text,vision_v2_image,rerank"
 }
 
 variable "query_trace_hitlists" {
@@ -1911,6 +1911,26 @@ variable "text_model_name" {
 variable "image_model_name" {
   type    = string
   default = "openai/clip-vit-base-patch32"
+}
+
+variable "vision_v2_enabled" {
+  type    = bool
+  default = true
+}
+
+variable "vision_v2_model_name" {
+  type    = string
+  default = "google/siglip2-base-patch16-224"
+}
+
+variable "vision_v2_embed_backend" {
+  type    = string
+  default = "hf"
+}
+
+variable "vision_v2_timeout_s" {
+  type    = number
+  default = 2.0
 }
 
 variable "audio_model_name" {

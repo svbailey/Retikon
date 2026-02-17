@@ -82,7 +82,7 @@ class QueryServiceConfig:
                 step.strip().lower()
                 for step in os.getenv(
                     "QUERY_WARMUP_STEPS",
-                    "text,image_text,audio_text,image,rerank",
+                    "text,image_text,audio_text,image,vision_v2_text,vision_v2_image,rerank",
                 ).split(",")
                 if step.strip()
             },

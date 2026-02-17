@@ -44,6 +44,9 @@ def test_vector_lengths():
     image_core = schema_for("ImageAsset", "core")
     assert "embedding_backend" in image_core.names
     assert "embedding_artifact" in image_core.names
+    assert "embedding_model_v2" in image_core.names
+    assert "embedding_backend_v2" in image_core.names
+    assert "embedding_artifact_v2" in image_core.names
 
     audio_core = schema_for("AudioClip", "core")
     assert "embedding_backend" in audio_core.names
@@ -55,6 +58,8 @@ def test_vector_lengths():
 
     clip_vector = schema_for("ImageAsset", "vector").field("clip_vector")
     assert clip_vector.type.list_size == 512
+    vision_vector = schema_for("ImageAsset", "vector").field("vision_vector_v2")
+    assert pa.types.is_list(vision_vector.type)
 
     clap_vector = schema_for("AudioClip", "vector").field("clap_embedding")
     assert clap_vector.type.list_size == 512

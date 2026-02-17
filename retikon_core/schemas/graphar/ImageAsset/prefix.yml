@@ -46,6 +46,15 @@ fields:
   - name: embedding_artifact
     type: string
     nullable: true
+  - name: embedding_model_v2
+    type: string
+    nullable: true
+  - name: embedding_backend_v2
+    type: string
+    nullable: true
+  - name: embedding_artifact_v2
+    type: string
+    nullable: true
   - name: pipeline_version
     type: string
     nullable: false
@@ -56,4 +65,9 @@ fields:
     type: list<float32>
     vector_length: 512
     nullable: false
+    file: vector
+  - name: vision_vector_v2
+    type: list<float32>
+    vector_length: 768
+    nullable: true
     file: vector

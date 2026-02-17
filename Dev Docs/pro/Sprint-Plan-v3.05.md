@@ -420,6 +420,11 @@ Acceptance
 - Image query returns keyframe moments with stable grouping/pagination.
 - `why[]` indicates model contribution (`vision_v1|vision_v2`).
 
+Sprint 4 acceptance evidence (2026-02-17)
+- Staging env audit: `tests/fixtures/eval/sprint4-staging-env-audit-20260217-191602.json`.
+- Staging API smoke: `tests/fixtures/eval/sprint4-staging-api-smoke-20260217-191656.json`.
+- Staging eval: `tests/fixtures/eval/results-sprint4-staging-20260217-191730.json`.
+
 ## Sprint 5: Text Encoder v2 + Embed API v1 (Parity P2 Begins)
 
 Goal: Improve text retrieval and expose first-class embedding APIs.
